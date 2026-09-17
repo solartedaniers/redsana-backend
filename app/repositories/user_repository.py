@@ -1,0 +1,14 @@
+import uuid
+from abc import ABC, abstractmethod
+
+from app.models.user import User
+
+
+class UserRepository(ABC):
+    """Contrato de acceso a datos para usuarios, independiente de la implementacion concreta."""
+
+    @abstractmethod
+    def get_by_id(self, user_id: uuid.UUID) -> User | None: ...
+
+    @abstractmethod
+    def create(self, user_id: uuid.UUID, email: str, full_name: str | None, role_name: str) -> User: ...
