@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.routers import devices, me, network_metrics
+from app.routers import alerts, devices, me, network_metrics
 
 settings = get_settings()
 
@@ -19,3 +19,4 @@ app.add_middleware(
 app.include_router(me.router)
 app.include_router(devices.router)
 app.include_router(network_metrics.router)
+app.include_router(alerts.router)
