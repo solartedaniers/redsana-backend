@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     jwks_cache_ttl_seconds: int = 3600
     cors_origins: str = ""
     network_metrics_default_history_hours: int = 24
+    supabase_service_role_key: str
 
     @property
     def supabase_jwks_url(self) -> str:

@@ -1,13 +1,11 @@
 import uuid
 from datetime import datetime, timezone
-from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.core.authorization import require_admin
+from app.core.authorization import ADMIN_ROLE_NAME, get_current_user, require_admin
 from app.core.database import get_db
-from app.core.security import get_current_claims
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
 from app.models.user import User
 from app.repositories.network_metrics_sqlalchemy_repository import SqlAlchemyNetworkMetricsRepository
@@ -17,8 +15,14 @@ from app.services.network_metrics_service import NetworkMetricsService
 router = APIRouter(prefix="/api/network-metrics", tags=["network-metrics"])
 
 
-def _owner_id(claims: dict[str, Any]) -> uuid.UUID:
-    return uuid.UUID(claims["sub"])
+def _resolve_target_owner_id(user: User, requested_user_id: uuid.UUID | None) -> uuid.UUID:
+    """Un admin puede consultar la red de otro usuario (supervision); cualquier
+    otro caso queda scopeado al propio usuario autenticado."""
+    if requested_user_id is None or requested_user_id == user.id:
+        return user.id
+    if user.role.name != ADMIN_ROLE_NAME:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+    return requested_user_id
 
 
 def _to_snapshot_read(snapshot: NetworkMetricSnapshot) -> NetworkMetricSnapshotRead:
@@ -45,11 +49,12 @@ def _default_snapshot_read() -> NetworkMetricSnapshotRead:
 
 @router.get("/latest", response_model=NetworkMetricSnapshotRead)
 def get_latest_snapshot(
-    claims: dict[str, Any] = Depends(get_current_claims),
+    user_id: uuid.UUID | None = Query(None),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> NetworkMetricSnapshotRead:
     service = NetworkMetricsService(SqlAlchemyNetworkMetricsRepository(db))
-    snapshot = service.get_latest_snapshot(_owner_id(claims))
+    snapshot = service.get_latest_snapshot(_resolve_target_owner_id(user, user_id))
     return _to_snapshot_read(snapshot) if snapshot is not None else _default_snapshot_read()
 
 
@@ -57,11 +62,12 @@ def get_latest_snapshot(
 def get_history(
     from_: datetime | None = Query(None, alias="from"),
     to: datetime | None = Query(None),
-    claims: dict[str, Any] = Depends(get_current_claims),
+    user_id: uuid.UUID | None = Query(None),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[NetworkMetricSampleRead]:
     service = NetworkMetricsService(SqlAlchemyNetworkMetricsRepository(db))
-    snapshots = service.get_history(_owner_id(claims), from_, to)
+    snapshots = service.get_history(_resolve_target_owner_id(user, user_id), from_, to)
     return [NetworkMetricSampleRead(timestamp=s.recorded_at, latency_ms=s.latency_ms) for s in snapshots]
 
 

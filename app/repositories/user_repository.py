@@ -16,3 +16,9 @@ class UserRepository(ABC):
 
     @abstractmethod
     def update(self, user_id: uuid.UUID, updates: dict[str, Any]) -> User: ...
+
+    @abstractmethod
+    def list_all(self) -> list[User]: ...
+
+    @abstractmethod
+    def delete(self, user_id: uuid.UUID) -> None: ...

@@ -16,7 +16,9 @@ class NetworkMetricSnapshot(Base):
     __table_args__ = (Index("ix_network_metric_snapshots_owner_recorded", "owner_id", "recorded_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     recorded_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
     latency_ms: Mapped[float] = mapped_column(Float, nullable=False)
     jitter_ms: Mapped[float] = mapped_column(Float, nullable=False)

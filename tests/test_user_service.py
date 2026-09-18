@@ -1,5 +1,6 @@
 """Chequeo minimo sin DB/red: valida el auto-provisioning contra un repositorio en memoria."""
 import uuid
+from datetime import datetime, timezone
 
 from app.models.role import Role
 from app.models.user import User
@@ -16,15 +17,35 @@ class FakeUserRepository(UserRepository):
         return self.users.get(user_id)
 
     def create(self, user_id: uuid.UUID, email: str, full_name: str | None, role_name: str) -> User:
-        user = User(id=user_id, email=email, full_name=full_name, role=Role(id=1, name=role_name))
+        user = User(
+            id=user_id,
+            email=email,
+            full_name=full_name,
+            is_active=True,
+            created_at=datetime.now(timezone.utc),
+            role=Role(id=1, name=role_name),
+        )
         self.users[user_id] = user
         return user
 
     def update(self, user_id: uuid.UUID, updates: dict) -> User:
-        user = self.users[user_id]
+        user = self.users.get(user_id)
+        if user is None:
+            raise ValueError(f"User '{user_id}' does not exist")
         for field, value in updates.items():
-            setattr(user, field, value)
+            if field == "role_name":
+                user.role = Role(id=user.role.id, name=value)
+            else:
+                setattr(user, field, value)
         return user
+
+    def list_all(self) -> list[User]:
+        return list(self.users.values())
+
+    def delete(self, user_id: uuid.UUID) -> None:
+        if user_id not in self.users:
+            raise ValueError(f"User '{user_id}' does not exist")
+        del self.users[user_id]
 
 
 def test_first_login_auto_provisions_user_with_default_role() -> None:

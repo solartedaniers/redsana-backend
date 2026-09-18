@@ -16,7 +16,9 @@ class Alert(Base):
     __table_args__ = (Index("ix_alerts_owner_created", "owner_id", "created_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     type: Mapped[str] = mapped_column(Enum(*ALERT_TYPE_VALUES, name="alert_type"), nullable=False)
     severity: Mapped[str] = mapped_column(Enum(*ALERT_SEVERITY_VALUES, name="alert_severity"), nullable=False)
     message_key: Mapped[str] = mapped_column(String(255), nullable=False)
