@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.routers import me
+from app.routers import devices, me
 
 settings = get_settings()
 
@@ -17,3 +17,4 @@ app.add_middleware(
 )
 
 app.include_router(me.router)
+app.include_router(devices.router)
