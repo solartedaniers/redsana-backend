@@ -54,10 +54,10 @@ def test_record_snapshot_computes_status_from_metrics() -> None:
     owner_id = uuid.uuid4()
 
     good = service.record_snapshot(
-        NetworkMetricSnapshotCreate(owner_id=owner_id, latency_ms=20, jitter_ms=2, packet_loss_percent=0)
+        owner_id, NetworkMetricSnapshotCreate(latency_ms=20, jitter_ms=2, packet_loss_percent=0)
     )
     critical = service.record_snapshot(
-        NetworkMetricSnapshotCreate(owner_id=owner_id, latency_ms=200, jitter_ms=10, packet_loss_percent=0)
+        owner_id, NetworkMetricSnapshotCreate(latency_ms=200, jitter_ms=10, packet_loss_percent=0)
     )
 
     assert good.status == "good"

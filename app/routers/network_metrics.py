@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.core.authorization import ADMIN_ROLE_NAME, get_current_user, require_admin
+from app.core.authorization import ADMIN_ROLE_NAME, get_current_user
 from app.core.database import get_db
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
 from app.models.user import User
@@ -74,11 +74,13 @@ def get_history(
 @router.post("", response_model=NetworkMetricSnapshotRead, status_code=201)
 def record_snapshot(
     payload: NetworkMetricSnapshotCreate,
-    _admin: User = Depends(require_admin),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> NetworkMetricSnapshotRead:
-    """Endpoint admin para insertar snapshots de prueba, mientras no exista un
-    proceso real de medicion (llegara con el modulo de IA)."""
+    """Registra un snapshot real: el usuario autenticado inserta el suyo; un
+    admin puede insertar a nombre de otro usuario (mismo override que /latest
+    y /history)."""
+    owner_id = _resolve_target_owner_id(user, payload.owner_id)
     service = NetworkMetricsService(SqlAlchemyNetworkMetricsRepository(db))
-    snapshot = service.record_snapshot(payload)
+    snapshot = service.record_snapshot(owner_id, payload)
     return _to_snapshot_read(snapshot)

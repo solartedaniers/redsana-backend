@@ -23,10 +23,10 @@ class NetworkMetricsService:
         range_start = start or (range_end - timedelta(hours=default_hours))
         return self._repository.list_in_range(owner_id, range_start, range_end)
 
-    def record_snapshot(self, payload: NetworkMetricSnapshotCreate) -> NetworkMetricSnapshot:
+    def record_snapshot(self, owner_id: uuid.UUID, payload: NetworkMetricSnapshotCreate) -> NetworkMetricSnapshot:
         status = compute_network_status(payload.latency_ms, payload.packet_loss_percent)
         return self._repository.create(
-            owner_id=payload.owner_id,
+            owner_id=owner_id,
             latency_ms=payload.latency_ms,
             jitter_ms=payload.jitter_ms,
             packet_loss_percent=payload.packet_loss_percent,

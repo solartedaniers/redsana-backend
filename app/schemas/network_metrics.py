@@ -20,9 +20,11 @@ class NetworkMetricSampleRead(BaseModel):
 
 
 class NetworkMetricSnapshotCreate(BaseModel):
-    """Payload del endpoint admin para insertar un snapshot de prueba manualmente."""
+    """Payload para registrar un snapshot real. owner_id es opcional: si se omite,
+    el snapshot queda a nombre del usuario autenticado; solo un admin puede pasar
+    el owner_id de otro usuario (mismo override que /latest y /history)."""
 
-    owner_id: uuid.UUID
+    owner_id: uuid.UUID | None = None
     latency_ms: float
     jitter_ms: float
     packet_loss_percent: float
