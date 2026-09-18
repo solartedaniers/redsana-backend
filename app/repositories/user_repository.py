@@ -1,5 +1,6 @@
 import uuid
 from abc import ABC, abstractmethod
+from typing import Any
 
 from app.models.user import User
 
@@ -12,3 +13,6 @@ class UserRepository(ABC):
 
     @abstractmethod
     def create(self, user_id: uuid.UUID, email: str, full_name: str | None, role_name: str) -> User: ...
+
+    @abstractmethod
+    def update(self, user_id: uuid.UUID, updates: dict[str, Any]) -> User: ...

@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -21,6 +22,18 @@ class SqlAlchemyUserRepository(UserRepository):
 
         user = User(id=user_id, email=email, full_name=full_name, role_id=role.id)
         self._db.add(user)
+        self._db.commit()
+        self._db.refresh(user)
+        return user
+
+    def update(self, user_id: uuid.UUID, updates: dict[str, Any]) -> User:
+        user = self._db.get(User, user_id)
+        if user is None:
+            raise ValueError(f"User '{user_id}' does not exist")
+
+        for field, value in updates.items():
+            setattr(user, field, value)
+
         self._db.commit()
         self._db.refresh(user)
         return user

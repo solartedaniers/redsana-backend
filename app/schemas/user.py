@@ -9,3 +9,9 @@ class UserRead(BaseModel):
     full_name: str | None
     role: str
     is_active: bool
+
+
+class UserUpdate(BaseModel):
+    # exclude_unset en el service distingue "no enviado" de "enviado como null"
+    full_name: str | None = None
+    email: str | None = None

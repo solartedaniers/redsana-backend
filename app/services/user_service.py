@@ -3,6 +3,7 @@ from typing import Any
 
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
+from app.schemas.user import UserUpdate
 
 DEFAULT_ROLE_NAME = "standard"
 
@@ -28,3 +29,10 @@ class UserService:
             full_name=claims.get("user_metadata", {}).get("full_name"),
             role_name=DEFAULT_ROLE_NAME,
         )
+
+    def update_current_user(self, claims: dict[str, Any], payload: UserUpdate) -> User:
+        user_id = uuid.UUID(claims["sub"])
+        updates = payload.model_dump(exclude_unset=True)
+        if not updates:
+            return self.get_or_create_current_user(claims)
+        return self._repository.update(user_id, updates)

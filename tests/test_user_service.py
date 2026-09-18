@@ -4,6 +4,7 @@ import uuid
 from app.models.role import Role
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
+from app.schemas.user import UserUpdate
 from app.services.user_service import UserService
 
 
@@ -17,6 +18,12 @@ class FakeUserRepository(UserRepository):
     def create(self, user_id: uuid.UUID, email: str, full_name: str | None, role_name: str) -> User:
         user = User(id=user_id, email=email, full_name=full_name, role=Role(id=1, name=role_name))
         self.users[user_id] = user
+        return user
+
+    def update(self, user_id: uuid.UUID, updates: dict) -> User:
+        user = self.users[user_id]
+        for field, value in updates.items():
+            setattr(user, field, value)
         return user
 
 
@@ -47,7 +54,21 @@ def test_existing_user_is_returned_without_creating_again() -> None:
     assert len(repository.users) == 1
 
 
+def test_update_current_user_only_changes_sent_fields() -> None:
+    repository = FakeUserRepository()
+    service = UserService(repository)
+    sub = str(uuid.uuid4())
+    claims = {"sub": sub, "email": "existing@redsana.dev"}
+    service.get_or_create_current_user(claims)
+
+    updated = service.update_current_user(claims, UserUpdate(full_name="Nuevo Nombre"))
+
+    assert updated.full_name == "Nuevo Nombre"
+    assert updated.email == "existing@redsana.dev"
+
+
 if __name__ == "__main__":
     test_first_login_auto_provisions_user_with_default_role()
     test_existing_user_is_returned_without_creating_again()
+    test_update_current_user_only_changes_sent_fields()
     print("OK")
