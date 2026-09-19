@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Enum, Float, ForeignKey, Index, func
+from sqlalchemy import DateTime, Enum, Float, ForeignKey, Index, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,7 +19,9 @@ class NetworkMetricSnapshot(Base):
     owner_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    recorded_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    # timezone=True: se guarda con offset UTC explícito, para que el frontend
+    # pueda convertir correctamente a la hora local del usuario.
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     latency_ms: Mapped[float] = mapped_column(Float, nullable=False)
     jitter_ms: Mapped[float] = mapped_column(Float, nullable=False)
     packet_loss_percent: Mapped[float] = mapped_column(Float, nullable=False)

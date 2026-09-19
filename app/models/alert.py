@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, Enum, ForeignKey, Index, String, func
+from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, Index, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,5 +23,7 @@ class Alert(Base):
     severity: Mapped[str] = mapped_column(Enum(*ALERT_SEVERITY_VALUES, name="alert_severity"), nullable=False)
     message_key: Mapped[str] = mapped_column(String(255), nullable=False)
     message_params: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    # timezone=True: se guarda con offset UTC explícito, para que el frontend
+    # pueda convertir correctamente a la hora local del usuario.
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     acknowledged: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
