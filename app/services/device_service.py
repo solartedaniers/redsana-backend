@@ -1,8 +1,13 @@
 import uuid
+from datetime import datetime, timezone
 
 from app.models.device import Device
 from app.repositories.device_repository import DeviceRepository
-from app.schemas.device import DeviceCreate, DeviceUpdate
+from app.schemas.device import DeviceCreate, DeviceSyncItem, DeviceUpdate
+
+# Un dispositivo recién descubierto no tiene nombre real (el escaneo ARP no lo
+# provee); se deja vacío en vez de inventar uno, y el frontend decide cómo mostrarlo.
+DISCOVERED_DEVICE_NAME = ""
 
 
 class DeviceNotFoundError(Exception):
@@ -34,7 +39,26 @@ class DeviceService:
             raise DeviceNotFoundError(f"Device '{device_id}' does not exist")
         return device
 
-    def scan_for_untrusted_devices(self, owner_id: uuid.UUID) -> list[Device]:
-        """No hay acceso real a la red desde este backend: el "escaneo" reporta
-        los dispositivos ya registrados que no son de confianza."""
-        return [device for device in self._repository.list_by_owner(owner_id) if device.trust != "trusted"]
+    def sync_discovered_devices(self, owner_id: uuid.UUID, discovered: list[DeviceSyncItem]) -> list[Device]:
+        """Alta/actualización a partir de un escaneo real (Tauri + ARP): crea los
+        dispositivos nuevos con confianza "unknown" y actualiza ip/last_seen de los
+        ya existentes (identificados por MAC). No borra nada: un dispositivo que
+        deja de aparecer en el escaneo simplemente deja de estar "online" (ver
+        app.domain.device_presence), pero conserva su historial."""
+        sync_time = datetime.now(timezone.utc)
+        for item in discovered:
+            existing = self._repository.get_by_mac(owner_id, item.mac_address)
+            if existing is None:
+                self._repository.create(
+                    owner_id=owner_id,
+                    name=DISCOVERED_DEVICE_NAME,
+                    mac_address=item.mac_address,
+                    ip_address=item.ip_address,
+                    trust="unknown",
+                    last_seen=sync_time,
+                )
+            else:
+                self._repository.update(
+                    existing.id, owner_id, {"ip_address": item.ip_address, "last_seen": sync_time}
+                )
+        return self._repository.list_by_owner(owner_id)
