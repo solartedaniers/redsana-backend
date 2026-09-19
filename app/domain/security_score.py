@@ -20,12 +20,13 @@ def compute_security_score(
     unacknowledged_alert_count: int,
     network_status: NetworkStatus,
 ) -> int:
-    """Proxy temporal del puntaje de seguridad por hogar para el panel de admin,
-    mientras security-assistant (cuestionario) no persista evaluaciones reales
-    en el backend -- hoy vive solo en el frontend, mockeado. Combina señales
-    que si son reales hoy: confianza de dispositivos, alertas sin reconocer y
-    el estado de red ya calculado. Reemplazar por el score real de
-    security-assistant cuando ese dominio tenga persistencia propia.
+    """Proxy del puntaje de seguridad por hogar para el panel de admin: combina
+    señales que ya son reales hoy (confianza de dispositivos, alertas sin
+    reconocer, estado de red), pero no es el score real que ve el usuario en
+    security-assistant (ese cuestionario ya persiste su propia evaluación en
+    security_assessments; nadie unió ambos dominios todavía). Evaluar si el
+    panel de admin debería consultar security_assessment_repository en vez de
+    -o junto con- este proxy.
     """
     device_points = (
         MAX_DEVICE_TRUST_POINTS

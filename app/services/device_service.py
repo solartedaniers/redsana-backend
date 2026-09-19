@@ -46,8 +46,12 @@ class DeviceService:
         deja de aparecer en el escaneo simplemente deja de estar "online" (ver
         app.domain.device_presence), pero conserva su historial."""
         sync_time = datetime.now(timezone.utc)
+        # Un solo SELECT para todos los dispositivos del owner en vez de un
+        # get_by_mac por cada item escaneado (era N+1: un escaneo de 20
+        # dispositivos hacia 20 consultas individuales antes de esto).
+        existing_by_mac = {device.mac_address: device for device in self._repository.list_by_owner(owner_id)}
         for item in discovered:
-            existing = self._repository.get_by_mac(owner_id, item.mac_address)
+            existing = existing_by_mac.get(item.mac_address)
             if existing is None:
                 self._repository.create(
                     owner_id=owner_id,
