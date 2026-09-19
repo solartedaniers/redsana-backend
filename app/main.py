@@ -11,6 +11,7 @@ from app.routers import (
     me,
     network_metrics,
     security_assessments,
+    security_chat,
 )
 
 settings = get_settings()
@@ -33,3 +34,4 @@ app.include_router(admin_households.router)
 app.include_router(admin_users.router)
 app.include_router(security_assessments.router)
 app.include_router(admin_metrics.router)
+app.include_router(security_chat.router)

@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     cors_origins: str = ""
     network_metrics_default_history_hours: int = 24
     supabase_service_role_key: str
+    groq_api_key: str
+    groq_model: str = "openai/gpt-oss-120b"
 
     @property
     def supabase_jwks_url(self) -> str:
