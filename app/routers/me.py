@@ -18,6 +18,7 @@ def _to_user_read(user: User) -> UserRead:
         id=user.id,
         email=user.email,
         full_name=user.full_name,
+        avatar_url=user.avatar_url,
         role=user.role.name,
         is_active=user.is_active,
     )
