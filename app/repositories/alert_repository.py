@@ -12,6 +12,12 @@ class AlertRepository(ABC):
     def list_all(self, owner_id: uuid.UUID) -> list[Alert]: ...
 
     @abstractmethod
+    def count_unacknowledged_all(self) -> int:
+        """Total de alertas sin reconocer en toda la plataforma (todos los owners),
+        para métricas de admin; a diferencia del resto de métodos, no scopea por owner."""
+        ...
+
+    @abstractmethod
     def list_new_since(self, owner_id: uuid.UUID, since: datetime) -> list[Alert]: ...
 
     @abstractmethod

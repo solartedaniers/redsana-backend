@@ -19,6 +19,13 @@ class AdminHouseholdRead(BaseModel):
     last_activity: datetime
 
 
+class AdminPlatformMetricsRead(BaseModel):
+    total_users: int
+    monitored_households: int
+    active_alerts: int
+    average_security_score: int
+
+
 class AdminUserRead(BaseModel):
     id: uuid.UUID
     full_name: str | None

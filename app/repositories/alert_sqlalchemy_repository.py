@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.alert import Alert
@@ -17,6 +17,10 @@ class SqlAlchemyAlertRepository(AlertRepository):
             select(Alert).where(Alert.owner_id == owner_id).order_by(Alert.created_at.desc())
         )
         return list(self._db.scalars(stmt).all())
+
+    def count_unacknowledged_all(self) -> int:
+        stmt = select(func.count()).select_from(Alert).where(Alert.acknowledged.is_(False))
+        return self._db.scalar(stmt) or 0
 
     def list_new_since(self, owner_id: uuid.UUID, since: datetime) -> list[Alert]:
         stmt = (

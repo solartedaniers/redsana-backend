@@ -20,6 +20,9 @@ class FakeAlertRepository(AlertRepository):
         owned = [a for a in self.alerts.values() if a.owner_id == owner_id and a.created_at > since]
         return sorted(owned, key=lambda a: a.created_at)
 
+    def count_unacknowledged_all(self) -> int:
+        return sum(1 for a in self.alerts.values() if not a.acknowledged)
+
     def get_by_id(self, alert_id: uuid.UUID, owner_id: uuid.UUID) -> Alert | None:
         alert = self.alerts.get(alert_id)
         return alert if alert and alert.owner_id == owner_id else None
