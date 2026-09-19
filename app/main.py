@@ -7,11 +7,11 @@ from app.routers import (
     admin_metrics,
     admin_users,
     alerts,
+    chat_conversations,
     devices,
     me,
     network_metrics,
     security_assessments,
-    security_chat,
 )
 
 settings = get_settings()
@@ -34,4 +34,4 @@ app.include_router(admin_households.router)
 app.include_router(admin_users.router)
 app.include_router(security_assessments.router)
 app.include_router(admin_metrics.router)
-app.include_router(security_chat.router)
+app.include_router(chat_conversations.router)
