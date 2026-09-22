@@ -24,6 +24,12 @@ class AlertRepository(ABC):
     def get_by_id(self, alert_id: uuid.UUID, owner_id: uuid.UUID) -> Alert | None: ...
 
     @abstractmethod
+    def get_latest_unacknowledged(self, owner_id: uuid.UUID, type_: str) -> Alert | None:
+        """Para deduplicar alertas generadas automáticamente: si ya hay una sin
+        reconocer del mismo tipo, no tiene sentido crear otra."""
+        ...
+
+    @abstractmethod
     def acknowledge(self, alert_id: uuid.UUID, owner_id: uuid.UUID) -> Alert | None: ...
 
     @abstractmethod

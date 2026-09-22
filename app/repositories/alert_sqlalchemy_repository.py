@@ -34,6 +34,15 @@ class SqlAlchemyAlertRepository(AlertRepository):
         stmt = select(Alert).where(Alert.id == alert_id, Alert.owner_id == owner_id)
         return self._db.scalars(stmt).first()
 
+    def get_latest_unacknowledged(self, owner_id: uuid.UUID, type_: str) -> Alert | None:
+        stmt = (
+            select(Alert)
+            .where(Alert.owner_id == owner_id, Alert.type == type_, Alert.acknowledged.is_(False))
+            .order_by(Alert.created_at.desc())
+            .limit(1)
+        )
+        return self._db.scalars(stmt).first()
+
     def acknowledge(self, alert_id: uuid.UUID, owner_id: uuid.UUID) -> Alert | None:
         alert = self.get_by_id(alert_id, owner_id)
         if alert is None:

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
@@ -32,6 +32,21 @@ class SqlAlchemyNetworkMetricsRepository(NetworkMetricsRepository):
             .order_by(NetworkMetricSnapshot.recorded_at.asc())
         )
         return list(self._db.scalars(stmt).all())
+
+    def list_latest(self, owner_id: uuid.UUID, limit: int) -> list[NetworkMetricSnapshot]:
+        stmt = (
+            select(NetworkMetricSnapshot)
+            .where(NetworkMetricSnapshot.owner_id == owner_id)
+            .order_by(NetworkMetricSnapshot.recorded_at.desc())
+            .limit(limit)
+        )
+        return list(self._db.scalars(stmt).all())
+
+    def count_by_owner(self, owner_id: uuid.UUID) -> int:
+        stmt = select(func.count()).select_from(NetworkMetricSnapshot).where(
+            NetworkMetricSnapshot.owner_id == owner_id
+        )
+        return self._db.scalar(stmt) or 0
 
     def create(
         self,

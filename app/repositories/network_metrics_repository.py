@@ -15,6 +15,14 @@ class NetworkMetricsRepository(ABC):
     def list_in_range(self, owner_id: uuid.UUID, start: datetime, end: datetime) -> list[NetworkMetricSnapshot]: ...
 
     @abstractmethod
+    def list_latest(self, owner_id: uuid.UUID, limit: int) -> list[NetworkMetricSnapshot]:
+        """Las `limit` muestras más recientes, más nueva primero."""
+        ...
+
+    @abstractmethod
+    def count_by_owner(self, owner_id: uuid.UUID) -> int: ...
+
+    @abstractmethod
     def create(
         self,
         owner_id: uuid.UUID,

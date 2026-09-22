@@ -111,5 +111,17 @@ def test_post_without_token_is_unauthorized(client_without_claims_override: Test
     assert response.status_code == 401
 
 
+def test_anomaly_status_is_calibrating_with_little_history(client: TestClient) -> None:
+    client.post("/api/network-metrics", json=SNAPSHOT_PAYLOAD, headers={"Authorization": "Bearer fake"})
+
+    response = client.get("/api/network-metrics/anomaly-status", headers={"Authorization": "Bearer fake"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "calibrating"
+    assert body["samples_collected"] == 1
+    assert body["samples_required"] > 1
+
+
 if __name__ == "__main__":
     print("Run via pytest: python -m pytest tests/test_network_metrics_router.py")

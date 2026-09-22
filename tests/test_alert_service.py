@@ -27,6 +27,12 @@ class FakeAlertRepository(AlertRepository):
         alert = self.alerts.get(alert_id)
         return alert if alert and alert.owner_id == owner_id else None
 
+    def get_latest_unacknowledged(self, owner_id: uuid.UUID, type_: str) -> Alert | None:
+        candidates = [
+            a for a in self.alerts.values() if a.owner_id == owner_id and a.type == type_ and not a.acknowledged
+        ]
+        return max(candidates, key=lambda a: a.created_at) if candidates else None
+
     def acknowledge(self, alert_id: uuid.UUID, owner_id: uuid.UUID) -> Alert | None:
         alert = self.get_by_id(alert_id, owner_id)
         if alert is None:

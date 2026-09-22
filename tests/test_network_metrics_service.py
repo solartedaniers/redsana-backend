@@ -22,6 +22,13 @@ class FakeNetworkMetricsRepository(NetworkMetricsRepository):
         self.last_range = (start, end)
         return [s for s in self.snapshots if s.owner_id == owner_id and start <= s.recorded_at <= end]
 
+    def list_latest(self, owner_id: uuid.UUID, limit: int) -> list[NetworkMetricSnapshot]:
+        owned = [s for s in self.snapshots if s.owner_id == owner_id]
+        return sorted(owned, key=lambda s: s.recorded_at, reverse=True)[:limit]
+
+    def count_by_owner(self, owner_id: uuid.UUID) -> int:
+        return sum(1 for s in self.snapshots if s.owner_id == owner_id)
+
     def create(
         self,
         owner_id: uuid.UUID,

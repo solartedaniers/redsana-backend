@@ -1,15 +1,18 @@
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.authorization import ADMIN_ROLE_NAME, get_current_user
-from app.core.database import get_db
+from app.core.database import SessionLocal, get_db
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
 from app.models.user import User
+from app.repositories.alert_sqlalchemy_repository import SqlAlchemyAlertRepository
 from app.repositories.network_metrics_sqlalchemy_repository import SqlAlchemyNetworkMetricsRepository
+from app.schemas.network_anomaly import AnomalyStatusRead
 from app.schemas.network_metrics import NetworkMetricSampleRead, NetworkMetricSnapshotCreate, NetworkMetricSnapshotRead
+from app.services.network_anomaly_service import AnomalyStatus, NetworkAnomalyService
 from app.services.network_metrics_service import NetworkMetricsService
 
 router = APIRouter(prefix="/api/network-metrics", tags=["network-metrics"])
@@ -32,6 +35,12 @@ def _to_snapshot_read(snapshot: NetworkMetricSnapshot) -> NetworkMetricSnapshotR
         jitter_ms=snapshot.jitter_ms,
         packet_loss_percent=snapshot.packet_loss_percent,
         updated_at=snapshot.recorded_at,
+    )
+
+
+def _to_anomaly_status_read(status: AnomalyStatus) -> AnomalyStatusRead:
+    return AnomalyStatusRead(
+        status=status.status, samples_collected=status.samples_collected, samples_required=status.samples_required
     )
 
 
@@ -71,9 +80,36 @@ def get_history(
     return [NetworkMetricSampleRead(timestamp=s.recorded_at, latency_ms=s.latency_ms) for s in snapshots]
 
 
+@router.get("/anomaly-status", response_model=AnomalyStatusRead)
+def get_anomaly_status(
+    user_id: uuid.UUID | None = Query(None),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AnomalyStatusRead:
+    service = NetworkAnomalyService(SqlAlchemyNetworkMetricsRepository(db), SqlAlchemyAlertRepository(db))
+    status = service.get_status(_resolve_target_owner_id(user, user_id))
+    return _to_anomaly_status_read(status)
+
+
+def _evaluate_anomalies_in_background(owner_id: uuid.UUID) -> None:
+    """Corre después de que la respuesta ya se envió (BackgroundTasks), con su
+    propia sesión de DB: la del request (`db: Session = Depends(get_db)`) ya se
+    cerró para cuando esto se ejecuta. Entrenar IsolationForest sobre la ventana
+    completa (1440 muestras) mide ~200ms -- nada grave para un proceso en
+    segundo plano, pero sí perceptible si corriera dentro del request y
+    volvería lento un POST que hoy responde en ~160ms."""
+    db = SessionLocal()
+    try:
+        service = NetworkAnomalyService(SqlAlchemyNetworkMetricsRepository(db), SqlAlchemyAlertRepository(db))
+        service.evaluate_latest(owner_id)
+    finally:
+        db.close()
+
+
 @router.post("", response_model=NetworkMetricSnapshotRead, status_code=201)
 def record_snapshot(
     payload: NetworkMetricSnapshotCreate,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> NetworkMetricSnapshotRead:
@@ -83,4 +119,11 @@ def record_snapshot(
     owner_id = _resolve_target_owner_id(user, payload.owner_id)
     service = NetworkMetricsService(SqlAlchemyNetworkMetricsRepository(db))
     snapshot = service.record_snapshot(owner_id, payload)
+
+    # Evaluación de anomalías desacoplada: NetworkMetricsService no sabe que
+    # esto pasa, es el router quien orquesta ambos servicios tras persistir.
+    # En segundo plano (ver _evaluate_anomalies_in_background) para no sumar
+    # ~200ms de entrenamiento a la latencia que percibe el usuario.
+    background_tasks.add_task(_evaluate_anomalies_in_background, owner_id)
+
     return _to_snapshot_read(snapshot)
