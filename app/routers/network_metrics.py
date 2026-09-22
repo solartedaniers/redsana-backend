@@ -14,6 +14,7 @@ from app.schemas.network_anomaly import AnomalyStatusRead
 from app.schemas.network_metrics import NetworkMetricSampleRead, NetworkMetricSnapshotCreate, NetworkMetricSnapshotRead
 from app.services.network_anomaly_service import AnomalyStatus, NetworkAnomalyService
 from app.services.network_metrics_service import NetworkMetricsService
+from app.services.outage_detection_service import OutageDetectionService
 
 router = APIRouter(prefix="/api/network-metrics", tags=["network-metrics"])
 
@@ -106,6 +107,19 @@ def _evaluate_anomalies_in_background(owner_id: uuid.UUID) -> None:
         db.close()
 
 
+def _evaluate_outage_in_background(owner_id: uuid.UUID) -> None:
+    """Mismo motivo que _evaluate_anomalies_in_background (sesión propia, corre
+    tras la respuesta); se mantiene como background task separado para no
+    acoplar los dos detectores entre sí, aunque este en particular es liviano
+    (sin ML, un barrido lineal acotado)."""
+    db = SessionLocal()
+    try:
+        service = OutageDetectionService(SqlAlchemyNetworkMetricsRepository(db), SqlAlchemyAlertRepository(db))
+        service.evaluate_latest(owner_id)
+    finally:
+        db.close()
+
+
 @router.post("", response_model=NetworkMetricSnapshotRead, status_code=201)
 def record_snapshot(
     payload: NetworkMetricSnapshotCreate,
@@ -120,10 +134,10 @@ def record_snapshot(
     service = NetworkMetricsService(SqlAlchemyNetworkMetricsRepository(db))
     snapshot = service.record_snapshot(owner_id, payload)
 
-    # Evaluación de anomalías desacoplada: NetworkMetricsService no sabe que
-    # esto pasa, es el router quien orquesta ambos servicios tras persistir.
-    # En segundo plano (ver _evaluate_anomalies_in_background) para no sumar
-    # ~200ms de entrenamiento a la latencia que percibe el usuario.
+    # Evaluación de anomalías y de cortes, desacopladas entre sí y de
+    # NetworkMetricsService: el router orquesta, cada detector solo conoce sus
+    # propios repositorios. En segundo plano para no sumar latencia al POST.
     background_tasks.add_task(_evaluate_anomalies_in_background, owner_id)
+    background_tasks.add_task(_evaluate_outage_in_background, owner_id)
 
     return _to_snapshot_read(snapshot)
