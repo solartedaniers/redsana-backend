@@ -7,6 +7,7 @@ from app.services.network_supervision_service import NetworkSupervisionService
 from tests.test_alert_service import FakeAlertRepository
 from tests.test_device_service import FakeDeviceRepository
 from tests.test_network_metrics_service import FakeNetworkMetricsRepository
+from tests.test_security_assessment_service import FakeSecurityAssessmentRepository
 from tests.test_user_service import FakeUserRepository
 
 
@@ -16,6 +17,7 @@ def _build_service(user_repository, alert_repository, device_repository=None, ne
         device_repository or FakeDeviceRepository(),
         alert_repository,
         network_metrics_repository or FakeNetworkMetricsRepository(),
+        FakeSecurityAssessmentRepository(),
     )
     return AdminMetricsService(user_repository, alert_repository, supervision)
 

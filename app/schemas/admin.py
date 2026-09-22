@@ -16,6 +16,7 @@ class AdminHouseholdRead(BaseModel):
     label: str
     status: NetworkStatus
     security_score: int
+    security_score_source: Literal["real", "estimated"]
     last_activity: datetime
 
 

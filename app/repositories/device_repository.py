@@ -13,6 +13,12 @@ class DeviceRepository(ABC):
     def list_by_owner(self, owner_id: uuid.UUID) -> list[Device]: ...
 
     @abstractmethod
+    def list_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[Device]]:
+        """Una sola consulta para varios owners (ej. supervision de admin), en vez
+        de list_by_owner uno por uno -- evita repetir la misma query N veces."""
+        ...
+
+    @abstractmethod
     def get_by_id(self, device_id: uuid.UUID, owner_id: uuid.UUID) -> Device | None: ...
 
     @abstractmethod

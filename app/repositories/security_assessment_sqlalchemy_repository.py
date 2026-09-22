@@ -1,7 +1,7 @@
 import uuid
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, aliased
 
 from app.models.security_assessment import SecurityAssessment
 from app.repositories.security_assessment_repository import SecurityAssessmentRepository
@@ -19,6 +19,19 @@ class SqlAlchemySecurityAssessmentRepository(SecurityAssessmentRepository):
             .limit(1)
         )
         return self._db.scalars(stmt).first()
+
+    def get_latest_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, SecurityAssessment]:
+        if not owner_ids:
+            return {}
+        rank = (
+            func.row_number()
+            .over(partition_by=SecurityAssessment.owner_id, order_by=SecurityAssessment.submitted_at.desc())
+            .label("rank")
+        )
+        ranked = select(SecurityAssessment, rank).where(SecurityAssessment.owner_id.in_(owner_ids)).subquery()
+        assessment = aliased(SecurityAssessment, ranked)
+        stmt = select(assessment).where(ranked.c.rank == 1)
+        return {row.owner_id: row for row in self._db.scalars(stmt).all()}
 
     def create(
         self, owner_id: uuid.UUID, answers: dict[str, str], wifi_encryption_raw: str | None

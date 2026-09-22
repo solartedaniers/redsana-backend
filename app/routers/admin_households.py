@@ -7,6 +7,7 @@ from app.models.user import User
 from app.repositories.alert_sqlalchemy_repository import SqlAlchemyAlertRepository
 from app.repositories.device_sqlalchemy_repository import SqlAlchemyDeviceRepository
 from app.repositories.network_metrics_sqlalchemy_repository import SqlAlchemyNetworkMetricsRepository
+from app.repositories.security_assessment_sqlalchemy_repository import SqlAlchemySecurityAssessmentRepository
 from app.repositories.user_sqlalchemy_repository import SqlAlchemyUserRepository
 from app.schemas.admin import AdminHouseholdRead
 from app.services.network_supervision_service import MonitoredHousehold, NetworkSupervisionService
@@ -21,6 +22,7 @@ def _to_household_read(household: MonitoredHousehold) -> AdminHouseholdRead:
         label=household.label,
         status=household.status,
         security_score=household.security_score,
+        security_score_source=household.security_score_source,
         last_activity=household.last_activity,
     )
 
@@ -35,5 +37,6 @@ def list_households(
         device_repository=SqlAlchemyDeviceRepository(db),
         alert_repository=SqlAlchemyAlertRepository(db),
         network_metrics_repository=SqlAlchemyNetworkMetricsRepository(db),
+        security_assessment_repository=SqlAlchemySecurityAssessmentRepository(db),
     )
     return [_to_household_read(household) for household in service.list_households()]

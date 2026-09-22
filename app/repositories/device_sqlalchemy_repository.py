@@ -17,6 +17,15 @@ class SqlAlchemyDeviceRepository(DeviceRepository):
         stmt = select(Device).where(Device.owner_id == owner_id)
         return list(self._db.scalars(stmt).all())
 
+    def list_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[Device]]:
+        if not owner_ids:
+            return {}
+        stmt = select(Device).where(Device.owner_id.in_(owner_ids))
+        result: dict[uuid.UUID, list[Device]] = {owner_id: [] for owner_id in owner_ids}
+        for device in self._db.scalars(stmt).all():
+            result[device.owner_id].append(device)
+        return result
+
     def get_by_id(self, device_id: uuid.UUID, owner_id: uuid.UUID) -> Device | None:
         stmt = select(Device).where(Device.id == device_id, Device.owner_id == owner_id)
         return self._db.scalars(stmt).first()

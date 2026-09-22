@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
 from app.repositories.network_metrics_repository import NetworkMetricsRepository
@@ -20,6 +20,21 @@ class SqlAlchemyNetworkMetricsRepository(NetworkMetricsRepository):
             .limit(1)
         )
         return self._db.scalars(stmt).first()
+
+    def get_latest_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, NetworkMetricSnapshot]:
+        if not owner_ids:
+            return {}
+        # ROW_NUMBER particionado por owner: trae solo la fila mas reciente de
+        # cada uno en una consulta, no todo el historial de owner_ids grandes.
+        rank = (
+            func.row_number()
+            .over(partition_by=NetworkMetricSnapshot.owner_id, order_by=NetworkMetricSnapshot.recorded_at.desc())
+            .label("rank")
+        )
+        ranked = select(NetworkMetricSnapshot, rank).where(NetworkMetricSnapshot.owner_id.in_(owner_ids)).subquery()
+        snapshot = aliased(NetworkMetricSnapshot, ranked)
+        stmt = select(snapshot).where(ranked.c.rank == 1)
+        return {row.owner_id: row for row in self._db.scalars(stmt).all()}
 
     def list_in_range(self, owner_id: uuid.UUID, start: datetime, end: datetime) -> list[NetworkMetricSnapshot]:
         stmt = (

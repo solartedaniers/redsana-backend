@@ -18,6 +18,13 @@ class FakeNetworkMetricsRepository(NetworkMetricsRepository):
         owned = [s for s in self.snapshots if s.owner_id == owner_id]
         return max(owned, key=lambda s: s.recorded_at) if owned else None
 
+    def get_latest_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, NetworkMetricSnapshot]:
+        return {
+            owner_id: latest
+            for owner_id in owner_ids
+            if (latest := self.get_latest(owner_id)) is not None
+        }
+
     def list_in_range(self, owner_id: uuid.UUID, start: datetime, end: datetime) -> list[NetworkMetricSnapshot]:
         self.last_range = (start, end)
         return [s for s in self.snapshots if s.owner_id == owner_id and start <= s.recorded_at <= end]

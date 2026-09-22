@@ -7,6 +7,7 @@ from app.models.user import User
 from app.repositories.alert_sqlalchemy_repository import SqlAlchemyAlertRepository
 from app.repositories.device_sqlalchemy_repository import SqlAlchemyDeviceRepository
 from app.repositories.network_metrics_sqlalchemy_repository import SqlAlchemyNetworkMetricsRepository
+from app.repositories.security_assessment_sqlalchemy_repository import SqlAlchemySecurityAssessmentRepository
 from app.repositories.user_sqlalchemy_repository import SqlAlchemyUserRepository
 from app.schemas.admin import AdminPlatformMetricsRead
 from app.services.admin_metrics_service import AdminMetricsService
@@ -27,6 +28,7 @@ def get_platform_metrics(
         device_repository=SqlAlchemyDeviceRepository(db),
         alert_repository=alert_repository,
         network_metrics_repository=SqlAlchemyNetworkMetricsRepository(db),
+        security_assessment_repository=SqlAlchemySecurityAssessmentRepository(db),
     )
     service = AdminMetricsService(user_repository, alert_repository, network_supervision_service)
     metrics = service.get_platform_metrics()

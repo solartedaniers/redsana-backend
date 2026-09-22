@@ -12,6 +12,12 @@ class NetworkMetricsRepository(ABC):
     def get_latest(self, owner_id: uuid.UUID) -> NetworkMetricSnapshot | None: ...
 
     @abstractmethod
+    def get_latest_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, NetworkMetricSnapshot]:
+        """El snapshot más reciente de cada owner, en una sola consulta (ej.
+        supervision de admin) en vez de get_latest uno por uno."""
+        ...
+
+    @abstractmethod
     def list_in_range(self, owner_id: uuid.UUID, start: datetime, end: datetime) -> list[NetworkMetricSnapshot]: ...
 
     @abstractmethod

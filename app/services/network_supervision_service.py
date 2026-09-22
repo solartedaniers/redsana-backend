@@ -1,17 +1,26 @@
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Literal
 
 from app.domain.network_status import NetworkStatus
+from app.domain.security_assessment import compute_security_assessment
 from app.domain.security_score import compute_security_score
+from app.models.alert import Alert
+from app.models.device import Device
+from app.models.network_metric_snapshot import NetworkMetricSnapshot
+from app.models.security_assessment import SecurityAssessment
 from app.models.user import User
 from app.repositories.alert_repository import AlertRepository
 from app.repositories.device_repository import DeviceRepository
 from app.repositories.network_metrics_repository import NetworkMetricsRepository
+from app.repositories.security_assessment_repository import SecurityAssessmentRepository
 from app.repositories.user_repository import UserRepository
 
 STANDARD_ROLE_NAME = "standard"
 TRUSTED_DEVICE_TRUST_VALUE = "trusted"
+
+SecurityScoreSource = Literal["real", "estimated"]
 
 
 @dataclass
@@ -24,6 +33,7 @@ class MonitoredHousehold:
     label: str
     status: NetworkStatus
     security_score: int
+    security_score_source: SecurityScoreSource
     last_activity: datetime
 
 
@@ -34,31 +44,59 @@ class NetworkSupervisionService:
         device_repository: DeviceRepository,
         alert_repository: AlertRepository,
         network_metrics_repository: NetworkMetricsRepository,
+        security_assessment_repository: SecurityAssessmentRepository,
     ) -> None:
         self._user_repository = user_repository
         self._device_repository = device_repository
         self._alert_repository = alert_repository
         self._network_metrics_repository = network_metrics_repository
+        self._security_assessment_repository = security_assessment_repository
 
     def list_households(self) -> list[MonitoredHousehold]:
         owners = [user for user in self._user_repository.list_all() if user.role.name == STANDARD_ROLE_NAME]
-        return [self._to_household(owner) for owner in owners]
+        owner_ids = [owner.id for owner in owners]
 
-    def _to_household(self, owner: User) -> MonitoredHousehold:
-        devices = self._device_repository.list_by_owner(owner.id)
+        # 4 consultas bulk en total (una por repositorio) en vez de 4 por hogar:
+        # antes era 1 + 4*N queries, ahora es 1 + 4 sin importar cuantos hogares haya.
+        devices_by_owner = self._device_repository.list_by_owners(owner_ids)
+        alerts_by_owner = self._alert_repository.list_by_owners(owner_ids)
+        latest_snapshot_by_owner = self._network_metrics_repository.get_latest_by_owners(owner_ids)
+        latest_assessment_by_owner = self._security_assessment_repository.get_latest_by_owners(owner_ids)
+
+        return [
+            self._to_household(
+                owner,
+                devices_by_owner.get(owner.id, []),
+                alerts_by_owner.get(owner.id, []),
+                latest_snapshot_by_owner.get(owner.id),
+                latest_assessment_by_owner.get(owner.id),
+            )
+            for owner in owners
+        ]
+
+    def _to_household(
+        self,
+        owner: User,
+        devices: list[Device],
+        alerts: list[Alert],
+        latest_snapshot: NetworkMetricSnapshot | None,
+        latest_assessment: SecurityAssessment | None,
+    ) -> MonitoredHousehold:
+        """Pura: solo transforma los datos ya traidos por list_households, no
+        consulta ningun repositorio (eso es lo que elimina el N+1)."""
         trusted_ratio = None
         if devices:
             trusted_count = sum(1 for device in devices if device.trust == TRUSTED_DEVICE_TRUST_VALUE)
             trusted_ratio = trusted_count / len(devices)
 
-        alerts = self._alert_repository.list_all(owner.id)
         unacknowledged_count = sum(1 for alert in alerts if not alert.acknowledged)
 
-        latest_snapshot = self._network_metrics_repository.get_latest(owner.id)
         status: NetworkStatus = latest_snapshot.status if latest_snapshot is not None else "unknown"
         last_activity = latest_snapshot.recorded_at if latest_snapshot is not None else owner.created_at
 
-        security_score = compute_security_score(trusted_ratio, unacknowledged_count, status)
+        security_score, security_score_source = self._resolve_security_score(
+            latest_assessment, trusted_ratio, unacknowledged_count, status
+        )
 
         return MonitoredHousehold(
             id=owner.id,
@@ -66,5 +104,20 @@ class NetworkSupervisionService:
             label=owner.email,
             status=status,
             security_score=security_score,
+            security_score_source=security_score_source,
             last_activity=last_activity,
         )
+
+    @staticmethod
+    def _resolve_security_score(
+        latest_assessment: SecurityAssessment | None,
+        trusted_ratio: float | None,
+        unacknowledged_count: int,
+        status: NetworkStatus,
+    ) -> tuple[int, SecurityScoreSource]:
+        # El score real del cuestionario tiene prioridad sobre el proxy: solo se
+        # aproxima para los hogares que todavia no lo respondieron.
+        if latest_assessment is not None:
+            score, _ = compute_security_assessment(latest_assessment.answers, latest_assessment.wifi_encryption_raw)
+            return score, "real"
+        return compute_security_score(trusted_ratio, unacknowledged_count, status), "estimated"

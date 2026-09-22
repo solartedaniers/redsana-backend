@@ -15,6 +15,9 @@ class FakeDeviceRepository(DeviceRepository):
     def list_by_owner(self, owner_id: uuid.UUID) -> list[Device]:
         return [d for d in self.devices.values() if d.owner_id == owner_id]
 
+    def list_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[Device]]:
+        return {owner_id: self.list_by_owner(owner_id) for owner_id in owner_ids}
+
     def get_by_id(self, device_id: uuid.UUID, owner_id: uuid.UUID) -> Device | None:
         device = self.devices.get(device_id)
         return device if device and device.owner_id == owner_id else None

@@ -24,6 +24,13 @@ class FakeSecurityAssessmentRepository(SecurityAssessmentRepository):
         owned = [a for a in self.assessments if a.owner_id == owner_id]
         return max(owned, key=lambda a: a.submitted_at) if owned else None
 
+    def get_latest_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, SecurityAssessment]:
+        return {
+            owner_id: latest
+            for owner_id in owner_ids
+            if (latest := self.get_latest(owner_id)) is not None
+        }
+
     def create(self, owner_id: uuid.UUID, answers: dict[str, str], wifi_encryption_raw: str | None) -> SecurityAssessment:
         assessment = SecurityAssessment(
             owner_id=owner_id,

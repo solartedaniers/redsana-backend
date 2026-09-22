@@ -16,6 +16,9 @@ class FakeAlertRepository(AlertRepository):
         owned = [a for a in self.alerts.values() if a.owner_id == owner_id]
         return sorted(owned, key=lambda a: a.created_at, reverse=True)
 
+    def list_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[Alert]]:
+        return {owner_id: self.list_all(owner_id) for owner_id in owner_ids}
+
     def list_new_since(self, owner_id: uuid.UUID, since: datetime) -> list[Alert]:
         owned = [a for a in self.alerts.values() if a.owner_id == owner_id and a.created_at > since]
         return sorted(owned, key=lambda a: a.created_at)
