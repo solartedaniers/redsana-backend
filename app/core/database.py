@@ -5,7 +5,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
 
-engine = create_engine(get_settings().database_url)
+# pre_ping: el pooler de Supabase cierra conexiones inactivas; sin esto, la
+# primera peticion tras un rato sin trafico falla con "server closed the connection".
+engine = create_engine(get_settings().database_url, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 

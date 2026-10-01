@@ -1,0 +1,24 @@
+# Blueprint de Render para el backend. Los secretos van con sync: false para
+# que se carguen en el dashboard y nunca queden en el repositorio.
+services:
+  - type: web
+    name: redsana-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    # Render termina el HTTPS en su proxy: sin forwarded-allow-ips, uvicorn
+    # generaría redirecciones http:// que el navegador bloquea como mixed content.
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --forwarded-allow-ips="*"
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
