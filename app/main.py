@@ -9,6 +9,7 @@ from app.routers import (
     alerts,
     chat_conversations,
     devices,
+    health,
     me,
     network_metrics,
     security_assessments,
@@ -26,6 +27,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(health.router)
 app.include_router(me.router)
 app.include_router(devices.router)
 app.include_router(network_metrics.router)
