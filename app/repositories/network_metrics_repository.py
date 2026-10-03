@@ -2,6 +2,7 @@ import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime
 
+from app.domain.measurement_source import MeasurementSource
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
 
 
@@ -21,12 +22,15 @@ class NetworkMetricsRepository(ABC):
     def list_in_range(self, owner_id: uuid.UUID, start: datetime, end: datetime) -> list[NetworkMetricSnapshot]: ...
 
     @abstractmethod
-    def list_latest(self, owner_id: uuid.UUID, limit: int) -> list[NetworkMetricSnapshot]:
-        """Las `limit` muestras más recientes, más nueva primero."""
+    def list_latest(
+        self, owner_id: uuid.UUID, limit: int, source: MeasurementSource | None = None
+    ) -> list[NetworkMetricSnapshot]:
+        """Las `limit` muestras más recientes, más nueva primero; `source` filtra
+        por fuente de medición (None = todas, p. ej. para detectar cortes)."""
         ...
 
     @abstractmethod
-    def count_by_owner(self, owner_id: uuid.UUID) -> int: ...
+    def count_by_owner(self, owner_id: uuid.UUID, source: MeasurementSource | None = None) -> int: ...
 
     @abstractmethod
     def create(
@@ -36,5 +40,6 @@ class NetworkMetricsRepository(ABC):
         jitter_ms: float,
         packet_loss_percent: float,
         status: str,
+        source: MeasurementSource,
         recorded_at: datetime | None,
     ) -> NetworkMetricSnapshot: ...

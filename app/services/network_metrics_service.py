@@ -31,5 +31,6 @@ class NetworkMetricsService:
             jitter_ms=payload.jitter_ms,
             packet_loss_percent=payload.packet_loss_percent,
             status=status,
+            source=payload.source,
             recorded_at=payload.recorded_at,
         )

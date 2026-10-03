@@ -3,6 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from app.domain.measurement_source import DEFAULT_MEASUREMENT_SOURCE, MeasurementSource
 from app.domain.network_status import NetworkStatus
 
 
@@ -28,4 +29,5 @@ class NetworkMetricSnapshotCreate(BaseModel):
     latency_ms: float
     jitter_ms: float
     packet_loss_percent: float
+    source: MeasurementSource = DEFAULT_MEASUREMENT_SOURCE
     recorded_at: datetime | None = None

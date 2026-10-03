@@ -2,6 +2,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Literal
 
+from app.domain.measurement_source import DEFAULT_MEASUREMENT_SOURCE
 from app.domain.network_anomaly import (
     ANOMALY_WINDOW_SIZE,
     MIN_SAMPLES_TO_CALIBRATE,
@@ -33,7 +34,11 @@ class NetworkAnomalyService:
         self._alert_repository = alert_repository
 
     def get_status(self, owner_id: uuid.UUID) -> AnomalyStatus:
-        collected = self._metrics_repository.count_by_owner(owner_id)
+        # La calibración es por fuente (ver evaluate_latest): se informa la de la
+        # fuente con la que el usuario está midiendo ahora mismo.
+        latest = self._metrics_repository.get_latest(owner_id)
+        source = latest.source if latest is not None else DEFAULT_MEASUREMENT_SOURCE
+        collected = self._metrics_repository.count_by_owner(owner_id, source)
         status: Literal["calibrating", "active"] = "active" if collected >= MIN_SAMPLES_TO_CALIBRATE else "calibrating"
         return AnomalyStatus(
             status=status, samples_collected=min(collected, MIN_SAMPLES_TO_CALIBRATE), samples_required=MIN_SAMPLES_TO_CALIBRATE
@@ -41,8 +46,14 @@ class NetworkAnomalyService:
 
     def evaluate_latest(self, owner_id: uuid.UUID) -> None:
         """Se llama después de persistir un snapshot nuevo. No hace nada si aún
-        no hay historial suficiente (calibrando) o si el snapshot no es anómalo."""
-        window = self._metrics_repository.list_latest(owner_id, ANOMALY_WINDOW_SIZE)
+        no hay historial suficiente (calibrando) o si el snapshot no es anómalo.
+        Solo entrena con muestras de la misma fuente que la última: la latencia
+        web (HTTP) es sistemáticamente mayor que el ping nativo, y mezclarlas
+        haría que cada medición web pareciera anómala frente a un historial nativo."""
+        latest = self._metrics_repository.get_latest(owner_id)
+        if latest is None:
+            return
+        window = self._metrics_repository.list_latest(owner_id, ANOMALY_WINDOW_SIZE, latest.source)
         if len(window) < MIN_SAMPLES_TO_CALIBRATE:
             return
 
