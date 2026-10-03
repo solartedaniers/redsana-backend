@@ -19,6 +19,7 @@ def _seed(repository: FakeNetworkMetricsRepository, owner_id: uuid.UUID, entries
             jitter_ms=0.0,
             packet_loss_percent=loss,
             status="critical" if loss >= 100 else "good",
+            source="native",
             recorded_at=now - timedelta(minutes=minutes_ago),
         )
 

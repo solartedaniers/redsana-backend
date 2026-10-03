@@ -3,13 +3,16 @@ usando los mismos Fake repository que ya usan otros tests de este dominio."""
 import uuid
 from datetime import datetime, timedelta, timezone
 
+from app.domain.measurement_source import MeasurementSource
 from app.domain.network_anomaly import ANOMALY_WINDOW_SIZE, MIN_SAMPLES_TO_CALIBRATE
 from app.services.network_anomaly_service import NetworkAnomalyService
 from tests.test_alert_service import FakeAlertRepository
 from tests.test_network_metrics_service import FakeNetworkMetricsRepository
 
 
-def _seed_normal_history(repository: FakeNetworkMetricsRepository, owner_id: uuid.UUID, count: int) -> None:
+def _seed_normal_history(
+    repository: FakeNetworkMetricsRepository, owner_id: uuid.UUID, count: int, source: MeasurementSource = "native"
+) -> None:
     base_time = datetime.now(timezone.utc) - timedelta(minutes=count)
     for i in range(count):
         repository.create(
@@ -18,6 +21,7 @@ def _seed_normal_history(repository: FakeNetworkMetricsRepository, owner_id: uui
             jitter_ms=2.0 + (i % 3) * 0.1,
             packet_loss_percent=0.0 + (i % 2) * 0.05,
             status="good",
+            source=source,
             recorded_at=base_time + timedelta(minutes=i),
         )
 
@@ -74,7 +78,7 @@ def test_evaluate_latest_creates_a_prediction_alert_for_an_anomalous_sample() ->
     owner_id = uuid.uuid4()
     _seed_normal_history(metrics_repository, owner_id, ANOMALY_WINDOW_SIZE - 1)
     metrics_repository.create(
-        owner_id=owner_id, latency_ms=400.0, jitter_ms=2.0, packet_loss_percent=0.0, status="critical", recorded_at=None
+        owner_id=owner_id, latency_ms=400.0, jitter_ms=2.0, packet_loss_percent=0.0, status="critical", source="native", recorded_at=None
     )
     service = NetworkAnomalyService(metrics_repository, alert_repository)
 
@@ -101,7 +105,7 @@ def test_evaluate_latest_does_not_duplicate_an_already_open_alert() -> None:
     )
     _seed_normal_history(metrics_repository, owner_id, ANOMALY_WINDOW_SIZE - 1)
     metrics_repository.create(
-        owner_id=owner_id, latency_ms=400.0, jitter_ms=2.0, packet_loss_percent=0.0, status="critical", recorded_at=None
+        owner_id=owner_id, latency_ms=400.0, jitter_ms=2.0, packet_loss_percent=0.0, status="critical", source="native", recorded_at=None
     )
     service = NetworkAnomalyService(metrics_repository, alert_repository)
 
@@ -111,6 +115,24 @@ def test_evaluate_latest_does_not_duplicate_an_already_open_alert() -> None:
     assert len(alert_repository.list_all(owner_id)) == 1
 
 
+def test_evaluate_latest_ignores_history_from_another_source() -> None:
+    metrics_repository = FakeNetworkMetricsRepository()
+    alert_repository = FakeAlertRepository()
+    owner_id = uuid.uuid4()
+    _seed_normal_history(metrics_repository, owner_id, ANOMALY_WINDOW_SIZE, source="native")
+    # Latencia web normal (HTTP, ~2x el ping): contra el historial nativo se vería anómala.
+    metrics_repository.create(
+        owner_id=owner_id, latency_ms=45.0, jitter_ms=2.0, packet_loss_percent=0.0, status="good", source="web", recorded_at=None
+    )
+    service = NetworkAnomalyService(metrics_repository, alert_repository)
+
+    service.evaluate_latest(owner_id)
+
+    # La fuente web aún está calibrando: no se evalúa contra el historial nativo.
+    assert alert_repository.list_all(owner_id) == []
+    assert service.get_status(owner_id).status == "calibrating"
+
+
 if __name__ == "__main__":
     test_get_status_is_calibrating_below_the_sample_threshold()
     test_get_status_is_active_once_the_threshold_is_met()
@@ -118,4 +140,5 @@ if __name__ == "__main__":
     test_evaluate_latest_does_nothing_for_a_normal_sample()
     test_evaluate_latest_creates_a_prediction_alert_for_an_anomalous_sample()
     test_evaluate_latest_does_not_duplicate_an_already_open_alert()
+    test_evaluate_latest_ignores_history_from_another_source()
     print("OK")

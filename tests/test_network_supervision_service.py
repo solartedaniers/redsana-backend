@@ -50,7 +50,7 @@ def test_security_score_combines_device_trust_alerts_and_network_status() -> Non
 
     network_metrics_repository = FakeNetworkMetricsRepository()
     network_metrics_repository.create(
-        owner.id, latency_ms=20, jitter_ms=1, packet_loss_percent=0, status="good", recorded_at=None
+        owner.id, latency_ms=20, jitter_ms=1, packet_loss_percent=0, status="good", source="native", recorded_at=None
     )
 
     service = _build_service(user_repository, device_repository, alert_repository, network_metrics_repository)

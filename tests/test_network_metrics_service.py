@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from app.core.config import get_settings
+from app.domain.measurement_source import MeasurementSource
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
 from app.repositories.network_metrics_repository import NetworkMetricsRepository
 from app.schemas.network_metrics import NetworkMetricSnapshotCreate
@@ -29,12 +30,14 @@ class FakeNetworkMetricsRepository(NetworkMetricsRepository):
         self.last_range = (start, end)
         return [s for s in self.snapshots if s.owner_id == owner_id and start <= s.recorded_at <= end]
 
-    def list_latest(self, owner_id: uuid.UUID, limit: int) -> list[NetworkMetricSnapshot]:
-        owned = [s for s in self.snapshots if s.owner_id == owner_id]
+    def list_latest(
+        self, owner_id: uuid.UUID, limit: int, source: MeasurementSource | None = None
+    ) -> list[NetworkMetricSnapshot]:
+        owned = [s for s in self.snapshots if s.owner_id == owner_id and source in (None, s.source)]
         return sorted(owned, key=lambda s: s.recorded_at, reverse=True)[:limit]
 
-    def count_by_owner(self, owner_id: uuid.UUID) -> int:
-        return sum(1 for s in self.snapshots if s.owner_id == owner_id)
+    def count_by_owner(self, owner_id: uuid.UUID, source: MeasurementSource | None = None) -> int:
+        return sum(1 for s in self.snapshots if s.owner_id == owner_id and source in (None, s.source))
 
     def create(
         self,
@@ -43,6 +46,7 @@ class FakeNetworkMetricsRepository(NetworkMetricsRepository):
         jitter_ms: float,
         packet_loss_percent: float,
         status: str,
+        source: MeasurementSource,
         recorded_at: datetime | None,
     ) -> NetworkMetricSnapshot:
         snapshot = NetworkMetricSnapshot(
@@ -51,6 +55,7 @@ class FakeNetworkMetricsRepository(NetworkMetricsRepository):
             jitter_ms=jitter_ms,
             packet_loss_percent=packet_loss_percent,
             status=status,
+            source=source,
             recorded_at=recorded_at or datetime.now(timezone.utc),
         )
         self.snapshots.append(snapshot)
