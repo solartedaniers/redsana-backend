@@ -88,6 +88,18 @@ def test_update_current_user_only_changes_sent_fields() -> None:
     assert updated.email == "existing@redsana.dev"
 
 
+def test_update_current_user_ignores_email_changes() -> None:
+    repository = FakeUserRepository()
+    service = UserService(repository)
+    sub = str(uuid.uuid4())
+    claims = {"sub": sub, "email": "existing@redsana.dev"}
+    service.get_or_create_current_user(claims)
+
+    # Un cliente que aun envie email (o una llamada directa a la API) no lo cambia.
+    updated = service.update_current_user(claims, UserUpdate.model_validate({"email": "hijack@redsana.dev"}))
+
+    assert updated.email == "existing@redsana.dev"
+
 if __name__ == "__main__":
     test_first_login_auto_provisions_user_with_default_role()
     test_existing_user_is_returned_without_creating_again()
