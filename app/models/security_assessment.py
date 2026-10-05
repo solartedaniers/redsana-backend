@@ -20,6 +20,9 @@ class SecurityAssessment(Base):
     # (ver app/domain/security_assessment.py), nunca se guardan ya calculados.
     answers: Mapped[dict] = mapped_column(JSON, nullable=False)
     wifi_encryption_raw: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Puertos de riesgo abiertos en el router según el escaneo del escritorio;
+    # NULL = no se escaneó (web o evaluaciones previas), distinto de [] = escaneado y limpio.
+    router_open_ports: Mapped[list[int] | None] = mapped_column(JSON, nullable=True)
     # timezone=True: se guarda con offset UTC explícito, para que el frontend
     # pueda convertir correctamente a la hora local del usuario.
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

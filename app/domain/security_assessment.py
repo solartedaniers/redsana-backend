@@ -3,20 +3,15 @@ from typing import Literal
 
 AnswerValue = Literal["yes", "no", "unknown"]
 
-# Pesos de las 4 preguntas manuales + el cifrado WiFi auto-detectado, suman 100.
-# Espejo intencional de security-score.calculator.ts (frontend); no hay código
-# compartido entre frontend y backend.
+# Pesos de las 4 preguntas del cuestionario, suman 80 y se normalizan a 0..100.
+# El cifrado WiFi ya no está aquí: lo mide WifiEncryptionAnalyzer como parte del
+# análisis técnico (ver app.services.network_security_score_service).
 QUESTION_WEIGHTS: dict[str, int] = {
     "default-password": 25,
     "firmware-updated": 20,
     "guest-network": 15,
     "remote-management-off": 20,
 }
-WIFI_ENCRYPTION_WEIGHT = 20
-
-# Prefijos de netsh que cuentan como cifrado fuerte (mismo criterio que la
-# pregunta original "¿Tienes WPA3, o al menos WPA2?").
-_STRONG_WIFI_ENCRYPTION_PREFIXES = ("WPA3", "WPA2")
 
 
 @dataclass(frozen=True)
@@ -89,31 +84,13 @@ _RECOMMENDATIONS: dict[str, dict[Literal["no", "unknown"], SecurityRecommendatio
     },
 }
 
-_WIFI_ENCRYPTION_RECOMMENDATION = SecurityRecommendation(
-    "enable-wifi-encryption",
-    "user.securityAssistant.recommendations.enableWifiEncryption.title",
-    "user.securityAssistant.recommendations.enableWifiEncryption.description",
-    3,
-)
 
-
-def is_strong_wifi_encryption(wifi_encryption_raw: str | None) -> bool:
-    if not wifi_encryption_raw:
-        return False
-    return wifi_encryption_raw.upper().startswith(_STRONG_WIFI_ENCRYPTION_PREFIXES)
-
-
-def compute_security_assessment(
-    answers: dict[str, AnswerValue], wifi_encryption_raw: str | None
-) -> tuple[int, list[SecurityRecommendation]]:
+def compute_questionnaire_score(answers: dict[str, AnswerValue]) -> tuple[int, list[SecurityRecommendation]]:
     """Preguntas sin responder cuentan como "unknown" (0 puntos), igual que "no"."""
-    total_weight = sum(QUESTION_WEIGHTS.values()) + WIFI_ENCRYPTION_WEIGHT
+    total_weight = sum(QUESTION_WEIGHTS.values())
     earned_weight = sum(
         weight for question_id, weight in QUESTION_WEIGHTS.items() if answers.get(question_id) == "yes"
     )
-    wifi_is_strong = is_strong_wifi_encryption(wifi_encryption_raw)
-    if wifi_is_strong:
-        earned_weight += WIFI_ENCRYPTION_WEIGHT
     score = round((earned_weight / total_weight) * 100)
 
     recommendations = [
@@ -121,8 +98,4 @@ def compute_security_assessment(
         for question_id in QUESTION_WEIGHTS
         if answers.get(question_id, "unknown") in ("no", "unknown")
     ]
-    if not wifi_is_strong:
-        recommendations.append(_WIFI_ENCRYPTION_RECOMMENDATION)
-
-    recommendations.sort(key=lambda r: r.priority)
     return score, recommendations
