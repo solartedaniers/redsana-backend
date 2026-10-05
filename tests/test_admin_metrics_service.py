@@ -2,6 +2,7 @@
 dominios existentes (usuarios, hogares, alertas) sin recalcular nada."""
 import uuid
 
+from app.services.network_security_score_service import default_network_security_score_service
 from app.services.admin_metrics_service import AdminMetricsService
 from app.services.network_supervision_service import NetworkSupervisionService
 from tests.test_alert_service import FakeAlertRepository
@@ -18,6 +19,7 @@ def _build_service(user_repository, alert_repository, device_repository=None, ne
         alert_repository,
         network_metrics_repository or FakeNetworkMetricsRepository(),
         FakeSecurityAssessmentRepository(),
+        default_network_security_score_service(),
     )
     return AdminMetricsService(user_repository, alert_repository, supervision)
 

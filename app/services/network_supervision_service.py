@@ -4,7 +4,6 @@ from datetime import datetime
 from typing import Literal
 
 from app.domain.network_status import NetworkStatus
-from app.domain.security_assessment import compute_security_assessment
 from app.domain.security_score import compute_security_score
 from app.models.alert import Alert
 from app.models.device import Device
@@ -16,6 +15,7 @@ from app.repositories.device_repository import DeviceRepository
 from app.repositories.network_metrics_repository import NetworkMetricsRepository
 from app.repositories.security_assessment_repository import SecurityAssessmentRepository
 from app.repositories.user_repository import UserRepository
+from app.services.network_security_score_service import NetworkSecurityScoreService
 
 STANDARD_ROLE_NAME = "standard"
 TRUSTED_DEVICE_TRUST_VALUE = "trusted"
@@ -45,12 +45,14 @@ class NetworkSupervisionService:
         alert_repository: AlertRepository,
         network_metrics_repository: NetworkMetricsRepository,
         security_assessment_repository: SecurityAssessmentRepository,
+        security_score_service: NetworkSecurityScoreService,
     ) -> None:
         self._user_repository = user_repository
         self._device_repository = device_repository
         self._alert_repository = alert_repository
         self._network_metrics_repository = network_metrics_repository
         self._security_assessment_repository = security_assessment_repository
+        self._security_score_service = security_score_service
 
     def list_households(self) -> list[MonitoredHousehold]:
         owners = [user for user in self._user_repository.list_all() if user.role.name == STANDARD_ROLE_NAME]
@@ -108,8 +110,8 @@ class NetworkSupervisionService:
             last_activity=last_activity,
         )
 
-    @staticmethod
     def _resolve_security_score(
+        self,
         latest_assessment: SecurityAssessment | None,
         trusted_ratio: float | None,
         unacknowledged_count: int,
@@ -118,6 +120,5 @@ class NetworkSupervisionService:
         # El score real del cuestionario tiene prioridad sobre el proxy: solo se
         # aproxima para los hogares que todavia no lo respondieron.
         if latest_assessment is not None:
-            score, _ = compute_security_assessment(latest_assessment.answers, latest_assessment.wifi_encryption_raw)
-            return score, "real"
+            return self._security_score_service.evaluate_assessment(latest_assessment).score, "real"
         return compute_security_score(trusted_ratio, unacknowledged_count, status), "estimated"

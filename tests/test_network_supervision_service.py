@@ -3,6 +3,7 @@ de security score, y que el score real del cuestionario tenga prioridad sobre
 el proxy cuando existe."""
 import uuid
 
+from app.services.network_security_score_service import default_network_security_score_service
 from app.schemas.security_assessment import SecurityAssessmentCreate
 from app.services.network_supervision_service import NetworkSupervisionService
 from app.services.security_assessment_service import SecurityAssessmentService
@@ -22,6 +23,7 @@ def _build_service(
         alert_repository or FakeAlertRepository(),
         metrics_repository or FakeNetworkMetricsRepository(),
         assessment_repository or FakeSecurityAssessmentRepository(),
+        default_network_security_score_service(),
     )
 
 
@@ -89,7 +91,7 @@ def test_real_assessment_score_takes_priority_over_the_proxy() -> None:
 
     # ...pero SI respondio el cuestionario, y ese es el que debe mostrarse.
     assessment_repository = FakeSecurityAssessmentRepository()
-    SecurityAssessmentService(assessment_repository).submit_assessment(
+    SecurityAssessmentService(assessment_repository, default_network_security_score_service()).submit_assessment(
         owner.id, SecurityAssessmentCreate(answers=ALL_YES_ANSWERS, wifi_encryption_raw="WPA3")
     )
 

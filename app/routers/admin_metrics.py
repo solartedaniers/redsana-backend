@@ -11,6 +11,7 @@ from app.repositories.security_assessment_sqlalchemy_repository import SqlAlchem
 from app.repositories.user_sqlalchemy_repository import SqlAlchemyUserRepository
 from app.schemas.admin import AdminPlatformMetricsRead
 from app.services.admin_metrics_service import AdminMetricsService
+from app.services.network_security_score_service import default_network_security_score_service
 from app.services.network_supervision_service import NetworkSupervisionService
 
 router = APIRouter(prefix="/api/admin/metrics", tags=["admin"])
@@ -29,6 +30,7 @@ def get_platform_metrics(
         alert_repository=alert_repository,
         network_metrics_repository=SqlAlchemyNetworkMetricsRepository(db),
         security_assessment_repository=SqlAlchemySecurityAssessmentRepository(db),
+        security_score_service=default_network_security_score_service(),
     )
     service = AdminMetricsService(user_repository, alert_repository, network_supervision_service)
     metrics = service.get_platform_metrics()

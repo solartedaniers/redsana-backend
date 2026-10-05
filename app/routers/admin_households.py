@@ -10,6 +10,7 @@ from app.repositories.network_metrics_sqlalchemy_repository import SqlAlchemyNet
 from app.repositories.security_assessment_sqlalchemy_repository import SqlAlchemySecurityAssessmentRepository
 from app.repositories.user_sqlalchemy_repository import SqlAlchemyUserRepository
 from app.schemas.admin import AdminHouseholdRead
+from app.services.network_security_score_service import default_network_security_score_service
 from app.services.network_supervision_service import MonitoredHousehold, NetworkSupervisionService
 
 router = APIRouter(prefix="/api/admin/households", tags=["admin"])
@@ -38,5 +39,6 @@ def list_households(
         alert_repository=SqlAlchemyAlertRepository(db),
         network_metrics_repository=SqlAlchemyNetworkMetricsRepository(db),
         security_assessment_repository=SqlAlchemySecurityAssessmentRepository(db),
+        security_score_service=default_network_security_score_service(),
     )
     return [_to_household_read(household) for household in service.list_households()]
