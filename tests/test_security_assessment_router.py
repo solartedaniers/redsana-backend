@@ -75,11 +75,16 @@ def test_submit_then_latest_returns_computed_score(client: TestClient) -> None:
         "/api/security-assessments", json=ANSWERS_PAYLOAD, headers={"Authorization": "Bearer fake"}
     )
     assert submit.status_code == 201
-    assert submit.json()["score"] == 65  # default-password(25) + remote-mgmt(20) + wpa2(20) sobre 100
+    # Cuestionario: (25 + 20) / 80 = 56; técnico: solo WPA2 medido = 85.
+    # Total: 56 * 30% + 85 * 70% = 76.
+    assert submit.json()["score"] == 76
+    assert submit.json()["questionnaire_score"] == 56
+    assert submit.json()["technical_score"] == 85
+    assert submit.json()["is_partial"] is False
 
     latest = client.get("/api/security-assessments/latest", headers={"Authorization": "Bearer fake"})
     assert latest.status_code == 200
-    assert latest.json()["score"] == 65
+    assert latest.json()["score"] == 76
     recommendation_ids = {r["id"] for r in latest.json()["recommendations"]}
     assert recommendation_ids == {"update-firmware", "check-guest-network"}
 
