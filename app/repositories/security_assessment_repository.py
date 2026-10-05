@@ -18,5 +18,9 @@ class SecurityAssessmentRepository(ABC):
 
     @abstractmethod
     def create(
-        self, owner_id: uuid.UUID, answers: dict[str, str], wifi_encryption_raw: str | None
+        self,
+        owner_id: uuid.UUID,
+        answers: dict[str, str],
+        wifi_encryption_raw: str | None,
+        router_open_ports: list[int] | None,
     ) -> SecurityAssessment: ...

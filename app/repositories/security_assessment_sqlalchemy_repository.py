@@ -34,9 +34,18 @@ class SqlAlchemySecurityAssessmentRepository(SecurityAssessmentRepository):
         return {row.owner_id: row for row in self._db.scalars(stmt).all()}
 
     def create(
-        self, owner_id: uuid.UUID, answers: dict[str, str], wifi_encryption_raw: str | None
+        self,
+        owner_id: uuid.UUID,
+        answers: dict[str, str],
+        wifi_encryption_raw: str | None,
+        router_open_ports: list[int] | None,
     ) -> SecurityAssessment:
-        assessment = SecurityAssessment(owner_id=owner_id, answers=answers, wifi_encryption_raw=wifi_encryption_raw)
+        assessment = SecurityAssessment(
+            owner_id=owner_id,
+            answers=answers,
+            wifi_encryption_raw=wifi_encryption_raw,
+            router_open_ports=router_open_ports,
+        )
         self._db.add(assessment)
         self._db.commit()
         self._db.refresh(assessment)
