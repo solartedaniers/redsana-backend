@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     supabase_service_role_key: str
     groq_api_key: str
     groq_model: str = "openai/gpt-oss-120b"
+    groq_timeout_seconds: int = 30
+    # Baja a propósito: el asistente copia datos exactos (DNS, puertos) y una
+    # temperatura alta lo hacía variar dígitos (llegó a escribir 0.0.0.3 por 1.0.0.3).
+    groq_temperature: float = 0.2
 
     @property
     def supabase_jwks_url(self) -> str:
