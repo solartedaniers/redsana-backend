@@ -5,7 +5,7 @@ from typing import Literal
 from app.domain.measurement_source import DEFAULT_MEASUREMENT_SOURCE
 from app.domain.network_anomaly import (
     ANOMALY_WINDOW_SIZE,
-    MIN_SAMPLES_TO_CALIBRATE,
+    MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE,
     NetworkAnomalyDetector,
     NetworkMetricVector,
     classify_deviation,
@@ -39,10 +39,9 @@ class NetworkAnomalyService:
         latest = self._metrics_repository.get_latest(owner_id)
         source = latest.source if latest is not None else DEFAULT_MEASUREMENT_SOURCE
         collected = self._metrics_repository.count_by_owner(owner_id, source)
-        status: Literal["calibrating", "active"] = "active" if collected >= MIN_SAMPLES_TO_CALIBRATE else "calibrating"
-        return AnomalyStatus(
-            status=status, samples_collected=min(collected, MIN_SAMPLES_TO_CALIBRATE), samples_required=MIN_SAMPLES_TO_CALIBRATE
-        )
+        required = MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE[source]
+        status: Literal["calibrating", "active"] = "active" if collected >= required else "calibrating"
+        return AnomalyStatus(status=status, samples_collected=min(collected, required), samples_required=required)
 
     def evaluate_latest(self, owner_id: uuid.UUID) -> None:
         """Se llama después de persistir un snapshot nuevo. No hace nada si aún
@@ -54,7 +53,7 @@ class NetworkAnomalyService:
         if latest is None:
             return
         window = self._metrics_repository.list_latest(owner_id, ANOMALY_WINDOW_SIZE, latest.source)
-        if len(window) < MIN_SAMPLES_TO_CALIBRATE:
+        if len(window) < MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE[latest.source]:
             return
 
         latest_snapshot, *history_snapshots = window  # window viene más nuevo primero

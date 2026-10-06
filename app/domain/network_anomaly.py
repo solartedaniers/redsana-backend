@@ -6,16 +6,26 @@ import numpy as np
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 
+from app.domain.measurement_source import MeasurementSource
+
 NetworkMetricVector = tuple[float, float, float]  # (latency_ms, jitter_ms, packet_loss_percent)
 DeviatingMetric = Literal["latency", "jitter", "packet_loss"]
 
 # A 60s/medición (ver MEASUREMENT_INTERVAL_MS en el frontend), 1440 muestras son
-# ~24h: una ventana siempre cubre un ciclo día/noche completo (red distinta a
-# las 3am que a las 8pm), no solo una porción del día. MIN_SAMPLES_TO_CALIBRATE
-# se iguala a la ventana a propósito: activar detección con menos historial
-# volvería a entrenar sobre un recorte parcial del día, el problema que esto evita.
+# ~24h: la ventana de entrenamiento cubre un ciclo día/noche completo (la red es
+# distinta a las 3am que a las 8pm), para ambas fuentes.
 ANOMALY_WINDOW_SIZE = 1440
-MIN_SAMPLES_TO_CALIBRATE = ANOMALY_WINDOW_SIZE
+
+# Historial mínimo de la misma fuente antes de empezar a evaluar. Escritorio
+# mide en segundo plano y llega a 24h sin esfuerzo, así que exige el ciclo
+# completo. La web solo mide con la pestaña abierta (24h seguidas es casi
+# imposible): empieza con 12h, aceptando menos precisión hasta completar el
+# día, porque con medio día visto las horas que el modelo no conoce (p. ej. la
+# hora pico nocturna) pueden marcarse como anomalías.
+MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE: dict[MeasurementSource, int] = {
+    "native": ANOMALY_WINDOW_SIZE,
+    "web": ANOMALY_WINDOW_SIZE // 2,
+}
 
 # Umbral de desviación (en desviaciones estándar) a partir del cual una anomalía
 # ya confirmada por IsolationForest se considera grave en vez de leve.
