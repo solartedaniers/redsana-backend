@@ -105,6 +105,64 @@ def test_real_assessment_score_takes_priority_over_the_proxy() -> None:
     assert household.security_score_source == "real"
 
 
+
+def test_household_score_uses_the_desktop_evidence_reused_by_a_web_submission() -> None:
+    user_repository = FakeUserRepository()
+    owner = user_repository.create(uuid.uuid4(), "owner@redsana.dev", "Owner", "standard")
+    assessment_repository = FakeSecurityAssessmentRepository()
+    assessments = SecurityAssessmentService(assessment_repository, default_network_security_score_service())
+    desktop = assessments.submit_assessment(
+        owner.id, SecurityAssessmentCreate(answers=ALL_YES_ANSWERS, wifi_encryption_raw="WPA2", router_open_ports=[23])
+    )
+    assessments.submit_assessment(owner.id, SecurityAssessmentCreate(answers=ALL_YES_ANSWERS))
+
+    household = _build_service(user_repository, assessment_repository=assessment_repository).list_households()[0]
+
+    # El admin ve el mismo puntaje completo que el usuario, no el 100 "solo cuestionario".
+    assert household.security_score == desktop.security_score.score < 100
+
+
+def _household_after(submissions: list[SecurityAssessmentCreate]):
+    user_repository = FakeUserRepository()
+    owner = user_repository.create(uuid.uuid4(), "owner@redsana.dev", "Owner", "standard")
+    assessment_repository = FakeSecurityAssessmentRepository()
+    assessments = SecurityAssessmentService(assessment_repository, default_network_security_score_service())
+    results = [assessments.submit_assessment(owner.id, submission) for submission in submissions]
+    household = _build_service(user_repository, assessment_repository=assessment_repository).list_households()[0]
+    return household, results
+
+
+DESKTOP = SecurityAssessmentCreate(answers=ALL_YES_ANSWERS, wifi_encryption_raw="WPA2", router_open_ports=[23])
+WEB = SecurityAssessmentCreate(answers=ALL_YES_ANSWERS)
+
+
+def test_web_only_household_is_marked_partial_without_date() -> None:
+    household, _ = _household_after([WEB])
+
+    assert household.security_score_is_partial
+    assert household.security_technical_measured_at is None
+
+
+def test_reused_desktop_evidence_is_complete_and_carries_its_date() -> None:
+    household, (desktop, _) = _household_after([DESKTOP, WEB])
+
+    assert not household.security_score_is_partial
+    assert household.security_technical_measured_at == desktop.submitted_at
+
+
+def test_fresh_desktop_score_has_no_label_and_no_date() -> None:
+    household, _ = _household_after([DESKTOP])
+
+    assert not household.security_score_is_partial
+    assert household.security_technical_measured_at is None
+
+
+def test_estimated_score_is_not_labelled_partial() -> None:
+    household, _ = _household_after([])
+
+    assert household.security_score_source == "estimated"
+    assert not household.security_score_is_partial
+
 if __name__ == "__main__":
     test_list_households_excludes_admin_users()
     test_security_score_combines_device_trust_alerts_and_network_status()
