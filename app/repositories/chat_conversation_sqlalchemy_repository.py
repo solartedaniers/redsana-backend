@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.domain.chat_topic import ChatTopic
 from app.models.chat_conversation import ChatConversation
 from app.repositories.chat_conversation_repository import ChatConversationRepository
 
@@ -26,8 +27,16 @@ class SqlAlchemyChatConversationRepository(ChatConversationRepository):
         )
         return self._db.scalars(stmt).first()
 
-    def create(self, owner_id: uuid.UUID) -> ChatConversation:
-        conversation = ChatConversation(owner_id=owner_id)
+    def get_by_assessment(self, assessment_id: uuid.UUID, owner_id: uuid.UUID) -> ChatConversation | None:
+        stmt = select(ChatConversation).where(
+            ChatConversation.assessment_id == assessment_id, ChatConversation.owner_id == owner_id
+        )
+        return self._db.scalars(stmt).first()
+
+    def create(
+        self, owner_id: uuid.UUID, topic: ChatTopic | None = None, assessment_id: uuid.UUID | None = None
+    ) -> ChatConversation:
+        conversation = ChatConversation(owner_id=owner_id, topic=topic, assessment_id=assessment_id)
         self._db.add(conversation)
         self._db.commit()
         self._db.refresh(conversation)

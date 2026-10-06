@@ -1,10 +1,11 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, func
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.domain.chat_topic import CHAT_TOPIC_VALUES, ChatTopic
 from app.models.base import Base
 
 
@@ -19,6 +20,11 @@ class ChatConversation(Base):
     # Null hasta el primer mensaje: se autocompleta truncando el primer mensaje
     # del usuario (ver ChatConversationService); el usuario puede renombrarla despues.
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    topic: Mapped[ChatTopic | None] = mapped_column(Enum(*CHAT_TOPIC_VALUES, name="chat_topic"), nullable=True)
+    # Solo en el resumen de una evaluación; único = un resumen por evaluación.
+    assessment_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("security_assessments.id", ondelete="SET NULL"), nullable=True, unique=True
+    )
     # timezone=True: se guarda con offset UTC explícito, para que el frontend
     # pueda convertir correctamente a la hora local del usuario.
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
