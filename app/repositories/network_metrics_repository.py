@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 
 from app.domain.measurement_source import MeasurementSource
+from app.domain.network_baseline import BaselineScope
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
 
 
@@ -23,14 +24,14 @@ class NetworkMetricsRepository(ABC):
 
     @abstractmethod
     def list_latest(
-        self, owner_id: uuid.UUID, limit: int, source: MeasurementSource | None = None
+        self, owner_id: uuid.UUID, limit: int, scope: BaselineScope | None = None
     ) -> list[NetworkMetricSnapshot]:
-        """Las `limit` muestras más recientes, más nueva primero; `source` filtra
-        por fuente de medición (None = todas, p. ej. para detectar cortes)."""
+        """Las `limit` muestras más recientes, más nueva primero; `scope` filtra
+        por fuente y red (None = todas, p. ej. para detectar cortes)."""
         ...
 
     @abstractmethod
-    def count_by_owner(self, owner_id: uuid.UUID, source: MeasurementSource | None = None) -> int: ...
+    def count_by_owner(self, owner_id: uuid.UUID, scope: BaselineScope | None = None) -> int: ...
 
     @abstractmethod
     def create(
@@ -42,4 +43,5 @@ class NetworkMetricsRepository(ABC):
         status: str,
         source: MeasurementSource,
         recorded_at: datetime | None,
+        network_id: str | None = None,
     ) -> NetworkMetricSnapshot: ...

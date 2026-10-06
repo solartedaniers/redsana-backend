@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, aliased
 
 from app.domain.measurement_source import MeasurementSource
+from app.domain.network_baseline import BaselineScope
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
 from app.repositories.network_metrics_repository import NetworkMetricsRepository
 
@@ -50,18 +51,18 @@ class SqlAlchemyNetworkMetricsRepository(NetworkMetricsRepository):
         return list(self._db.scalars(stmt).all())
 
     def list_latest(
-        self, owner_id: uuid.UUID, limit: int, source: MeasurementSource | None = None
+        self, owner_id: uuid.UUID, limit: int, scope: BaselineScope | None = None
     ) -> list[NetworkMetricSnapshot]:
         stmt = (
             select(NetworkMetricSnapshot)
-            .where(*_owner_filters(owner_id, source))
+            .where(*_owner_filters(owner_id, scope))
             .order_by(NetworkMetricSnapshot.recorded_at.desc())
             .limit(limit)
         )
         return list(self._db.scalars(stmt).all())
 
-    def count_by_owner(self, owner_id: uuid.UUID, source: MeasurementSource | None = None) -> int:
-        stmt = select(func.count()).select_from(NetworkMetricSnapshot).where(*_owner_filters(owner_id, source))
+    def count_by_owner(self, owner_id: uuid.UUID, scope: BaselineScope | None = None) -> int:
+        stmt = select(func.count()).select_from(NetworkMetricSnapshot).where(*_owner_filters(owner_id, scope))
         return self._db.scalar(stmt) or 0
 
     def create(
@@ -73,6 +74,7 @@ class SqlAlchemyNetworkMetricsRepository(NetworkMetricsRepository):
         status: str,
         source: MeasurementSource,
         recorded_at: datetime | None,
+        network_id: str | None = None,
     ) -> NetworkMetricSnapshot:
         snapshot = NetworkMetricSnapshot(
             owner_id=owner_id,
@@ -81,6 +83,7 @@ class SqlAlchemyNetworkMetricsRepository(NetworkMetricsRepository):
             packet_loss_percent=packet_loss_percent,
             status=status,
             source=source,
+            network_id=network_id,
         )
         if recorded_at is not None:
             snapshot.recorded_at = recorded_at
@@ -91,8 +94,14 @@ class SqlAlchemyNetworkMetricsRepository(NetworkMetricsRepository):
         return snapshot
 
 
-def _owner_filters(owner_id: uuid.UUID, source: MeasurementSource | None) -> list:
+def _owner_filters(owner_id: uuid.UUID, scope: BaselineScope | None) -> list:
     filters = [NetworkMetricSnapshot.owner_id == owner_id]
-    if source is not None:
-        filters.append(NetworkMetricSnapshot.source == source)
+    if scope is not None:
+        filters.append(NetworkMetricSnapshot.source == scope.source)
+        # None coincide solo con None (red desconocida), nunca con "cualquier red".
+        filters.append(
+            NetworkMetricSnapshot.network_id.is_(None)
+            if scope.network_id is None
+            else NetworkMetricSnapshot.network_id == scope.network_id
+        )
     return filters

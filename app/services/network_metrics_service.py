@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from app.core.config import get_settings
+from app.domain.network_identity import NetworkIdentifier
 from app.domain.network_status import compute_network_status
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
 from app.repositories.network_metrics_repository import NetworkMetricsRepository
@@ -9,8 +10,9 @@ from app.schemas.network_metrics import NetworkMetricSnapshotCreate
 
 
 class NetworkMetricsService:
-    def __init__(self, repository: NetworkMetricsRepository) -> None:
+    def __init__(self, repository: NetworkMetricsRepository, network_identifier: NetworkIdentifier) -> None:
         self._repository = repository
+        self._network_identifier = network_identifier
 
     def get_latest_snapshot(self, owner_id: uuid.UUID) -> NetworkMetricSnapshot | None:
         return self._repository.get_latest(owner_id)
@@ -33,4 +35,5 @@ class NetworkMetricsService:
             status=status,
             source=payload.source,
             recorded_at=payload.recorded_at,
+            network_id=self._network_identifier.network_id(owner_id, payload.network_fingerprint),
         )

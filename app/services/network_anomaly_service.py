@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from app.domain.measurement_source import DEFAULT_MEASUREMENT_SOURCE
+from app.domain.network_baseline import baseline_scope
 from app.domain.network_anomaly import (
     ANOMALY_WINDOW_SIZE,
     MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE,
@@ -19,7 +20,7 @@ PREDICTION_ALERT_TYPE = "prediction"
 
 @dataclass(frozen=True)
 class AnomalyStatus:
-    status: Literal["calibrating", "active"]
+    status: Literal["calibrating", "active", "unknown_network"]
     samples_collected: int
     samples_required: int
 
@@ -38,8 +39,14 @@ class NetworkAnomalyService:
         # fuente con la que el usuario está midiendo ahora mismo.
         latest = self._metrics_repository.get_latest(owner_id)
         source = latest.source if latest is not None else DEFAULT_MEASUREMENT_SOURCE
-        collected = self._metrics_repository.count_by_owner(owner_id, source)
         required = MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE[source]
+        if latest is None:
+            return AnomalyStatus(status="calibrating", samples_collected=0, samples_required=required)
+        # La calibración es por red: el progreso es el de la red de la última medición.
+        scope = baseline_scope(latest.source, latest.network_id)
+        if scope is None:
+            return AnomalyStatus(status="unknown_network", samples_collected=0, samples_required=required)
+        collected = self._metrics_repository.count_by_owner(owner_id, scope)
         status: Literal["calibrating", "active"] = "active" if collected >= required else "calibrating"
         return AnomalyStatus(status=status, samples_collected=min(collected, required), samples_required=required)
 
@@ -52,7 +59,12 @@ class NetworkAnomalyService:
         latest = self._metrics_repository.get_latest(owner_id)
         if latest is None:
             return
-        window = self._metrics_repository.list_latest(owner_id, ANOMALY_WINDOW_SIZE, latest.source)
+        # Solo historial de la misma red: comparar contra otra red (otro router,
+        # otro proveedor) haría que lo normal allá pareciera anomalía aquí.
+        scope = baseline_scope(latest.source, latest.network_id)
+        if scope is None:
+            return
+        window = self._metrics_repository.list_latest(owner_id, ANOMALY_WINDOW_SIZE, scope)
         if len(window) < MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE[latest.source]:
             return
 

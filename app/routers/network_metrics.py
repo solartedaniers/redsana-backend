@@ -5,6 +5,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, s
 from sqlalchemy.orm import Session
 
 from app.core.authorization import ADMIN_ROLE_NAME, get_current_user
+from app.core.config import get_settings
+from app.domain.network_identity import NetworkIdentifier
 from app.core.database import SessionLocal, get_db
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
 from app.models.user import User
@@ -17,6 +19,10 @@ from app.services.network_metrics_service import NetworkMetricsService
 from app.services.outage_detection_service import OutageDetectionService
 
 router = APIRouter(prefix="/api/network-metrics", tags=["network-metrics"])
+
+
+def _network_identifier() -> NetworkIdentifier:
+    return NetworkIdentifier(get_settings().network_id_secret)
 
 
 def _resolve_target_owner_id(user: User, requested_user_id: uuid.UUID | None) -> uuid.UUID:
@@ -63,7 +69,7 @@ def get_latest_snapshot(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> NetworkMetricSnapshotRead:
-    service = NetworkMetricsService(SqlAlchemyNetworkMetricsRepository(db))
+    service = NetworkMetricsService(SqlAlchemyNetworkMetricsRepository(db), _network_identifier())
     snapshot = service.get_latest_snapshot(_resolve_target_owner_id(user, user_id))
     return _to_snapshot_read(snapshot) if snapshot is not None else _default_snapshot_read()
 
@@ -76,7 +82,7 @@ def get_history(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[NetworkMetricSampleRead]:
-    service = NetworkMetricsService(SqlAlchemyNetworkMetricsRepository(db))
+    service = NetworkMetricsService(SqlAlchemyNetworkMetricsRepository(db), _network_identifier())
     snapshots = service.get_history(_resolve_target_owner_id(user, user_id), from_, to)
     return [NetworkMetricSampleRead(timestamp=s.recorded_at, latency_ms=s.latency_ms) for s in snapshots]
 
@@ -131,7 +137,7 @@ def record_snapshot(
     admin puede insertar a nombre de otro usuario (mismo override que /latest
     y /history)."""
     owner_id = _resolve_target_owner_id(user, payload.owner_id)
-    service = NetworkMetricsService(SqlAlchemyNetworkMetricsRepository(db))
+    service = NetworkMetricsService(SqlAlchemyNetworkMetricsRepository(db), _network_identifier())
     snapshot = service.record_snapshot(owner_id, payload)
 
     # Evaluación de anomalías y de cortes, desacopladas entre sí y de
