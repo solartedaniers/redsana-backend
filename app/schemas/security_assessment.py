@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 
 from pydantic import BaseModel
@@ -22,9 +23,14 @@ class SecurityRecommendationRead(BaseModel):
 
 
 class SecurityAssessmentRead(BaseModel):
+    id: uuid.UUID
     score: int
     questionnaire_score: int
     technical_score: int | None
     is_partial: bool
+    # Fecha de la medición técnica usada y si se reutilizó de una evaluación
+    # anterior (evaluación enviada desde la web con un análisis previo del escritorio).
+    technical_measured_at: datetime | None
+    technical_evidence_reused: bool
     recommendations: list[SecurityRecommendationRead]
     submitted_at: datetime

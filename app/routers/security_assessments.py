@@ -15,10 +15,13 @@ router = APIRouter(prefix="/api/security-assessments", tags=["security-assessmen
 def _to_read(result: SecurityAssessmentResult) -> SecurityAssessmentRead:
     security_score = result.security_score
     return SecurityAssessmentRead(
+        id=result.id,
         score=security_score.score,
         questionnaire_score=security_score.questionnaire_score,
         technical_score=security_score.technical_score,
         is_partial=security_score.is_partial,
+        technical_measured_at=result.technical_measured_at,
+        technical_evidence_reused=result.technical_evidence_reused,
         recommendations=[
             SecurityRecommendationRead(id=r.id, title_key=r.title_key, description_key=r.description_key, priority=r.priority)
             for r in security_score.recommendations

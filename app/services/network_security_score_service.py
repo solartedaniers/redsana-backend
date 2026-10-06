@@ -3,7 +3,6 @@ from dataclasses import dataclass
 
 from app.domain.security_analyzers import TechnicalEvidence, TechnicalSecurityAnalyzer, default_technical_analyzers
 from app.domain.security_assessment import AnswerValue, SecurityRecommendation, compute_questionnaire_score
-from app.models.security_assessment import SecurityAssessment
 
 QUESTIONNAIRE_WEIGHT_PERCENT = 30
 TECHNICAL_WEIGHT_PERCENT = 70
@@ -50,15 +49,6 @@ class NetworkSecurityScoreService:
             technical_score=technical_score,
             recommendations=sorted(recommendations, key=lambda r: r.priority),
         )
-
-    def evaluate_assessment(self, assessment: SecurityAssessment) -> NetworkSecurityScore:
-        # Se recalcula siempre desde lo crudo guardado (respuestas + evidencia),
-        # para que un cambio de pesos aplique también a evaluaciones pasadas.
-        evidence = TechnicalEvidence(
-            wifi_encryption_raw=assessment.wifi_encryption_raw,
-            router_open_ports=assessment.router_open_ports,
-        )
-        return self.evaluate(assessment.answers, evidence)
 
 
 def default_network_security_score_service() -> NetworkSecurityScoreService:
