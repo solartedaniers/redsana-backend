@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, Float, ForeignKey, Index, func
+from sqlalchemy import DateTime, Enum, Float, ForeignKey, Index, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,6 +17,9 @@ class NetworkMetricSnapshot(Base):
     __table_args__ = (
         Index("ix_network_metric_snapshots_owner_recorded", "owner_id", "recorded_at"),
         Index("ix_network_metric_snapshots_owner_source_recorded", "owner_id", "source", "recorded_at"),
+        Index(
+            "ix_network_metric_snapshots_owner_source_network_recorded", "owner_id", "source", "network_id", "recorded_at"
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -36,3 +39,7 @@ class NetworkMetricSnapshot(Base):
         default=DEFAULT_MEASUREMENT_SOURCE,
         server_default=DEFAULT_MEASUREMENT_SOURCE,
     )
+    # Red en la que se midió (HMAC de la huella del router, ver
+    # app.domain.network_identity). None = red desconocida: historial previo a
+    # esta columna, mediciones web o router no resuelto.
+    network_id: Mapped[str | None] = mapped_column(String(64), nullable=True)

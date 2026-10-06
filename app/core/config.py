@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     supabase_service_role_key: str
     groq_api_key: str
     groq_model: str = "openai/gpt-oss-120b"
+    # Secreto del HMAC que convierte la huella de red del escritorio en network_id
+    # (ver app.domain.network_identity). Debe ser el mismo en todo backend que
+    # comparta base de datos: si cambia, cada red vuelve a calibrar desde cero.
+    network_id_secret: str
     groq_timeout_seconds: int = 30
     # Baja a propósito: el asistente copia datos exactos (DNS, puertos) y una
     # temperatura alta lo hacía variar dígitos (llegó a escribir 0.0.0.3 por 1.0.0.3).
