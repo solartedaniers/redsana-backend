@@ -94,6 +94,18 @@ RISKY_ROUTER_PORTS: dict[int, tuple[int, SecurityRecommendation]] = {
 }
 
 
+# Nombre del servicio de cada puerto de riesgo, para hablarle al usuario de
+# "Telnet" y no de "puerto 23" (lo usa el contexto del asistente).
+ROUTER_PORT_SERVICE_NAMES: dict[int, str] = {
+    23: "Telnet",
+    21: "FTP",
+    445: "SMB (archivos compartidos)",
+    139: "NetBIOS (archivos compartidos)",
+    7547: "TR-069 (gestión remota del proveedor)",
+    22: "SSH",
+}
+
+
 class RouterOpenPortsAnalyzer(TechnicalSecurityAnalyzer):
     WEIGHT = 50
 
