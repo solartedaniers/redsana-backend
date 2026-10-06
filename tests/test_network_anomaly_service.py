@@ -12,10 +12,21 @@ from tests.test_alert_service import FakeAlertRepository
 from tests.test_network_metrics_service import FakeNetworkMetricsRepository
 
 
+HOME_NETWORK = "home-network-id"
+OFFICE_NETWORK = "office-network-id"
+
+
 def _seed_normal_history(
-    repository: FakeNetworkMetricsRepository, owner_id: uuid.UUID, count: int, source: MeasurementSource = "native"
+    repository: FakeNetworkMetricsRepository,
+    owner_id: uuid.UUID,
+    count: int,
+    source: MeasurementSource = "native",
+    network_id: str | None = HOME_NETWORK,
+    minutes_ago: int = 0,
 ) -> None:
-    base_time = datetime.now(timezone.utc) - timedelta(minutes=count)
+    """Por defecto, historial nativo de una red conocida (la web no tiene red)."""
+    network_id = None if source == "web" else network_id
+    base_time = datetime.now(timezone.utc) - timedelta(minutes=count + minutes_ago)
     for i in range(count):
         repository.create(
             owner_id=owner_id,
@@ -24,6 +35,7 @@ def _seed_normal_history(
             packet_loss_percent=0.0 + (i % 2) * 0.05,
             status="good",
             source=source,
+            network_id=network_id,
             recorded_at=base_time + timedelta(minutes=i),
         )
 
@@ -80,7 +92,7 @@ def test_evaluate_latest_creates_a_prediction_alert_for_an_anomalous_sample() ->
     owner_id = uuid.uuid4()
     _seed_normal_history(metrics_repository, owner_id, ANOMALY_WINDOW_SIZE - 1)
     metrics_repository.create(
-        owner_id=owner_id, latency_ms=400.0, jitter_ms=2.0, packet_loss_percent=0.0, status="critical", source="native", recorded_at=None
+        owner_id=owner_id, latency_ms=400.0, jitter_ms=2.0, packet_loss_percent=0.0, status="critical", source="native", network_id=HOME_NETWORK, recorded_at=None
     )
     service = NetworkAnomalyService(metrics_repository, alert_repository)
 
@@ -107,7 +119,7 @@ def test_evaluate_latest_does_not_duplicate_an_already_open_alert() -> None:
     )
     _seed_normal_history(metrics_repository, owner_id, ANOMALY_WINDOW_SIZE - 1)
     metrics_repository.create(
-        owner_id=owner_id, latency_ms=400.0, jitter_ms=2.0, packet_loss_percent=0.0, status="critical", source="native", recorded_at=None
+        owner_id=owner_id, latency_ms=400.0, jitter_ms=2.0, packet_loss_percent=0.0, status="critical", source="native", network_id=HOME_NETWORK, recorded_at=None
     )
     service = NetworkAnomalyService(metrics_repository, alert_repository)
 
@@ -165,6 +177,75 @@ def test_web_source_detects_anomalies_once_calibrated_with_720_samples() -> None
 
     assert [alert.type for alert in alert_repository.list_all(owner_id)] == ["prediction"]
 
+
+def _anomalous_sample(repository: FakeNetworkMetricsRepository, owner_id: uuid.UUID, network_id: str | None) -> None:
+    repository.create(
+        owner_id=owner_id, latency_ms=400.0, jitter_ms=2.0, packet_loss_percent=0.0, status="critical",
+        source="native", network_id=network_id, recorded_at=None,
+    )
+
+
+def test_two_networks_calibrate_separately() -> None:
+    metrics_repository = FakeNetworkMetricsRepository()
+    alert_repository = FakeAlertRepository()
+    owner_id = uuid.uuid4()
+    # Casa calibrada hace un rato; ahora el usuario mide en la oficina (pocas muestras).
+    _seed_normal_history(metrics_repository, owner_id, MIN_NATIVE_SAMPLES, network_id=HOME_NETWORK, minutes_ago=200)
+    _seed_normal_history(metrics_repository, owner_id, 100, network_id=OFFICE_NETWORK)
+    _anomalous_sample(metrics_repository, owner_id, OFFICE_NETWORK)
+    service = NetworkAnomalyService(metrics_repository, alert_repository)
+
+    status = service.get_status(owner_id)
+    service.evaluate_latest(owner_id)
+
+    # La oficina empieza de cero: no usa el historial de la casa ni alerta todavía.
+    assert (status.status, status.samples_collected) == ("calibrating", 101)
+    assert alert_repository.list_all(owner_id) == []
+
+
+def test_returning_to_a_network_resumes_its_own_calibration() -> None:
+    metrics_repository = FakeNetworkMetricsRepository()
+    alert_repository = FakeAlertRepository()
+    owner_id = uuid.uuid4()
+    # 1439 + la medición nueva = calibración completa justo al volver (misma
+    # preparación que test_evaluate_latest_creates_a_prediction_alert...).
+    _seed_normal_history(metrics_repository, owner_id, MIN_NATIVE_SAMPLES - 1, network_id=HOME_NETWORK, minutes_ago=300)
+    _seed_normal_history(metrics_repository, owner_id, 100, network_id=OFFICE_NETWORK, minutes_ago=50)
+    # De vuelta en casa: retoma su calibración (las 100 de la oficina no cuentan) y detecta.
+    _anomalous_sample(metrics_repository, owner_id, HOME_NETWORK)
+    service = NetworkAnomalyService(metrics_repository, alert_repository)
+
+    assert service.get_status(owner_id).status == "active"
+    service.evaluate_latest(owner_id)
+    assert [alert.type for alert in alert_repository.list_all(owner_id)] == ["prediction"]
+
+
+def test_unknown_network_is_reported_and_never_evaluated() -> None:
+    metrics_repository = FakeNetworkMetricsRepository()
+    alert_repository = FakeAlertRepository()
+    owner_id = uuid.uuid4()
+    _seed_normal_history(metrics_repository, owner_id, MIN_NATIVE_SAMPLES, network_id=HOME_NETWORK, minutes_ago=50)
+    # Escritorio que no pudo resolver el router (o versión vieja): sin red.
+    _anomalous_sample(metrics_repository, owner_id, None)
+    service = NetworkAnomalyService(metrics_repository, alert_repository)
+
+    assert service.get_status(owner_id).status == "unknown_network"
+    service.evaluate_latest(owner_id)
+    assert alert_repository.list_all(owner_id) == []
+
+
+def test_measurements_without_network_never_count_toward_a_calibration() -> None:
+    metrics_repository = FakeNetworkMetricsRepository()
+    owner_id = uuid.uuid4()
+    # Historial previo a esta función: 1440 mediciones nativas sin red.
+    _seed_normal_history(metrics_repository, owner_id, MIN_NATIVE_SAMPLES, network_id=None, minutes_ago=50)
+    _seed_normal_history(metrics_repository, owner_id, 10, network_id=HOME_NETWORK)
+
+    status = NetworkAnomalyService(metrics_repository, FakeAlertRepository()).get_status(owner_id)
+
+    assert (status.status, status.samples_collected) == ("calibrating", 10)
+
+
 if __name__ == "__main__":
     test_get_status_is_calibrating_below_the_sample_threshold()
     test_get_status_is_active_once_the_threshold_is_met()
@@ -175,4 +256,8 @@ if __name__ == "__main__":
     test_evaluate_latest_ignores_history_from_another_source()
     test_web_source_calibrates_with_half_a_day_while_desktop_still_needs_the_full_day()
     test_web_source_detects_anomalies_once_calibrated_with_720_samples()
+    test_two_networks_calibrate_separately()
+    test_returning_to_a_network_resumes_its_own_calibration()
+    test_unknown_network_is_reported_and_never_evaluated()
+    test_measurements_without_network_never_count_toward_a_calibration()
     print("OK")

@@ -112,7 +112,8 @@ def test_post_without_token_is_unauthorized(client_without_claims_override: Test
 
 
 def test_anomaly_status_is_calibrating_with_little_history(client: TestClient) -> None:
-    client.post("/api/network-metrics", json=SNAPSHOT_PAYLOAD, headers={"Authorization": "Bearer fake"})
+    payload = {**SNAPSHOT_PAYLOAD, "network_fingerprint": "b" * 64}
+    client.post("/api/network-metrics", json=payload, headers={"Authorization": "Bearer fake"})
 
     response = client.get("/api/network-metrics/anomaly-status", headers={"Authorization": "Bearer fake"})
 
@@ -121,6 +122,22 @@ def test_anomaly_status_is_calibrating_with_little_history(client: TestClient) -
     assert body["status"] == "calibrating"
     assert body["samples_collected"] == 1
     assert body["samples_required"] > 1
+
+
+
+def test_desktop_measurement_without_network_reports_unknown_network(client: TestClient) -> None:
+    client.post("/api/network-metrics", json=SNAPSHOT_PAYLOAD, headers={"Authorization": "Bearer fake"})
+
+    body = client.get("/api/network-metrics/anomaly-status", headers={"Authorization": "Bearer fake"}).json()
+
+    assert (body["status"], body["samples_collected"]) == ("unknown_network", 0)
+
+
+def test_a_malformed_fingerprint_is_rejected(client: TestClient) -> None:
+    payload = {**SNAPSHOT_PAYLOAD, "network_fingerprint": "3c-6a-d2-c8-5a-ec"}  # una MAC cruda no se acepta
+    response = client.post("/api/network-metrics", json=payload, headers={"Authorization": "Bearer fake"})
+
+    assert response.status_code == 422
 
 
 if __name__ == "__main__":
