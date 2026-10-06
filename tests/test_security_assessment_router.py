@@ -110,3 +110,24 @@ def test_post_without_token_is_unauthorized() -> None:
 
 if __name__ == "__main__":
     print("Run via pytest: python -m pytest tests/test_security_assessment_router.py")
+
+
+def test_web_submission_reuses_desktop_evidence_through_the_real_repository(client: TestClient) -> None:
+    headers = {"Authorization": "Bearer fake"}
+    desktop = client.post(
+        "/api/security-assessments",
+        json={**ANSWERS_PAYLOAD, "router_open_ports": [23]},
+        headers=headers,
+    ).json()
+
+    web = client.post(
+        "/api/security-assessments",
+        json={"answers": ANSWERS_PAYLOAD["answers"], "wifi_encryption_raw": None, "router_open_ports": None},
+        headers=headers,
+    ).json()
+
+    assert web["is_partial"] is False
+    assert web["technical_evidence_reused"] is True
+    assert web["technical_measured_at"] == desktop["submitted_at"]
+    assert web["score"] == desktop["score"]
+
