@@ -17,6 +17,8 @@ class AdminHouseholdRead(BaseModel):
     status: NetworkStatus
     security_score: int
     security_score_source: Literal["real", "estimated"]
+    security_score_is_partial: bool
+    security_technical_measured_at: datetime | None
     last_activity: datetime
 
 

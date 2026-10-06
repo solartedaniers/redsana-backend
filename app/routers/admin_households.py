@@ -24,6 +24,8 @@ def _to_household_read(household: MonitoredHousehold) -> AdminHouseholdRead:
         status=household.status,
         security_score=household.security_score,
         security_score_source=household.security_score_source,
+        security_score_is_partial=household.security_score_is_partial,
+        security_technical_measured_at=household.security_technical_measured_at,
         last_activity=household.last_activity,
     )
 
