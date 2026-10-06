@@ -35,6 +35,7 @@ class FakeDeviceRepository(DeviceRepository):
         ip_address: str,
         trust: str,
         last_seen: datetime | None = None,
+        network_role: str | None = None,
     ) -> Device:
         seen = last_seen or datetime.now(timezone.utc)
         device = Device(
@@ -46,6 +47,7 @@ class FakeDeviceRepository(DeviceRepository):
             trust=trust,
             first_seen=seen,
             last_seen=seen,
+            network_role=network_role,
         )
         self.devices[device.id] = device
         return device
@@ -138,3 +140,25 @@ if __name__ == "__main__":
     test_sync_does_not_duplicate_an_already_known_mac_and_refreshes_its_ip()
     test_sync_does_not_delete_a_device_missing_from_the_latest_scan()
     print("OK")
+
+
+def test_sync_stores_each_device_role_and_refreshes_it_on_the_next_scan() -> None:
+    repository = FakeDeviceRepository()
+    service = DeviceService(repository)
+    owner_id = uuid.uuid4()
+
+    service.sync_discovered_devices(
+        owner_id,
+        [
+            DeviceSyncItem(mac_address="3c-6a-d2-c8-5a-ec", ip_address="192.168.0.1", role="gateway"),
+            DeviceSyncItem(mac_address="82-dc-10-19-ea-cf", ip_address="192.168.0.100"),
+            DeviceSyncItem(mac_address="8c-c6-81-16-00-85", ip_address="192.168.0.103", role="this_device"),
+        ],
+    )
+    roles = {d.ip_address: d.network_role for d in repository.list_by_owner(owner_id)}
+    assert roles == {"192.168.0.1": "gateway", "192.168.0.100": "other", "192.168.0.103": "this_device"}
+
+    # En otra red, el mismo equipo deja de ser el router.
+    service.sync_discovered_devices(owner_id, [DeviceSyncItem(mac_address="3c-6a-d2-c8-5a-ec", ip_address="10.0.0.9")])
+    assert {d.mac_address: d.network_role for d in repository.list_by_owner(owner_id)}["3c-6a-d2-c8-5a-ec"] == "other"
+

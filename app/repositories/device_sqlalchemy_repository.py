@@ -42,8 +42,16 @@ class SqlAlchemyDeviceRepository(DeviceRepository):
         ip_address: str,
         trust: str,
         last_seen: datetime | None = None,
+        network_role: str | None = None,
     ) -> Device:
-        device = Device(owner_id=owner_id, name=name, mac_address=mac_address, ip_address=ip_address, trust=trust)
+        device = Device(
+            owner_id=owner_id,
+            name=name,
+            mac_address=mac_address,
+            ip_address=ip_address,
+            trust=trust,
+            network_role=network_role,
+        )
         if last_seen is not None:
             # Un sync trae su propio timestamp (compartido por toda la tanda) en vez
             # de dejar que cada INSERT tome su propio server_default=func.now(),

@@ -33,6 +33,7 @@ class DeviceRepository(ABC):
         ip_address: str,
         trust: str,
         last_seen: datetime | None = None,
+        network_role: str | None = None,
     ) -> Device: ...
 
     @abstractmethod

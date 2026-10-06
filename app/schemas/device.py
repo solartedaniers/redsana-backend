@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.domain.device_role import DEFAULT_DEVICE_ROLE, DeviceRole
+
 DeviceTrust = Literal["trusted", "unknown", "blocked"]
 
 
@@ -16,6 +18,7 @@ class DeviceRead(BaseModel):
     first_seen: datetime
     last_seen: datetime
     is_online: bool
+    network_role: DeviceRole | None
 
 
 class DeviceCreate(BaseModel):
@@ -37,6 +40,7 @@ class DeviceSyncItem(BaseModel):
 
     mac_address: str
     ip_address: str
+    role: DeviceRole = DEFAULT_DEVICE_ROLE
 
 
 class DeviceSyncRequest(BaseModel):

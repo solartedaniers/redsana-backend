@@ -60,9 +60,14 @@ class DeviceService:
                     ip_address=item.ip_address,
                     trust="unknown",
                     last_seen=sync_time,
+                    network_role=item.role,
                 )
             else:
+                # El papel se refresca en cada escaneo: el mismo equipo puede ser
+                # "otro" en una red y el router de la siguiente.
                 self._repository.update(
-                    existing.id, owner_id, {"ip_address": item.ip_address, "last_seen": sync_time}
+                    existing.id,
+                    owner_id,
+                    {"ip_address": item.ip_address, "last_seen": sync_time, "network_role": item.role},
                 )
         return self._repository.list_by_owner(owner_id)

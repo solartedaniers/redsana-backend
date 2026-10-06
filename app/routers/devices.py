@@ -26,6 +26,7 @@ def _to_device_read(device: Device, latest_seen: datetime | None) -> DeviceRead:
         first_seen=device.first_seen,
         last_seen=device.last_seen,
         is_online=is_device_online(device, latest_seen),
+        network_role=device.network_role,
     )
 
 
