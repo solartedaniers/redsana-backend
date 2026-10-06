@@ -1,10 +1,19 @@
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from app.models.security_assessment import SecurityAssessment
 from app.repositories.security_assessment_repository import SecurityAssessmentRepository
+
+
+def _has_technical_evidence():
+    # La columna JSON guarda None como el literal JSON 'null' (no SQL NULL), así
+    # que se comparan ambos: sin esto, toda evaluación web parecería tener puertos.
+    return or_(
+        SecurityAssessment.wifi_encryption_raw.is_not(None),
+        func.coalesce(cast(SecurityAssessment.router_open_ports, String), "null") != "null",
+    )
 
 
 class SqlAlchemySecurityAssessmentRepository(SecurityAssessmentRepository):
@@ -21,6 +30,21 @@ class SqlAlchemySecurityAssessmentRepository(SecurityAssessmentRepository):
         return self._db.scalars(stmt).first()
 
     def get_latest_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, SecurityAssessment]:
+        return self._latest_by_owners(owner_ids)
+
+    def get_latest_with_evidence(self, owner_id: uuid.UUID) -> SecurityAssessment | None:
+        stmt = (
+            select(SecurityAssessment)
+            .where(SecurityAssessment.owner_id == owner_id, _has_technical_evidence())
+            .order_by(SecurityAssessment.submitted_at.desc())
+            .limit(1)
+        )
+        return self._db.scalars(stmt).first()
+
+    def get_latest_with_evidence_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, SecurityAssessment]:
+        return self._latest_by_owners(owner_ids, _has_technical_evidence())
+
+    def _latest_by_owners(self, owner_ids: list[uuid.UUID], *conditions) -> dict[uuid.UUID, SecurityAssessment]:
         if not owner_ids:
             return {}
         rank = (
@@ -28,7 +52,9 @@ class SqlAlchemySecurityAssessmentRepository(SecurityAssessmentRepository):
             .over(partition_by=SecurityAssessment.owner_id, order_by=SecurityAssessment.submitted_at.desc())
             .label("rank")
         )
-        ranked = select(SecurityAssessment, rank).where(SecurityAssessment.owner_id.in_(owner_ids)).subquery()
+        ranked = (
+            select(SecurityAssessment, rank).where(SecurityAssessment.owner_id.in_(owner_ids), *conditions).subquery()
+        )
         assessment = aliased(SecurityAssessment, ranked)
         stmt = select(assessment).where(ranked.c.rank == 1)
         return {row.owner_id: row for row in self._db.scalars(stmt).all()}

@@ -17,6 +17,14 @@ class SecurityAssessmentRepository(ABC):
         ...
 
     @abstractmethod
+    def get_latest_with_evidence(self, owner_id: uuid.UUID) -> SecurityAssessment | None:
+        """La evaluación más reciente del owner que sí trae evidencia técnica medida."""
+        ...
+
+    @abstractmethod
+    def get_latest_with_evidence_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, SecurityAssessment]: ...
+
+    @abstractmethod
     def create(
         self,
         owner_id: uuid.UUID,
