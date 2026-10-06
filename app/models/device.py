@@ -5,6 +5,7 @@ from sqlalchemy import DateTime, Enum, ForeignKey, String, UniqueConstraint, fun
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.domain.device_role import DEVICE_ROLE_VALUES, DeviceRole
 from app.models.base import Base
 
 DEVICE_TRUST_VALUES = ("trusted", "unknown", "blocked")
@@ -21,6 +22,9 @@ class Device(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     mac_address: Mapped[str] = mapped_column(String(17), nullable=False)
     ip_address: Mapped[str] = mapped_column(String(45), nullable=False)
+    network_role: Mapped[DeviceRole | None] = mapped_column(
+        Enum(*DEVICE_ROLE_VALUES, name="device_network_role"), nullable=True
+    )
     trust: Mapped[str] = mapped_column(
         Enum(*DEVICE_TRUST_VALUES, name="device_trust"), nullable=False, server_default="unknown"
     )
