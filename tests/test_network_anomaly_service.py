@@ -4,7 +4,9 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from app.domain.measurement_source import MeasurementSource
-from app.domain.network_anomaly import ANOMALY_WINDOW_SIZE, MIN_SAMPLES_TO_CALIBRATE
+from app.domain.network_anomaly import ANOMALY_WINDOW_SIZE, MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE
+
+MIN_NATIVE_SAMPLES = MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE["native"]
 from app.services.network_anomaly_service import NetworkAnomalyService
 from tests.test_alert_service import FakeAlertRepository
 from tests.test_network_metrics_service import FakeNetworkMetricsRepository
@@ -36,13 +38,13 @@ def test_get_status_is_calibrating_below_the_sample_threshold() -> None:
 
     assert status.status == "calibrating"
     assert status.samples_collected == 12
-    assert status.samples_required == MIN_SAMPLES_TO_CALIBRATE
+    assert status.samples_required == MIN_NATIVE_SAMPLES
 
 
 def test_get_status_is_active_once_the_threshold_is_met() -> None:
     metrics_repository = FakeNetworkMetricsRepository()
     owner_id = uuid.uuid4()
-    _seed_normal_history(metrics_repository, owner_id, MIN_SAMPLES_TO_CALIBRATE)
+    _seed_normal_history(metrics_repository, owner_id, MIN_NATIVE_SAMPLES)
     service = NetworkAnomalyService(metrics_repository, FakeAlertRepository())
 
     assert service.get_status(owner_id).status == "active"
@@ -52,7 +54,7 @@ def test_evaluate_latest_does_nothing_while_calibrating() -> None:
     metrics_repository = FakeNetworkMetricsRepository()
     alert_repository = FakeAlertRepository()
     owner_id = uuid.uuid4()
-    _seed_normal_history(metrics_repository, owner_id, MIN_SAMPLES_TO_CALIBRATE - 1)
+    _seed_normal_history(metrics_repository, owner_id, MIN_NATIVE_SAMPLES - 1)
     service = NetworkAnomalyService(metrics_repository, alert_repository)
 
     service.evaluate_latest(owner_id)
@@ -133,6 +135,36 @@ def test_evaluate_latest_ignores_history_from_another_source() -> None:
     assert service.get_status(owner_id).status == "calibrating"
 
 
+
+def test_web_source_calibrates_with_half_a_day_while_desktop_still_needs_the_full_day() -> None:
+    web_required = MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE["web"]
+    assert web_required == 720 and MIN_NATIVE_SAMPLES == 1440
+    metrics_repository = FakeNetworkMetricsRepository()
+    web_owner, native_owner = uuid.uuid4(), uuid.uuid4()
+    _seed_normal_history(metrics_repository, web_owner, web_required, source="web")
+    _seed_normal_history(metrics_repository, native_owner, web_required, source="native")
+    service = NetworkAnomalyService(metrics_repository, FakeAlertRepository())
+
+    web_status = service.get_status(web_owner)
+    native_status = service.get_status(native_owner)
+
+    assert (web_status.status, web_status.samples_required) == ("active", 720)
+    assert (native_status.status, native_status.samples_required) == ("calibrating", 1440)
+
+
+def test_web_source_detects_anomalies_once_calibrated_with_720_samples() -> None:
+    metrics_repository = FakeNetworkMetricsRepository()
+    alert_repository = FakeAlertRepository()
+    owner_id = uuid.uuid4()
+    _seed_normal_history(metrics_repository, owner_id, MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE["web"], source="web")
+    metrics_repository.create(
+        owner_id=owner_id, latency_ms=400.0, jitter_ms=2.0, packet_loss_percent=0.0, status="critical", source="web", recorded_at=None
+    )
+
+    NetworkAnomalyService(metrics_repository, alert_repository).evaluate_latest(owner_id)
+
+    assert [alert.type for alert in alert_repository.list_all(owner_id)] == ["prediction"]
+
 if __name__ == "__main__":
     test_get_status_is_calibrating_below_the_sample_threshold()
     test_get_status_is_active_once_the_threshold_is_met()
@@ -141,4 +173,6 @@ if __name__ == "__main__":
     test_evaluate_latest_creates_a_prediction_alert_for_an_anomalous_sample()
     test_evaluate_latest_does_not_duplicate_an_already_open_alert()
     test_evaluate_latest_ignores_history_from_another_source()
+    test_web_source_calibrates_with_half_a_day_while_desktop_still_needs_the_full_day()
+    test_web_source_detects_anomalies_once_calibrated_with_720_samples()
     print("OK")
