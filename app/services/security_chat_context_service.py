@@ -1,14 +1,18 @@
 import uuid
+from collections import Counter
 from datetime import tzinfo
 
-from app.domain.device_presence import is_device_online, latest_seen_among
+from app.domain.device_presence import connected_members, is_device_online, latest_seen_among
 from app.domain.security_analyzers import RISKY_ROUTER_PORTS, ROUTER_PORT_SERVICE_NAMES
 from app.models.alert import Alert
+from app.models.device import Device
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
 from app.repositories.alert_repository import AlertRepository
 from app.repositories.device_repository import DeviceRepository
 from app.repositories.network_metrics_repository import NetworkMetricsRepository
 from app.services.security_assessment_service import SecurityAssessmentResult, SecurityAssessmentService
+
+THIS_DEVICE_ROLE = "this_device"
 
 # Tope de alertas incluidas en el contexto: evita inflar el prompt si algun dia
 # hay decenas de alertas sin reconocer (el modelo solo necesita las mas recientes).
@@ -41,8 +45,6 @@ class SecurityChatContextBuilder:
 
     def build(self, owner_id: uuid.UUID) -> str:
         devices = self._device_repository.list_by_owner(owner_id)
-        latest_seen = latest_seen_among(devices)
-        online_count = sum(1 for device in devices if is_device_online(device, latest_seen))
 
         alerts = self._alert_repository.list_all(owner_id)
         unacknowledged = [alert for alert in alerts if not alert.acknowledged]
@@ -51,12 +53,28 @@ class SecurityChatContextBuilder:
         assessment = self._security_assessment_service.get_latest_assessment(owner_id)
 
         lines = [
-            f"- Dispositivos: {len(devices)} en total, {online_count} en linea ahora mismo.",
+            self._devices_line(devices),
             self._alerts_line(unacknowledged),
             self._snapshot_line(snapshot),
             *self._assessment_lines(assessment),
         ]
         return "\n".join(lines)
+
+    def _devices_line(self, devices: list[Device]) -> str:
+        # Mismo conteo que la pantalla de Dispositivos (este equipo sí, el router
+        # no). El total histórico no se da: mezcla otras redes y MAC rotadas.
+        latest_seen = latest_seen_among(devices)
+        this_device_online = any(
+            device.network_role == THIS_DEVICE_ROLE and is_device_online(device, latest_seen) for device in devices
+        )
+        members = connected_members(devices)
+        trust_counts = Counter(device.trust for device in members)
+        return (
+            f"- Dispositivos conectados en el ultimo escaneo: {len(members) + int(this_device_online)} "
+            f"(incluye este equipo, sin contar el router). De los demas: {trust_counts['trusted']} marcados de "
+            f"confianza, {trust_counts['blocked']} marcados como inseguros y {trust_counts['unknown']} sin revisar. "
+            "RedSana no puede bloquear equipos en el router; el usuario solo los marca."
+        )
 
     def _alerts_line(self, unacknowledged: list[Alert]) -> str:
         if not unacknowledged:
