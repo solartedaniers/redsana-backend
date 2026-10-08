@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     # comparta base de datos: si cambia, cada red vuelve a calibrar desde cero.
     network_id_secret: str
     groq_timeout_seconds: int = 30
+    # Timeout de las llamadas a Supabase (JWKS y Admin API): los endpoints son
+    # síncronos y corren en el pool de hilos; sin timeout, un Supabase colgado
+    # deja cada hilo bloqueado para siempre hasta agotar el pool.
+    supabase_http_timeout_seconds: int = 10
     # Baja a propósito: el asistente copia datos exactos (DNS, puertos) y una
     # temperatura alta lo hacía variar dígitos (llegó a escribir 0.0.0.3 por 1.0.0.3).
     groq_temperature: float = 0.2
