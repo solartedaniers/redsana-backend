@@ -18,6 +18,7 @@ class SupabaseAdminClient:
     def __init__(self, settings: Settings) -> None:
         self._base_url = settings.supabase_url.rstrip("/")
         self._service_role_key = settings.supabase_service_role_key
+        self._timeout_seconds = settings.supabase_http_timeout_seconds
 
     def invite_user(self, email: str, full_name: str | None) -> uuid.UUID:
         """Crea el usuario en Supabase Auth y le envia el correo de invitacion
@@ -46,9 +47,11 @@ class SupabaseAdminClient:
             },
         )
         try:
-            with urllib.request.urlopen(request) as response:
+            with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
                 raw = response.read()
                 return json.loads(raw) if raw else {}
         except urllib.error.HTTPError as error:
             detail = error.read().decode("utf-8", errors="ignore")
             raise SupabaseAdminError(f"Supabase Admin API error {error.code}: {detail}") from error
+        except (urllib.error.URLError, TimeoutError) as error:
+            raise SupabaseAdminError(f"Supabase Admin API unreachable: {error}") from error

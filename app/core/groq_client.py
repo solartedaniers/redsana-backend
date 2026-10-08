@@ -19,9 +19,9 @@ def get_chat_engine() -> ChatEngine:
 
 
 class GroqClient(ChatEngine):
-    """Unica clase que sabe hablar HTTP con la API de Groq (urllib, sin
-    dependencia nueva: httpx en requirements.txt esta mal declarado y no
-    esta instalado). El resto del dominio no conoce el detalle HTTP."""
+    """Unica clase que sabe hablar HTTP con la API de Groq (urllib de la
+    stdlib: httpx2 en requirements.txt solo lo usa el TestClient de Starlette
+    en las pruebas). El resto del dominio no conoce el detalle HTTP."""
 
     def __init__(self, settings: Settings) -> None:
         self._api_key = settings.groq_api_key
