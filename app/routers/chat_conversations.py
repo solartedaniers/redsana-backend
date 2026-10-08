@@ -1,3 +1,4 @@
+import logging
 import uuid
 from typing import Any
 
@@ -7,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.chat_engine import ChatEngine, ChatEngineError
 from app.core.groq_client import get_chat_engine
-from app.core.security import get_current_claims
+from app.core.security import get_current_claims, owner_id_from_claims
 from app.domain.user_timezone import timezone_from_browser_offset
 from app.models.chat_conversation import ChatConversation
 from app.models.chat_message import ChatMessage
@@ -39,7 +40,10 @@ from app.services.security_chat_context_service import SecurityChatContextBuilde
 from app.services.security_chat_prompt_builder import SecurityChatPromptBuilder
 from app.services.security_chat_service import SecurityChatService
 
-router = APIRouter(prefix="/api/conversations", tags=["chat-conversations"])
+logger = logging.getLogger(__name__)
+CHAT_ENGINE_UNAVAILABLE_DETAIL = "Chat engine unavailable"
+
+router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
 
 def _to_conversation_read(conversation: ChatConversation) -> ChatConversationRead:
@@ -54,8 +58,11 @@ def _to_message_read(message: ChatMessage) -> ChatMessageRead:
     )
 
 
-def _owner_id(claims: dict[str, Any]) -> uuid.UUID:
-    return uuid.UUID(claims["sub"])
+def _chat_engine_unavailable(error: ChatEngineError) -> HTTPException:
+    # El detalle real (código de Groq, cuerpo de la respuesta) queda en el log del
+    # servidor: devolverlo al cliente exponía datos internos del proveedor.
+    logger.warning("chat engine failed: %s", error)
+    return HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=CHAT_ENGINE_UNAVAILABLE_DETAIL)
 
 
 def _assessment_service(db: Session) -> SecurityAssessmentService:
@@ -86,7 +93,7 @@ def list_conversations(
     claims: dict[str, Any] = Depends(get_current_claims),
     service: ChatConversationService = Depends(_get_service),
 ) -> list[ChatConversationRead]:
-    conversations = service.list_conversations(_owner_id(claims))
+    conversations = service.list_conversations(owner_id_from_claims(claims))
     return [_to_conversation_read(conversation) for conversation in conversations]
 
 
@@ -96,7 +103,7 @@ def create_conversation(
     claims: dict[str, Any] = Depends(get_current_claims),
     service: ChatConversationService = Depends(_get_service),
 ) -> ChatConversationRead:
-    conversation = service.create_conversation(_owner_id(claims), payload.topic if payload else None)
+    conversation = service.create_conversation(owner_id_from_claims(claims), payload.topic if payload else None)
     return _to_conversation_read(conversation)
 
 
@@ -108,7 +115,7 @@ def rename_conversation(
     service: ChatConversationService = Depends(_get_service),
 ) -> ChatConversationRead:
     try:
-        conversation = service.rename_conversation(conversation_id, _owner_id(claims), payload.title)
+        conversation = service.rename_conversation(conversation_id, owner_id_from_claims(claims), payload.title)
     except ChatConversationNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found") from error
     return _to_conversation_read(conversation)
@@ -121,7 +128,7 @@ def get_messages(
     service: ChatConversationService = Depends(_get_service),
 ) -> list[ChatMessageRead]:
     try:
-        messages = service.get_messages(conversation_id, _owner_id(claims))
+        messages = service.get_messages(conversation_id, owner_id_from_claims(claims))
     except ChatConversationNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found") from error
     return [_to_message_read(message) for message in messages]
@@ -138,11 +145,11 @@ def send_message(
 ) -> ChatSendMessageResponse:
     security_chat_service = SecurityChatService(engine, _build_prompt_builder(db, payload.utc_offset_minutes))
     try:
-        outcome = service.send_message(conversation_id, _owner_id(claims), payload.message, security_chat_service)
+        outcome = service.send_message(conversation_id, owner_id_from_claims(claims), payload.message, security_chat_service)
     except ChatConversationNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found") from error
     except ChatEngineError as error:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(error)) from error
+        raise _chat_engine_unavailable(error) from error
     return ChatSendMessageResponse(
         reply=outcome.reply, notice_key=outcome.notice_key, notice_params=outcome.notice_params
     )
@@ -158,7 +165,7 @@ def start_assessment_briefing(
 ) -> ChatBriefingRead:
     """Primer mensaje del asistente tras una evaluación (uno por evaluación:
     llamarlo de nuevo devuelve el mismo, sin otra llamada al modelo)."""
-    owner_id = _owner_id(claims)
+    owner_id = owner_id_from_claims(claims)
     latest = _assessment_service(db).get_latest_assessment(owner_id)
     try:
         briefing = service.start_assessment_briefing(
@@ -171,7 +178,7 @@ def start_assessment_briefing(
     except AssessmentNotBriefableError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found") from error
     except ChatEngineError as error:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(error)) from error
+        raise _chat_engine_unavailable(error) from error
     return ChatBriefingRead(
         conversation=_to_conversation_read(briefing.conversation),
         messages=[_to_message_read(message) for message in briefing.messages],

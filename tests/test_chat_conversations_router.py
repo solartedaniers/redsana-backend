@@ -253,6 +253,8 @@ def test_only_the_latest_own_assessment_can_be_briefed_and_a_model_failure_leave
 
         assert stale.status_code == 404
         assert failed.status_code == 502
+        # El error interno del proveedor ("groq caido") queda en el log, no en la respuesta.
+        assert "groq caido" not in failed.text
         assert client.get("/api/conversations", headers=AUTH).json() == []
     finally:
         app.dependency_overrides.clear()
