@@ -35,7 +35,7 @@ def test_evaluate_latest_creates_an_outage_alert_on_recovery() -> None:
 
     alerts = [a for a in alert_repository.list_all(owner_id) if a.type == "outage"]
     assert len(alerts) == 1
-    assert alerts[0].message_key == "alertsCenter.messages.briefOutage"
+    assert alerts[0].message_key == "user.alertsCenter.messages.briefOutage"
     assert alerts[0].message_params == {"minutes": 1}
     assert alerts[0].severity == "warning"
 

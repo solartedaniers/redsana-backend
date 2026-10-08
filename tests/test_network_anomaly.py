@@ -25,7 +25,7 @@ def test_classify_deviation_picks_the_metric_with_the_largest_z_score() -> None:
     result = classify_deviation(_NORMAL_HISTORY, (400.0, 2.0, 0.0))
 
     assert result.deviating_metric == "latency"
-    assert result.message_key == "alertsCenter.messages.latencyDegraded"
+    assert result.message_key == "user.alertsCenter.messages.latencyDegraded"
 
 
 def test_classify_deviation_is_critical_for_a_very_large_deviation() -> None:
@@ -46,7 +46,7 @@ def test_classify_deviation_identifies_packet_loss_deviation() -> None:
     result = classify_deviation(_NORMAL_HISTORY, (20.0, 2.0, 15.0))
 
     assert result.deviating_metric == "packet_loss"
-    assert result.message_key == "alertsCenter.messages.packetsBeingLost"
+    assert result.message_key == "user.alertsCenter.messages.packetsBeingLost"
 
 
 if __name__ == "__main__":

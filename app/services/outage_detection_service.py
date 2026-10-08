@@ -1,11 +1,12 @@
 import uuid
 
+from app.domain.alert_messages import alert_message_key
 from app.domain.network_outage import OUTAGE_LOOKBACK_LIMIT, OutageSample, detect_recovered_outage
 from app.repositories.alert_repository import AlertRepository
 from app.repositories.network_metrics_repository import NetworkMetricsRepository
 
 OUTAGE_ALERT_TYPE = "outage"
-OUTAGE_MESSAGE_KEY = "alertsCenter.messages.briefOutage"
+OUTAGE_MESSAGE_KEY = alert_message_key("briefOutage")
 
 
 class OutageDetectionService:

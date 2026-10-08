@@ -102,7 +102,7 @@ def test_evaluate_latest_creates_a_prediction_alert_for_an_anomalous_sample() ->
     assert len(alerts) == 1
     assert alerts[0].type == "prediction"
     assert alerts[0].severity == "critical"
-    assert alerts[0].message_key == "alertsCenter.messages.latencyDegraded"
+    assert alerts[0].message_key == "user.alertsCenter.messages.latencyDegraded"
 
 
 def test_evaluate_latest_does_not_duplicate_an_already_open_alert() -> None:
@@ -113,7 +113,7 @@ def test_evaluate_latest_does_not_duplicate_an_already_open_alert() -> None:
         owner_id=owner_id,
         type_="prediction",
         severity="critical",
-        message_key="alertsCenter.messages.latencyDegraded",
+        message_key="user.alertsCenter.messages.latencyDegraded",
         message_params=None,
         created_at=None,
     )
