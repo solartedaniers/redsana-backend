@@ -30,10 +30,6 @@ class SqlAlchemyDeviceRepository(DeviceRepository):
         stmt = select(Device).where(Device.id == device_id, Device.owner_id == owner_id)
         return self._db.scalars(stmt).first()
 
-    def get_by_mac(self, owner_id: uuid.UUID, mac_address: str) -> Device | None:
-        stmt = select(Device).where(Device.owner_id == owner_id, Device.mac_address == mac_address)
-        return self._db.scalars(stmt).first()
-
     def create(
         self,
         owner_id: uuid.UUID,
@@ -62,6 +58,18 @@ class SqlAlchemyDeviceRepository(DeviceRepository):
         self._db.commit()
         self._db.refresh(device)
         return device
+
+    def save_scan(
+        self, owner_id: uuid.UUID, new_devices: list[dict[str, Any]], updates: dict[uuid.UUID, dict[str, Any]]
+    ) -> list[Device]:
+        # Los ids de updates vienen de list_by_owner del mismo owner (ver
+        # DeviceService); se vuelven a filtrar por owner aqui por seguridad.
+        for device in self.list_by_owner(owner_id):
+            for field, value in updates.get(device.id, {}).items():
+                setattr(device, field, value)
+        self._db.add_all(Device(owner_id=owner_id, **fields) for fields in new_devices)
+        self._db.commit()
+        return self.list_by_owner(owner_id)
 
     def update(self, device_id: uuid.UUID, owner_id: uuid.UUID, updates: dict[str, Any]) -> Device | None:
         device = self.get_by_id(device_id, owner_id)
