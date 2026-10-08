@@ -1,5 +1,6 @@
 import json
 import time
+import uuid
 import urllib.request
 from typing import Any
 
@@ -17,7 +18,7 @@ _jwks_cache: dict[str, Any] = {"keys": [], "fetched_at": 0.0}
 
 def _fetch_jwks() -> list[dict[str, Any]]:
     settings = get_settings()
-    with urllib.request.urlopen(settings.supabase_jwks_url) as response:
+    with urllib.request.urlopen(settings.supabase_jwks_url, timeout=settings.supabase_http_timeout_seconds) as response:
         return json.load(response)["keys"]
 
 
@@ -60,3 +61,8 @@ def get_current_claims(
 ) -> dict[str, Any]:
     """Dependency de FastAPI: valida el Bearer token y devuelve los claims del JWT de Supabase."""
     return decode_supabase_token(credentials.credentials)
+
+
+def owner_id_from_claims(claims: dict[str, Any]) -> uuid.UUID:
+    """El dueño de los datos es el usuario del token (claim "sub" de Supabase)."""
+    return uuid.UUID(claims["sub"])
