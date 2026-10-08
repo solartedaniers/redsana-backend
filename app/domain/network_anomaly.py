@@ -6,6 +6,7 @@ import numpy as np
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 
+from app.domain.alert_messages import alert_message_key
 from app.domain.measurement_source import MeasurementSource
 
 NetworkMetricVector = tuple[float, float, float]  # (latency_ms, jitter_ms, packet_loss_percent)
@@ -47,9 +48,9 @@ class DeviationClassification:
 
 
 _MESSAGE_KEYS: dict[DeviatingMetric, str] = {
-    "latency": "alertsCenter.messages.latencyDegraded",
-    "jitter": "alertsCenter.messages.connectionUnstable",
-    "packet_loss": "alertsCenter.messages.packetsBeingLost",
+    "latency": alert_message_key("latencyDegraded"),
+    "jitter": alert_message_key("connectionUnstable"),
+    "packet_loss": alert_message_key("packetsBeingLost"),
 }
 
 
