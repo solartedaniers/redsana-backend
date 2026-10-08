@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
 
-ALERT_TYPE_VALUES = ("outage", "prediction")
+ALERT_TYPE_VALUES = ("outage", "prediction", "untrusted_device")
 ALERT_SEVERITY_VALUES = ("info", "warning", "critical")
 
 

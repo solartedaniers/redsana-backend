@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-AlertType = Literal["outage", "prediction"]
+AlertType = Literal["outage", "prediction", "untrusted_device"]
 AlertSeverity = Literal["info", "warning", "critical"]
 
 
