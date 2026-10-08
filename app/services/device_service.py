@@ -8,6 +8,7 @@ from app.schemas.device import DeviceCreate, DeviceSyncItem, DeviceUpdate
 # Un dispositivo recién descubierto no tiene nombre real (el escaneo ARP no lo
 # provee); se deja vacío en vez de inventar uno, y el frontend decide cómo mostrarlo.
 DISCOVERED_DEVICE_NAME = ""
+DISCOVERED_DEVICE_TRUST = "unknown"
 
 
 class DeviceNotFoundError(Exception):
@@ -46,28 +47,28 @@ class DeviceService:
         deja de aparecer en el escaneo simplemente deja de estar "online" (ver
         app.domain.device_presence), pero conserva su historial."""
         sync_time = datetime.now(timezone.utc)
-        # Un solo SELECT para todos los dispositivos del owner en vez de un
-        # get_by_mac por cada item escaneado (era N+1: un escaneo de 20
-        # dispositivos hacia 20 consultas individuales antes de esto).
         existing_by_mac = {device.mac_address: device for device in self._repository.list_by_owner(owner_id)}
-        for item in discovered:
-            existing = existing_by_mac.get(item.mac_address)
+        # Una MAC que responde por dos IPs en el mismo escaneo es un solo equipo:
+        # se queda la ultima, en vez de intentar crearla dos veces (MAC unica por owner).
+        discovered_by_mac = {item.mac_address: item for item in discovered}
+
+        new_devices: list[dict] = []
+        updates: dict[uuid.UUID, dict] = {}
+        for mac_address, item in discovered_by_mac.items():
+            # El papel se refresca en cada escaneo: el mismo equipo puede ser
+            # "otro" en una red y el router de la siguiente.
+            scanned = {"ip_address": item.ip_address, "last_seen": sync_time, "network_role": item.role}
+            existing = existing_by_mac.get(mac_address)
             if existing is None:
-                self._repository.create(
-                    owner_id=owner_id,
-                    name=DISCOVERED_DEVICE_NAME,
-                    mac_address=item.mac_address,
-                    ip_address=item.ip_address,
-                    trust="unknown",
-                    last_seen=sync_time,
-                    network_role=item.role,
+                new_devices.append(
+                    {
+                        **scanned,
+                        "mac_address": mac_address,
+                        "name": DISCOVERED_DEVICE_NAME,
+                        "trust": DISCOVERED_DEVICE_TRUST,
+                        "first_seen": sync_time,
+                    }
                 )
             else:
-                # El papel se refresca en cada escaneo: el mismo equipo puede ser
-                # "otro" en una red y el router de la siguiente.
-                self._repository.update(
-                    existing.id,
-                    owner_id,
-                    {"ip_address": item.ip_address, "last_seen": sync_time, "network_role": item.role},
-                )
-        return self._repository.list_by_owner(owner_id)
+                updates[existing.id] = scanned
+        return self._repository.save_scan(owner_id, new_devices, updates)
