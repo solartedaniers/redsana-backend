@@ -11,6 +11,7 @@ from app.services.device_service import DeviceNotFoundError, DeviceService
 class FakeDeviceRepository(DeviceRepository):
     def __init__(self) -> None:
         self.devices: dict[uuid.UUID, Device] = {}
+        self.save_scan_calls = 0
 
     def list_by_owner(self, owner_id: uuid.UUID) -> list[Device]:
         return [d for d in self.devices.values() if d.owner_id == owner_id]
@@ -21,11 +22,6 @@ class FakeDeviceRepository(DeviceRepository):
     def get_by_id(self, device_id: uuid.UUID, owner_id: uuid.UUID) -> Device | None:
         device = self.devices.get(device_id)
         return device if device and device.owner_id == owner_id else None
-
-    def get_by_mac(self, owner_id: uuid.UUID, mac_address: str) -> Device | None:
-        return next(
-            (d for d in self.devices.values() if d.owner_id == owner_id and d.mac_address == mac_address), None
-        )
 
     def create(
         self,
@@ -59,6 +55,15 @@ class FakeDeviceRepository(DeviceRepository):
         for field, value in updates.items():
             setattr(device, field, value)
         return device
+
+    def save_scan(self, owner_id: uuid.UUID, new_devices: list[dict], updates: dict[uuid.UUID, dict]) -> list[Device]:
+        self.save_scan_calls += 1
+        for device_id, fields in updates.items():
+            self.update(device_id, owner_id, fields)
+        for fields in new_devices:
+            device = Device(id=uuid.uuid4(), owner_id=owner_id, **fields)
+            self.devices[device.id] = device
+        return self.list_by_owner(owner_id)
 
 
 def test_list_devices_only_returns_those_of_the_owner() -> None:
@@ -162,3 +167,32 @@ def test_sync_stores_each_device_role_and_refreshes_it_on_the_next_scan() -> Non
     service.sync_discovered_devices(owner_id, [DeviceSyncItem(mac_address="3c-6a-d2-c8-5a-ec", ip_address="10.0.0.9")])
     assert {d.mac_address: d.network_role for d in repository.list_by_owner(owner_id)}["3c-6a-d2-c8-5a-ec"] == "other"
 
+
+
+def test_sync_saves_a_whole_campus_scan_in_a_single_write() -> None:
+    repository = FakeDeviceRepository()
+    service = DeviceService(repository)
+    owner_id = uuid.uuid4()
+    scan = [DeviceSyncItem(mac_address=f"aa-bb-cc-dd-{i // 256:02x}-{i % 256:02x}", ip_address=f"10.0.{i // 256}.{i % 256}") for i in range(900)]
+
+    devices = service.sync_discovered_devices(owner_id, scan)
+
+    assert repository.save_scan_calls == 1
+    assert len(devices) == 900
+    assert len({d.last_seen for d in devices}) == 1  # un solo lote para la regla de presencia
+
+
+def test_sync_keeps_one_device_when_a_mac_answers_from_two_ips() -> None:
+    repository = FakeDeviceRepository()
+    service = DeviceService(repository)
+    owner_id = uuid.uuid4()
+
+    devices = service.sync_discovered_devices(
+        owner_id,
+        [
+            DeviceSyncItem(mac_address="aa-bb-cc-dd-ee-ff", ip_address="10.0.0.5"),
+            DeviceSyncItem(mac_address="aa-bb-cc-dd-ee-ff", ip_address="10.0.0.6"),
+        ],
+    )
+
+    assert [(d.mac_address, d.ip_address) for d in devices] == [("aa-bb-cc-dd-ee-ff", "10.0.0.6")]
