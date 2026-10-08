@@ -24,12 +24,15 @@ def _to_user_read(user: User) -> UserRead:
     )
 
 
+def _get_service(db: Session = Depends(get_db)) -> UserService:
+    return UserService(SqlAlchemyUserRepository(db))
+
+
 @router.get("/me", response_model=UserRead)
 def read_current_user(
     claims: dict[str, Any] = Depends(get_current_claims),
-    db: Session = Depends(get_db),
+    service: UserService = Depends(_get_service),
 ) -> UserRead:
-    service = UserService(SqlAlchemyUserRepository(db))
     user = service.get_or_create_current_user(claims)
     return _to_user_read(user)
 
@@ -38,8 +41,7 @@ def read_current_user(
 def update_current_user(
     payload: UserUpdate,
     claims: dict[str, Any] = Depends(get_current_claims),
-    db: Session = Depends(get_db),
+    service: UserService = Depends(_get_service),
 ) -> UserRead:
-    service = UserService(SqlAlchemyUserRepository(db))
     user = service.update_current_user(claims, payload)
     return _to_user_read(user)

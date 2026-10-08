@@ -63,13 +63,20 @@ def _default_snapshot_read() -> NetworkMetricSnapshotRead:
     )
 
 
+def _get_metrics_service(db: Session = Depends(get_db)) -> NetworkMetricsService:
+    return NetworkMetricsService(SqlAlchemyNetworkMetricsRepository(db), _network_identifier())
+
+
+def _get_anomaly_service(db: Session = Depends(get_db)) -> NetworkAnomalyService:
+    return NetworkAnomalyService(SqlAlchemyNetworkMetricsRepository(db), SqlAlchemyAlertRepository(db))
+
+
 @router.get("/latest", response_model=NetworkMetricSnapshotRead)
 def get_latest_snapshot(
     user_id: uuid.UUID | None = Query(None),
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    service: NetworkMetricsService = Depends(_get_metrics_service),
 ) -> NetworkMetricSnapshotRead:
-    service = NetworkMetricsService(SqlAlchemyNetworkMetricsRepository(db), _network_identifier())
     snapshot = service.get_latest_snapshot(_resolve_target_owner_id(user, user_id))
     return _to_snapshot_read(snapshot) if snapshot is not None else _default_snapshot_read()
 
@@ -80,9 +87,8 @@ def get_history(
     to: datetime | None = Query(None),
     user_id: uuid.UUID | None = Query(None),
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    service: NetworkMetricsService = Depends(_get_metrics_service),
 ) -> list[NetworkMetricSampleRead]:
-    service = NetworkMetricsService(SqlAlchemyNetworkMetricsRepository(db), _network_identifier())
     snapshots = service.get_history(_resolve_target_owner_id(user, user_id), from_, to)
     return [NetworkMetricSampleRead(timestamp=s.recorded_at, latency_ms=s.latency_ms) for s in snapshots]
 
@@ -91,9 +97,8 @@ def get_history(
 def get_anomaly_status(
     user_id: uuid.UUID | None = Query(None),
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    service: NetworkAnomalyService = Depends(_get_anomaly_service),
 ) -> AnomalyStatusRead:
-    service = NetworkAnomalyService(SqlAlchemyNetworkMetricsRepository(db), SqlAlchemyAlertRepository(db))
     status = service.get_status(_resolve_target_owner_id(user, user_id))
     return _to_anomaly_status_read(status)
 
@@ -131,13 +136,12 @@ def record_snapshot(
     payload: NetworkMetricSnapshotCreate,
     background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    service: NetworkMetricsService = Depends(_get_metrics_service),
 ) -> NetworkMetricSnapshotRead:
     """Registra un snapshot real: el usuario autenticado inserta el suyo; un
     admin puede insertar a nombre de otro usuario (mismo override que /latest
     y /history)."""
     owner_id = _resolve_target_owner_id(user, payload.owner_id)
-    service = NetworkMetricsService(SqlAlchemyNetworkMetricsRepository(db), _network_identifier())
     snapshot = service.record_snapshot(owner_id, payload)
 
     # Evaluación de anomalías y de cortes, desacopladas entre sí y de
