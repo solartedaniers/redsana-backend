@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
+from app.domain.device_presence import connected_members
 from app.domain.network_status import NetworkStatus
 from app.domain.security_score import compute_security_score
 from app.models.alert import Alert
@@ -103,10 +104,14 @@ class NetworkSupervisionService:
     ) -> MonitoredHousehold:
         """Pura: solo transforma los datos ya traidos por list_households, no
         consulta ningun repositorio (eso es lo que elimina el N+1)."""
+        # Solo lo conectado en el último escaneo, sin router ni este equipo: con
+        # todo el historial (otras redes, equipos idos, MAC rotadas) el % quedaba
+        # siempre cerca de 0 aunque el usuario confiara en todo lo que tiene hoy.
+        members = connected_members(devices)
         trusted_ratio = None
-        if devices:
-            trusted_count = sum(1 for device in devices if device.trust == TRUSTED_DEVICE_TRUST_VALUE)
-            trusted_ratio = trusted_count / len(devices)
+        if members:
+            trusted_count = sum(1 for device in members if device.trust == TRUSTED_DEVICE_TRUST_VALUE)
+            trusted_ratio = trusted_count / len(members)
 
         unacknowledged_count = sum(1 for alert in alerts if not alert.acknowledged)
 

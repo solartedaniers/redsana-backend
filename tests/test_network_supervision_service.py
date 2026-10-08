@@ -169,3 +169,25 @@ if __name__ == "__main__":
     test_security_score_defaults_when_no_devices_alerts_or_metrics_exist()
     test_real_assessment_score_takes_priority_over_the_proxy()
     print("OK")
+
+
+def test_trusted_ratio_only_counts_devices_connected_now_excluding_router_and_this_pc() -> None:
+    from datetime import datetime, timedelta, timezone
+
+    user_repository = FakeUserRepository()
+    owner = user_repository.create(uuid.uuid4(), "campus@redsana.dev", "Campus", "standard")
+    now = datetime.now(timezone.utc)
+    old_scan = now - timedelta(days=3)
+    device_repository = FakeDeviceRepository()
+    device_repository.create(owner.id, "", "R0:00", "10.0.0.1", "unknown", now, "gateway")
+    device_repository.create(owner.id, "", "PC:00", "10.0.0.2", "unknown", now, "this_device")
+    device_repository.create(owner.id, "", "PH:01", "10.0.0.3", "trusted", now, "other")
+    # Historial de otra red / equipos que ya no están: no deben diluir el %.
+    for index in range(50):
+        device_repository.create(owner.id, "", f"OL:{index:02d}", "192.168.1.9", "unknown", old_scan, "other")
+
+    service = _build_service(user_repository, device_repository, FakeAlertRepository(), FakeNetworkMetricsRepository())
+    household = service.list_households()[0]
+
+    # 1 de 1 conectado es de confianza (50/50) + sin alertas (30/30) + red sin medir "unknown" (10/20)
+    assert household.security_score == 90
