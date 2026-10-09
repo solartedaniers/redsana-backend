@@ -9,3 +9,4 @@ python-jose[cryptography]==3.5.0
 python-dotenv==1.2.3
 httpx2==2.13.0
 scikit-learn==1.7.2
+-e ../ai

@@ -2,10 +2,10 @@ import uuid
 from datetime import datetime
 
 from pydantic import BaseModel, Field
+from redsana_ai import BriefingLanguage
 
 from app.domain.chat_topic import ChatTopic, UserStartableChatTopic
 from app.domain.user_timezone import MAX_UTC_OFFSET_MINUTES
-from app.services.security_briefing_service import BriefingLanguage
 
 
 class ChatConversationRead(BaseModel):

@@ -1,8 +1,8 @@
 import uuid
 from dataclasses import dataclass
 
-from app.core.chat_engine import ChatTurn
-from app.domain.assistant_reply import mentions_unexpected_dns
+from redsana_ai import BriefingLanguage, ChatTurn, mentions_unexpected_dns
+
 from app.domain.chat_topic import UserStartableChatTopic
 from app.domain.family_mode import FAMILY_DNS_PRIMARY, FAMILY_DNS_SECONDARY
 from app.domain.router_password_guard import contains_password_disclosure
@@ -10,8 +10,7 @@ from app.models.chat_conversation import ChatConversation
 from app.models.chat_message import ChatMessage
 from app.repositories.chat_conversation_repository import ChatConversationRepository
 from app.repositories.chat_message_repository import ChatMessageRepository
-from app.services.security_briefing_service import BriefingLanguage, SecurityBriefingService
-from app.services.security_chat_service import SecurityChatService
+from app.services.security_assistant_service import SecurityAssistantService
 
 # Largo del título que se genera con el primer mensaje.
 AUTO_TITLE_MAX_LENGTH = 40
@@ -20,6 +19,7 @@ AUTO_TITLE_MAX_LENGTH = 40
 PASSWORD_DISCLOSURE_NOTICE_KEY = "user.securityAssistant.chat.passwordWarning"
 # Aviso cuando en Modo familiar el modelo nombra un DNS distinto a los de la guía.
 FAMILY_DNS_CHECK_NOTICE_KEY = "user.securityAssistant.chat.familyDnsCheck"
+_FAMILY_DNS = (FAMILY_DNS_PRIMARY, FAMILY_DNS_SECONDARY)
 _FAMILY_DNS_NOTICE_PARAMS = {"primary": FAMILY_DNS_PRIMARY, "secondary": FAMILY_DNS_SECONDARY}
 
 
@@ -57,7 +57,7 @@ def _to_turns(messages: list[ChatMessage]) -> list[ChatTurn]:
 
 
 class ChatConversationService:
-    """Maneja el historial y los títulos; delega el modelo en SecurityChatService y el resumen en SecurityBriefingService."""
+    """Maneja el historial y los títulos; delega el modelo y el resumen en SecurityAssistantService."""
 
     def __init__(
         self,
@@ -84,7 +84,7 @@ class ChatConversationService:
         return self._message_repository.list_by_conversation(conversation_id)
 
     def send_message(
-        self, conversation_id: uuid.UUID, owner_id: uuid.UUID, text: str, security_chat_service: SecurityChatService
+        self, conversation_id: uuid.UUID, owner_id: uuid.UUID, text: str, assistant: SecurityAssistantService
     ) -> SendMessageOutcome:
         conversation = self._require_owned_conversation(conversation_id, owner_id)
 
@@ -97,11 +97,11 @@ class ChatConversationService:
         if conversation.title is None:
             self._conversation_repository.update_title(conversation_id, owner_id, _auto_title(text))
 
-        reply = security_chat_service.ask(owner_id, history, text, conversation.topic)
+        reply = assistant.ask(owner_id, history, text, conversation.topic)
 
         self._message_repository.create(conversation_id, "assistant", reply)
         self._conversation_repository.touch(conversation_id)
-        if conversation.topic == "family_mode" and mentions_unexpected_dns(reply):
+        if conversation.topic == "family_mode" and mentions_unexpected_dns(reply, _FAMILY_DNS):
             return SendMessageOutcome(reply, FAMILY_DNS_CHECK_NOTICE_KEY, _FAMILY_DNS_NOTICE_PARAMS)
         return SendMessageOutcome(reply=reply, notice_key=None)
 
@@ -111,7 +111,7 @@ class ChatConversationService:
         assessment_id: uuid.UUID,
         latest_assessment_id: uuid.UUID | None,
         language: BriefingLanguage,
-        briefing_service: SecurityBriefingService,
+        assistant: SecurityAssistantService,
     ) -> AssessmentBriefing:
         """Idempotente: una evaluación tiene a lo sumo un resumen; si ya existe, lo devuelvo sin llamar al modelo."""
         if assessment_id != latest_assessment_id:
@@ -122,7 +122,7 @@ class ChatConversationService:
             return AssessmentBriefing(existing, self._message_repository.list_by_conversation(existing.id))
 
         # Lo redacto antes de crear nada: si el modelo falla no queda una conversación vacía.
-        text = briefing_service.write(owner_id, language)
+        text = assistant.write_briefing(owner_id, language)
         conversation = self._conversation_repository.create(
             owner_id, topic="assessment_briefing", assessment_id=assessment_id
         )

@@ -3,11 +3,11 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from redsana_ai import ChatEngine, ChatEngineError
 from sqlalchemy.orm import Session
 
+from app.core.ai_composition import build_security_briefing, build_security_chat, get_chat_engine
 from app.core.database import get_db
-from app.core.chat_engine import ChatEngine, ChatEngineError
-from app.core.groq_client import get_chat_engine
 from app.core.security import get_current_claims, owner_id_from_claims
 from app.domain.user_timezone import timezone_from_browser_offset
 from app.models.chat_conversation import ChatConversation
@@ -35,10 +35,8 @@ from app.services.chat_conversation_service import (
 )
 from app.services.network_security_score_service import default_network_security_score_service
 from app.services.security_assessment_service import SecurityAssessmentService
-from app.services.security_briefing_service import SecurityBriefingService
+from app.services.security_assistant_service import SecurityAssistantService
 from app.services.security_chat_context_service import SecurityChatContextBuilder
-from app.services.security_chat_prompt_builder import SecurityChatPromptBuilder
-from app.services.security_chat_service import SecurityChatService
 
 logger = logging.getLogger(__name__)
 CHAT_ENGINE_UNAVAILABLE_DETAIL = "Chat engine unavailable"
@@ -68,8 +66,10 @@ def _assessment_service(db: Session) -> SecurityAssessmentService:
     return SecurityAssessmentService(SqlAlchemySecurityAssessmentRepository(db), default_network_security_score_service())
 
 
-def _build_prompt_builder(db: Session, utc_offset_minutes: int) -> SecurityChatPromptBuilder:
-    return SecurityChatPromptBuilder(
+def _build_assistant(engine: ChatEngine, db: Session, utc_offset_minutes: int) -> SecurityAssistantService:
+    return SecurityAssistantService(
+        build_security_chat(engine),
+        build_security_briefing(engine),
         SecurityChatContextBuilder(
             device_repository=SqlAlchemyDeviceRepository(db),
             alert_repository=SqlAlchemyAlertRepository(db),
@@ -142,9 +142,9 @@ def send_message(
     db: Session = Depends(get_db),
     service: ChatConversationService = Depends(_get_service),
 ) -> ChatSendMessageResponse:
-    security_chat_service = SecurityChatService(engine, _build_prompt_builder(db, payload.utc_offset_minutes))
+    assistant = _build_assistant(engine, db, payload.utc_offset_minutes)
     try:
-        outcome = service.send_message(conversation_id, owner_id_from_claims(claims), payload.message, security_chat_service)
+        outcome = service.send_message(conversation_id, owner_id_from_claims(claims), payload.message, assistant)
     except ChatConversationNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found") from error
     except ChatEngineError as error:
@@ -171,7 +171,7 @@ def start_assessment_briefing(
             payload.assessment_id,
             latest.id if latest else None,
             payload.language,
-            SecurityBriefingService(engine, _build_prompt_builder(db, payload.utc_offset_minutes)),
+            _build_assistant(engine, db, payload.utc_offset_minutes),
         )
     except AssessmentNotBriefableError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found") from error

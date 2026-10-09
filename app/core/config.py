@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     supabase_service_role_key: str
     groq_api_key: str
     groq_model: str = "openai/gpt-oss-120b"
+    groq_api_url: str = "https://api.groq.com/openai/v1/chat/completions"
     # Secreto del HMAC que convierte la huella de red en network_id; si cambia, cada red vuelve a calibrar
     # desde cero, así que debe ser el mismo en todo backend que comparta la base.
     network_id_secret: str

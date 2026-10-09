@@ -3,13 +3,13 @@ import time
 import uuid
 
 from fastapi.testclient import TestClient
+from redsana_ai import ChatEngine, ChatTurn, GroqClientError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.database import get_db
-from app.core.chat_engine import ChatEngine, ChatTurn
-from app.core.groq_client import GroqClientError, get_chat_engine
+from app.core.ai_composition import get_chat_engine
 from app.core.security import get_current_claims
 from app.main import app
 from app.models.base import Base
