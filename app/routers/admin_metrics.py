@@ -39,4 +39,6 @@ def get_platform_metrics(
         monitored_households=metrics.monitored_households,
         active_alerts=metrics.active_alerts,
         average_security_score=metrics.average_security_score,
+        real_scored_households=metrics.real_scored_households,
+        unevaluated_households=metrics.unevaluated_households,
     )

@@ -27,6 +27,8 @@ class AdminPlatformMetricsRead(BaseModel):
     monitored_households: int
     active_alerts: int
     average_security_score: int
+    real_scored_households: int
+    unevaluated_households: int
 
 
 class AdminUserRead(BaseModel):
