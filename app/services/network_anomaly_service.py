@@ -2,15 +2,11 @@ import uuid
 from dataclasses import dataclass
 from typing import Literal
 
+from redsana_ai import ANOMALY_WINDOW_SIZE, AnomalyDetector, NetworkMetricVector
+
 from app.domain.measurement_source import DEFAULT_MEASUREMENT_SOURCE
+from app.domain.network_anomaly_policy import ANOMALY_MESSAGE_KEYS, MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE
 from app.domain.network_baseline import baseline_scope
-from app.domain.network_anomaly import (
-    ANOMALY_WINDOW_SIZE,
-    MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE,
-    NetworkAnomalyDetector,
-    NetworkMetricVector,
-    classify_deviation,
-)
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
 from app.repositories.alert_repository import AlertRepository
 from app.repositories.network_metrics_repository import NetworkMetricsRepository
@@ -28,9 +24,12 @@ class AnomalyStatus:
 class NetworkAnomalyService:
     """Une el detector con los repositorios de métricas y alertas; NetworkMetricsService no sabe que esto existe."""
 
-    def __init__(self, metrics_repository: NetworkMetricsRepository, alert_repository: AlertRepository) -> None:
+    def __init__(
+        self, metrics_repository: NetworkMetricsRepository, alert_repository: AlertRepository, detector: AnomalyDetector
+    ) -> None:
         self._metrics_repository = metrics_repository
         self._alert_repository = alert_repository
+        self._detector = detector
 
     def get_status(self, owner_id: uuid.UUID) -> AnomalyStatus:
         # La calibración es por fuente: informo la de la fuente con la que el usuario mide ahora.
@@ -65,20 +64,20 @@ class NetworkAnomalyService:
         latest_vector = _to_vector(latest_snapshot)
         history_vectors: list[NetworkMetricVector] = [_to_vector(snapshot) for snapshot in history_snapshots]
 
-        if not NetworkAnomalyDetector().is_anomalous(history_vectors, latest_vector):
+        classification = self._detector.evaluate(history_vectors, latest_vector)
+        if classification is None:
             return
 
         # Si ya hay una alerta de este tipo sin reconocer no creo otra, o habría una por minuto mientras siga el problema.
         if self._alert_repository.get_latest_unacknowledged(owner_id, PREDICTION_ALERT_TYPE) is not None:
             return
 
-        classification = classify_deviation(history_vectors, latest_vector)
         self._alert_repository.create(
             owner_id=owner_id,
             type_=PREDICTION_ALERT_TYPE,
             severity=classification.severity,
-            message_key=classification.message_key,
-            message_params=classification.message_params,
+            message_key=ANOMALY_MESSAGE_KEYS[classification.deviating_metric],
+            message_params={"current": classification.current, "typical": classification.typical},
             created_at=None,
         )
 

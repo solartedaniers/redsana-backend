@@ -2,8 +2,10 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
+from redsana_ai import ANOMALY_WINDOW_SIZE, IsolationForestAnomalyDetector
+
 from app.domain.measurement_source import MeasurementSource
-from app.domain.network_anomaly import ANOMALY_WINDOW_SIZE, MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE
+from app.domain.network_anomaly_policy import MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE
 
 MIN_NATIVE_SAMPLES = MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE["native"]
 from app.services.network_anomaly_service import NetworkAnomalyService
@@ -43,7 +45,7 @@ def test_get_status_is_calibrating_below_the_sample_threshold() -> None:
     metrics_repository = FakeNetworkMetricsRepository()
     owner_id = uuid.uuid4()
     _seed_normal_history(metrics_repository, owner_id, 12)
-    service = NetworkAnomalyService(metrics_repository, FakeAlertRepository())
+    service = NetworkAnomalyService(metrics_repository, FakeAlertRepository(), IsolationForestAnomalyDetector())
 
     status = service.get_status(owner_id)
 
@@ -56,7 +58,7 @@ def test_get_status_is_active_once_the_threshold_is_met() -> None:
     metrics_repository = FakeNetworkMetricsRepository()
     owner_id = uuid.uuid4()
     _seed_normal_history(metrics_repository, owner_id, MIN_NATIVE_SAMPLES)
-    service = NetworkAnomalyService(metrics_repository, FakeAlertRepository())
+    service = NetworkAnomalyService(metrics_repository, FakeAlertRepository(), IsolationForestAnomalyDetector())
 
     assert service.get_status(owner_id).status == "active"
 
@@ -66,7 +68,7 @@ def test_evaluate_latest_does_nothing_while_calibrating() -> None:
     alert_repository = FakeAlertRepository()
     owner_id = uuid.uuid4()
     _seed_normal_history(metrics_repository, owner_id, MIN_NATIVE_SAMPLES - 1)
-    service = NetworkAnomalyService(metrics_repository, alert_repository)
+    service = NetworkAnomalyService(metrics_repository, alert_repository, IsolationForestAnomalyDetector())
 
     service.evaluate_latest(owner_id)
 
@@ -78,7 +80,7 @@ def test_evaluate_latest_does_nothing_for_a_normal_sample() -> None:
     alert_repository = FakeAlertRepository()
     owner_id = uuid.uuid4()
     _seed_normal_history(metrics_repository, owner_id, ANOMALY_WINDOW_SIZE)
-    service = NetworkAnomalyService(metrics_repository, alert_repository)
+    service = NetworkAnomalyService(metrics_repository, alert_repository, IsolationForestAnomalyDetector())
 
     service.evaluate_latest(owner_id)
 
@@ -93,7 +95,7 @@ def test_evaluate_latest_creates_a_prediction_alert_for_an_anomalous_sample() ->
     metrics_repository.create(
         owner_id=owner_id, latency_ms=400.0, jitter_ms=2.0, packet_loss_percent=0.0, status="critical", source="native", network_id=HOME_NETWORK, recorded_at=None
     )
-    service = NetworkAnomalyService(metrics_repository, alert_repository)
+    service = NetworkAnomalyService(metrics_repository, alert_repository, IsolationForestAnomalyDetector())
 
     service.evaluate_latest(owner_id)
 
@@ -120,7 +122,7 @@ def test_evaluate_latest_does_not_duplicate_an_already_open_alert() -> None:
     metrics_repository.create(
         owner_id=owner_id, latency_ms=400.0, jitter_ms=2.0, packet_loss_percent=0.0, status="critical", source="native", network_id=HOME_NETWORK, recorded_at=None
     )
-    service = NetworkAnomalyService(metrics_repository, alert_repository)
+    service = NetworkAnomalyService(metrics_repository, alert_repository, IsolationForestAnomalyDetector())
 
     service.evaluate_latest(owner_id)
 
@@ -137,7 +139,7 @@ def test_evaluate_latest_ignores_history_from_another_source() -> None:
     metrics_repository.create(
         owner_id=owner_id, latency_ms=45.0, jitter_ms=2.0, packet_loss_percent=0.0, status="good", source="web", recorded_at=None
     )
-    service = NetworkAnomalyService(metrics_repository, alert_repository)
+    service = NetworkAnomalyService(metrics_repository, alert_repository, IsolationForestAnomalyDetector())
 
     service.evaluate_latest(owner_id)
 
@@ -154,7 +156,7 @@ def test_web_source_calibrates_with_half_a_day_while_desktop_still_needs_the_ful
     web_owner, native_owner = uuid.uuid4(), uuid.uuid4()
     _seed_normal_history(metrics_repository, web_owner, web_required, source="web")
     _seed_normal_history(metrics_repository, native_owner, web_required, source="native")
-    service = NetworkAnomalyService(metrics_repository, FakeAlertRepository())
+    service = NetworkAnomalyService(metrics_repository, FakeAlertRepository(), IsolationForestAnomalyDetector())
 
     web_status = service.get_status(web_owner)
     native_status = service.get_status(native_owner)
@@ -172,7 +174,7 @@ def test_web_source_detects_anomalies_once_calibrated_with_720_samples() -> None
         owner_id=owner_id, latency_ms=400.0, jitter_ms=2.0, packet_loss_percent=0.0, status="critical", source="web", recorded_at=None
     )
 
-    NetworkAnomalyService(metrics_repository, alert_repository).evaluate_latest(owner_id)
+    NetworkAnomalyService(metrics_repository, alert_repository, IsolationForestAnomalyDetector()).evaluate_latest(owner_id)
 
     assert [alert.type for alert in alert_repository.list_all(owner_id)] == ["prediction"]
 
@@ -192,7 +194,7 @@ def test_two_networks_calibrate_separately() -> None:
     _seed_normal_history(metrics_repository, owner_id, MIN_NATIVE_SAMPLES, network_id=HOME_NETWORK, minutes_ago=200)
     _seed_normal_history(metrics_repository, owner_id, 100, network_id=OFFICE_NETWORK)
     _anomalous_sample(metrics_repository, owner_id, OFFICE_NETWORK)
-    service = NetworkAnomalyService(metrics_repository, alert_repository)
+    service = NetworkAnomalyService(metrics_repository, alert_repository, IsolationForestAnomalyDetector())
 
     status = service.get_status(owner_id)
     service.evaluate_latest(owner_id)
@@ -211,7 +213,7 @@ def test_returning_to_a_network_resumes_its_own_calibration() -> None:
     _seed_normal_history(metrics_repository, owner_id, 100, network_id=OFFICE_NETWORK, minutes_ago=50)
     # De vuelta en casa retoma su calibración (las de la oficina no cuentan) y detecta.
     _anomalous_sample(metrics_repository, owner_id, HOME_NETWORK)
-    service = NetworkAnomalyService(metrics_repository, alert_repository)
+    service = NetworkAnomalyService(metrics_repository, alert_repository, IsolationForestAnomalyDetector())
 
     assert service.get_status(owner_id).status == "active"
     service.evaluate_latest(owner_id)
@@ -225,7 +227,7 @@ def test_unknown_network_is_reported_and_never_evaluated() -> None:
     _seed_normal_history(metrics_repository, owner_id, MIN_NATIVE_SAMPLES, network_id=HOME_NETWORK, minutes_ago=50)
     # Escritorio que no pudo resolver el router (o versión vieja): sin red.
     _anomalous_sample(metrics_repository, owner_id, None)
-    service = NetworkAnomalyService(metrics_repository, alert_repository)
+    service = NetworkAnomalyService(metrics_repository, alert_repository, IsolationForestAnomalyDetector())
 
     assert service.get_status(owner_id).status == "unknown_network"
     service.evaluate_latest(owner_id)
@@ -239,7 +241,7 @@ def test_measurements_without_network_never_count_toward_a_calibration() -> None
     _seed_normal_history(metrics_repository, owner_id, MIN_NATIVE_SAMPLES, network_id=None, minutes_ago=50)
     _seed_normal_history(metrics_repository, owner_id, 10, network_id=HOME_NETWORK)
 
-    status = NetworkAnomalyService(metrics_repository, FakeAlertRepository()).get_status(owner_id)
+    status = NetworkAnomalyService(metrics_repository, FakeAlertRepository(), IsolationForestAnomalyDetector()).get_status(owner_id)
 
     assert (status.status, status.samples_collected) == ("calibrating", 10)
 

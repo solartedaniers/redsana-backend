@@ -4,12 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from app.domain.network_anomaly import _MESSAGE_KEYS
+from app.domain.network_anomaly_policy import ANOMALY_MESSAGE_KEYS
 from app.services.outage_detection_service import OUTAGE_MESSAGE_KEY
 from app.services.untrusted_device_alert_service import UNTRUSTED_DEVICE_MESSAGE_KEY
 
 I18N_DIR = Path(__file__).resolve().parents[2] / "frontend" / "public" / "assets" / "i18n"
-BACKEND_ALERT_KEYS = [OUTAGE_MESSAGE_KEY, UNTRUSTED_DEVICE_MESSAGE_KEY, *_MESSAGE_KEYS.values()]
+BACKEND_ALERT_KEYS = [OUTAGE_MESSAGE_KEY, UNTRUSTED_DEVICE_MESSAGE_KEY, *ANOMALY_MESSAGE_KEYS.values()]
 
 
 def _resolve(dictionary: dict, key: str):

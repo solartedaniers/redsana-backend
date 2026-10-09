@@ -2,6 +2,8 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
+from redsana_ai import StreakOutageDetector
+
 from app.services.outage_detection_service import OutageDetectionService
 from tests.test_alert_service import FakeAlertRepository
 from tests.test_network_metrics_service import FakeNetworkMetricsRepository
@@ -27,7 +29,7 @@ def test_evaluate_latest_creates_an_outage_alert_on_recovery() -> None:
     alert_repository = FakeAlertRepository()
     owner_id = uuid.uuid4()
     _seed(metrics_repository, owner_id, [(2, 0.0), (1, 100.0), (0, 0.0)])
-    service = OutageDetectionService(metrics_repository, alert_repository)
+    service = OutageDetectionService(metrics_repository, alert_repository, StreakOutageDetector())
 
     service.evaluate_latest(owner_id)
 
@@ -43,7 +45,7 @@ def test_evaluate_latest_does_nothing_without_an_outage() -> None:
     alert_repository = FakeAlertRepository()
     owner_id = uuid.uuid4()
     _seed(metrics_repository, owner_id, [(2, 0.0), (1, 0.0), (0, 0.0)])
-    service = OutageDetectionService(metrics_repository, alert_repository)
+    service = OutageDetectionService(metrics_repository, alert_repository, StreakOutageDetector())
 
     service.evaluate_latest(owner_id)
 
@@ -54,7 +56,7 @@ def test_a_second_separate_outage_fires_even_with_the_first_alert_unacknowledged
     metrics_repository = FakeNetworkMetricsRepository()
     alert_repository = FakeAlertRepository()
     owner_id = uuid.uuid4()
-    service = OutageDetectionService(metrics_repository, alert_repository)
+    service = OutageDetectionService(metrics_repository, alert_repository, StreakOutageDetector())
 
     # Primer corte: se recupera y genera su alerta (queda sin reconocer).
     _seed(metrics_repository, owner_id, [(5, 0.0), (4, 100.0), (3, 0.0)])

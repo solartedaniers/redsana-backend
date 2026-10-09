@@ -1,5 +1,16 @@
 """Único lugar donde el backend construye las piezas de redsana_ai; cambiar una implementación es tocar solo aquí."""
-from redsana_ai import ChatEngine, EngineSecurityBriefing, EngineSecurityChat, GroqClient, SecurityBriefing, SecurityChat
+from redsana_ai import (
+    AnomalyDetector,
+    ChatEngine,
+    EngineSecurityBriefing,
+    EngineSecurityChat,
+    GroqClient,
+    IsolationForestAnomalyDetector,
+    OutageDetector,
+    SecurityBriefing,
+    SecurityChat,
+    StreakOutageDetector,
+)
 
 from app.core.config import get_settings
 
@@ -22,3 +33,11 @@ def build_security_chat(engine: ChatEngine) -> SecurityChat:
 
 def build_security_briefing(engine: ChatEngine) -> SecurityBriefing:
     return EngineSecurityBriefing(engine)
+
+
+def build_anomaly_detector() -> AnomalyDetector:
+    return IsolationForestAnomalyDetector()
+
+
+def build_outage_detector() -> OutageDetector:
+    return StreakOutageDetector()

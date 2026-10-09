@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.core.ai_composition import build_anomaly_detector, build_outage_detector
 from app.core.authorization import ADMIN_ROLE_NAME, get_current_user
 from app.core.config import get_settings
 from app.domain.network_identity import NetworkIdentifier
@@ -66,7 +67,9 @@ def _get_metrics_service(db: Session = Depends(get_db)) -> NetworkMetricsService
 
 
 def _get_anomaly_service(db: Session = Depends(get_db)) -> NetworkAnomalyService:
-    return NetworkAnomalyService(SqlAlchemyNetworkMetricsRepository(db), SqlAlchemyAlertRepository(db))
+    return NetworkAnomalyService(
+        SqlAlchemyNetworkMetricsRepository(db), SqlAlchemyAlertRepository(db), build_anomaly_detector()
+    )
 
 
 @router.get("/latest", response_model=NetworkMetricSnapshotRead)
@@ -106,7 +109,9 @@ def _evaluate_anomalies_in_background(owner_id: uuid.UUID) -> None:
      tarda ~200 ms y haría lento un POST que hoy responde en ~160 ms."""
     db = SessionLocal()
     try:
-        service = NetworkAnomalyService(SqlAlchemyNetworkMetricsRepository(db), SqlAlchemyAlertRepository(db))
+        service = NetworkAnomalyService(
+            SqlAlchemyNetworkMetricsRepository(db), SqlAlchemyAlertRepository(db), build_anomaly_detector()
+        )
         service.evaluate_latest(owner_id)
     finally:
         db.close()
@@ -116,7 +121,9 @@ def _evaluate_outage_in_background(owner_id: uuid.UUID) -> None:
     """Igual que _evaluate_anomalies_in_background, pero aparte para no acoplar los dos detectores."""
     db = SessionLocal()
     try:
-        service = OutageDetectionService(SqlAlchemyNetworkMetricsRepository(db), SqlAlchemyAlertRepository(db))
+        service = OutageDetectionService(
+            SqlAlchemyNetworkMetricsRepository(db), SqlAlchemyAlertRepository(db), build_outage_detector()
+        )
         service.evaluate_latest(owner_id)
     finally:
         db.close()
