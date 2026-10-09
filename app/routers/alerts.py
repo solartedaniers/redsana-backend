@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.authorization import require_admin
+from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.security import get_current_claims, owner_id_from_claims
 from app.models.alert import Alert
@@ -31,6 +32,12 @@ def _to_alert_read(alert: Alert) -> AlertRead:
 
 def _get_service(db: Session = Depends(get_db)) -> AlertService:
     return AlertService(SqlAlchemyAlertRepository(db))
+
+
+def _require_test_alerts_enabled(settings: Settings = Depends(get_settings)) -> None:
+    # Con la opción apagada respondo 404 antes de mirar el rol: en producción el endpoint ni se ve.
+    if not settings.enable_test_alerts_endpoint:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
 
 
 @router.get("", response_model=list[AlertRead])
@@ -65,7 +72,7 @@ def acknowledge_alert(
     return _to_alert_read(alert)
 
 
-@router.post("", response_model=AlertRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=AlertRead, status_code=status.HTTP_201_CREATED, dependencies=[Depends(_require_test_alerts_enabled)])
 def create_alert(
     payload: AlertCreate,
     _admin: User = Depends(require_admin),
