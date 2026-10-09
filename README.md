@@ -53,6 +53,22 @@ pytest
   FRONTEND_I18N_DIR=../redsana-frontend/public/assets/i18n pytest
   ```
 
+## Versión de la IA
+
+`redsana-ai` se instala desde su repositorio de GitHub, fijado a un tag en `requirements.txt`:
+
+```
+redsana-ai @ git+https://github.com/solartedaniers/redsana-ai.git@v0.1.0
+```
+
+Para actualizarla:
+
+1. En el repo de la IA, sube `version` en `pyproject.toml`, haz commit, crea el tag anotado (`git tag -a v0.2.0 -m "..."`) y súbelo (`git push origin v0.2.0`).
+2. Aquí, cambia `@v0.1.0` por el tag nuevo en `requirements.txt`, ejecuta `pip install -r requirements.txt` y corre `pytest`.
+3. Haz commit y push: Render instala la versión nueva en el siguiente despliegue.
+
+Para probar cambios de la IA sin publicar un tag, instala tu copia local encima: `pip install -e ../redsana-ai`.
+
 ## Despliegue
 
 `render.yaml` describe el servicio de Render: build `pip install -r requirements.txt`, inicio con `uvicorn` y las variables secretas (`sync: false`) se cargan en el panel de Render.
