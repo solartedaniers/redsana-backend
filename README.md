@@ -2,7 +2,13 @@
 
 API REST de RedSana con FastAPI. Autentica con los JWT de Supabase, guarda mediciones, dispositivos, evaluaciones, alertas y conversaciones en Postgres (SQLAlchemy + Alembic) y orquesta la IA del paquete `redsana-ai`: el asistente de seguridad y la detección de anomalías y cortes.
 
-> Repositorios del proyecto: frontend · backend · IA (enlaces pendientes de publicar).
+## 🔗 Repositorios del proyecto
+
+| Repositorio | Qué contiene |
+|---|---|
+| [redsana-frontend](https://github.com/solartedaniers/redsana-frontend) | App Angular + Tauri (web en Vercel, instalador en Releases) |
+| [redsana-backend](https://github.com/solartedaniers/redsana-backend) (este) | API FastAPI desplegada en Render; instala `redsana-ai` por tag |
+| [redsana-ai](https://github.com/solartedaniers/redsana-ai) | Paquete Python con el asistente y los detectores |
 
 ## Estructura
 
