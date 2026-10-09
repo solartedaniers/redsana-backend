@@ -1,0 +1,31 @@
+# Secretos
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+
+# IDEs y sistema operativo
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+
+# Herramientas locales (Claude Code, graphify)
+.claude/
+.claudeignore
+graphify-out/
+graph.json
