@@ -37,8 +37,7 @@ class HouseholdSecurityScore:
 
 @dataclass
 class MonitoredHousehold:
-    """Proyeccion de solo lectura para supervision de admin: no existe una tabla
-    de "hogares" propia, cada usuario estandar es un hogar."""
+    """Vista de solo lectura para el admin; no hay tabla de hogares: cada usuario estándar es un hogar."""
 
     id: uuid.UUID
     owner_name: str
@@ -73,8 +72,7 @@ class NetworkSupervisionService:
         owners = [user for user in self._user_repository.list_all() if user.role.name == STANDARD_ROLE_NAME]
         owner_ids = [owner.id for owner in owners]
 
-        # 4 consultas bulk en total (una por repositorio) en vez de 4 por hogar:
-        # antes era 1 + 4*N queries, ahora es 1 + 4 sin importar cuantos hogares haya.
+        # 4 consultas en bloque en total en vez de 4 por hogar (antes eran 1 + 4·N).
         devices_by_owner = self._device_repository.list_by_owners(owner_ids)
         alerts_by_owner = self._alert_repository.list_by_owners(owner_ids)
         latest_snapshot_by_owner = self._network_metrics_repository.get_latest_by_owners(owner_ids)
@@ -102,11 +100,8 @@ class NetworkSupervisionService:
         latest_assessment: SecurityAssessment | None,
         resolved_evidence: ResolvedTechnicalEvidence | None,
     ) -> MonitoredHousehold:
-        """Pura: solo transforma los datos ya traidos por list_households, no
-        consulta ningun repositorio (eso es lo que elimina el N+1)."""
-        # Solo lo conectado en el último escaneo, sin router ni este equipo: con
-        # todo el historial (otras redes, equipos idos, MAC rotadas) el % quedaba
-        # siempre cerca de 0 aunque el usuario confiara en todo lo que tiene hoy.
+        """Pura: solo transforma lo que ya trajo list_households, sin consultar repositorios (por eso no hay N+1)."""
+        # Solo lo conectado en el último escaneo: con todo el historial el porcentaje quedaba siempre cerca de 0.
         members = connected_members(devices)
         trusted_ratio = None
         if members:
@@ -142,8 +137,7 @@ class NetworkSupervisionService:
         unacknowledged_count: int,
         status: NetworkStatus,
     ) -> HouseholdSecurityScore:
-        # El score real del cuestionario tiene prioridad sobre el proxy: solo se
-        # aproxima para los hogares que todavia no lo respondieron.
+        # El puntaje real del cuestionario manda; solo aproximo para quien todavía no lo respondió.
         if latest_assessment is not None and resolved_evidence is not None:
             score = self._security_score_service.evaluate(latest_assessment.answers, resolved_evidence.evidence)
             return HouseholdSecurityScore(

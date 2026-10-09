@@ -14,18 +14,14 @@ from app.services.security_assessment_service import SecurityAssessmentResult, S
 
 THIS_DEVICE_ROLE = "this_device"
 
-# Tope de alertas incluidas en el contexto: evita inflar el prompt si algun dia
-# hay decenas de alertas sin reconocer (el modelo solo necesita las mas recientes).
+# Tope de alertas en el contexto para no inflar el prompt; al modelo le bastan las más recientes.
 MAX_ALERTS_IN_CONTEXT = 10
 
 _WEAK_ANSWERS = ("no", "unknown")
 
 
 class SecurityChatContextBuilder:
-    """Junta datos reales del owner (dispositivos, alertas, ultimo snapshot de red
-    y su evaluacion de seguridad) y los resume en texto plano para inyectar como
-    contexto del system prompt, de forma que el asistente responda con numeros
-    reales en vez de solo explicar donde verlos en la app."""
+    """Resume en texto los datos reales del dueño para el system prompt, para que el asistente responda con números reales."""
 
     def __init__(
         self,
@@ -39,8 +35,7 @@ class SecurityChatContextBuilder:
         self._alert_repository = alert_repository
         self._network_metrics_repository = network_metrics_repository
         self._security_assessment_service = security_assessment_service
-        # Las fechas se escriben en la hora local del usuario: en UTC, una medición
-        # de la noche aparecía como "del día siguiente" respecto de la pantalla.
+        # Escribo las fechas en la hora local del usuario: en UTC una medición nocturna salía como del día siguiente.
         self._user_timezone = user_timezone
 
     def build(self, owner_id: uuid.UUID) -> str:
@@ -61,8 +56,7 @@ class SecurityChatContextBuilder:
         return "\n".join(lines)
 
     def _devices_line(self, devices: list[Device]) -> str:
-        # Mismo conteo que la pantalla de Dispositivos (este equipo sí, el router
-        # no). El total histórico no se da: mezcla otras redes y MAC rotadas.
+        # Mismo conteo que la pantalla de Dispositivos; el total histórico no lo doy porque mezcla otras redes.
         latest_seen = latest_seen_among(devices)
         this_device_online = any(
             device.network_role == THIS_DEVICE_ROLE and is_device_online(device, latest_seen) for device in devices

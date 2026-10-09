@@ -9,17 +9,14 @@ from app.repositories.alert_repository import AlertRepository
 UNTRUSTED_DEVICE_ALERT_TYPE = "untrusted_device"
 UNTRUSTED_DEVICE_ALERT_SEVERITY = "warning"
 UNTRUSTED_DEVICE_MESSAGE_KEY = alert_message_key("untrustedDeviceOnline")
-# "blocked" es el valor interno de "Inseguro" (se conserva para no romper el .exe instalado).
+# "blocked" es el valor interno de "Inseguro"; lo conservo para no romper el .exe ya instalado.
 UNTRUSTED_DEVICE_TRUST = "blocked"
-# Una alerta por equipo cada 24 h: en cada visita a Dispositivos se escanea y,
-# sin esto, el mismo equipo generaría una alerta nueva por escaneo.
+# Una alerta por equipo cada 24 h: se escanea en cada visita y sin esto habría una por escaneo.
 UNTRUSTED_DEVICE_ALERT_COOLDOWN = timedelta(hours=24)
 
 
 class UntrustedDeviceAlertService:
-    """Avisa en el Centro de alertas cuando un equipo que el usuario marcó como
-    inseguro aparece conectado en un escaneo. Solo avisa: RedSana no puede
-    bloquear nada en el router."""
+    """Avisa cuando un equipo marcado como inseguro aparece conectado; RedSana no puede bloquear nada en el router."""
 
     def __init__(self, alert_repository: AlertRepository) -> None:
         self._alert_repository = alert_repository
@@ -43,7 +40,7 @@ class UntrustedDeviceAlertService:
                 owner_id=owner_id,
                 type_=UNTRUSTED_DEVICE_ALERT_TYPE,
                 severity=UNTRUSTED_DEVICE_ALERT_SEVERITY,
-                # Sin la MAC: la alerta se muestra y la IP basta para que el usuario lo ubique.
+                # Sin la MAC: con la IP basta para que el usuario lo ubique.
                 message_params={"device_id": str(device.id), "ip": device.ip_address},
                 message_key=UNTRUSTED_DEVICE_MESSAGE_KEY,
                 created_at=None,

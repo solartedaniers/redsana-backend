@@ -35,8 +35,7 @@ class DeviceUpdate(BaseModel):
 
 
 class DeviceSyncItem(BaseModel):
-    """Un dispositivo tal como lo encontró el escaneo real (Tauri/ARP); sin
-    nombre, porque ese medio no lo provee."""
+    """Un dispositivo tal como lo encontró el escaneo real; sin nombre, porque ARP no lo da."""
 
     mac_address: str
     ip_address: str

@@ -14,9 +14,7 @@ class PlatformMetrics:
 
 
 class AdminMetricsService:
-    """Agrega métricas ya calculadas por otros servicios/repositorios; no
-    recalcula nada (usuarios, hogares y security_score ya existen en sus
-    propios dominios, solo se combinan aquí para el panel de admin)."""
+    """Junta métricas que ya calculan otros servicios; aquí no se recalcula nada."""
 
     def __init__(
         self,

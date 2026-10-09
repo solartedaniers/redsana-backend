@@ -26,8 +26,7 @@ def _network_identifier() -> NetworkIdentifier:
 
 
 def _resolve_target_owner_id(user: User, requested_user_id: uuid.UUID | None) -> uuid.UUID:
-    """Un admin puede consultar la red de otro usuario (supervision); cualquier
-    otro caso queda scopeado al propio usuario autenticado."""
+    """Un admin puede consultar la red de otro usuario; en cualquier otro caso se usa el usuario autenticado."""
     if requested_user_id is None or requested_user_id == user.id:
         return user.id
     if user.role.name != ADMIN_ROLE_NAME:
@@ -52,8 +51,7 @@ def _to_anomaly_status_read(status: AnomalyStatus) -> AnomalyStatusRead:
 
 
 def _default_snapshot_read() -> NetworkMetricSnapshotRead:
-    """Aun no hay mediciones para este usuario: el dashboard necesita un
-    estado que pintar en vez de un 404."""
+    """Aún no hay mediciones: el dashboard necesita un estado que pintar en vez de un 404."""
     return NetworkMetricSnapshotRead(
         status="unknown",
         latency_ms=0,
@@ -104,12 +102,8 @@ def get_anomaly_status(
 
 
 def _evaluate_anomalies_in_background(owner_id: uuid.UUID) -> None:
-    """Corre después de que la respuesta ya se envió (BackgroundTasks), con su
-    propia sesión de DB: la del request (`db: Session = Depends(get_db)`) ya se
-    cerró para cuando esto se ejecuta. Entrenar IsolationForest sobre la ventana
-    completa (1440 muestras) mide ~200ms -- nada grave para un proceso en
-    segundo plano, pero sí perceptible si corriera dentro del request y
-    volvería lento un POST que hoy responde en ~160ms."""
+    """Corre después de responder, con su propia sesión (la del request ya se cerró). Entrenar el modelo
+     tarda ~200 ms y haría lento un POST que hoy responde en ~160 ms."""
     db = SessionLocal()
     try:
         service = NetworkAnomalyService(SqlAlchemyNetworkMetricsRepository(db), SqlAlchemyAlertRepository(db))
@@ -119,10 +113,7 @@ def _evaluate_anomalies_in_background(owner_id: uuid.UUID) -> None:
 
 
 def _evaluate_outage_in_background(owner_id: uuid.UUID) -> None:
-    """Mismo motivo que _evaluate_anomalies_in_background (sesión propia, corre
-    tras la respuesta); se mantiene como background task separado para no
-    acoplar los dos detectores entre sí, aunque este en particular es liviano
-    (sin ML, un barrido lineal acotado)."""
+    """Igual que _evaluate_anomalies_in_background, pero aparte para no acoplar los dos detectores."""
     db = SessionLocal()
     try:
         service = OutageDetectionService(SqlAlchemyNetworkMetricsRepository(db), SqlAlchemyAlertRepository(db))
@@ -138,15 +129,11 @@ def record_snapshot(
     user: User = Depends(get_current_user),
     service: NetworkMetricsService = Depends(_get_metrics_service),
 ) -> NetworkMetricSnapshotRead:
-    """Registra un snapshot real: el usuario autenticado inserta el suyo; un
-    admin puede insertar a nombre de otro usuario (mismo override que /latest
-    y /history)."""
+    """Registra un snapshot real del usuario autenticado; un admin puede registrarlo a nombre de otro."""
     owner_id = _resolve_target_owner_id(user, payload.owner_id)
     snapshot = service.record_snapshot(owner_id, payload)
 
-    # Evaluación de anomalías y de cortes, desacopladas entre sí y de
-    # NetworkMetricsService: el router orquesta, cada detector solo conoce sus
-    # propios repositorios. En segundo plano para no sumar latencia al POST.
+    # Anomalías y cortes van desacoplados y en segundo plano para no sumar latencia al POST.
     background_tasks.add_task(_evaluate_anomalies_in_background, owner_id)
     background_tasks.add_task(_evaluate_outage_in_background, owner_id)
 

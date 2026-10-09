@@ -8,15 +8,13 @@ from app.models.network_metric_snapshot import NetworkMetricSnapshot
 
 
 class NetworkMetricsRepository(ABC):
-    """Contrato de acceso a datos para snapshots historicos de metricas de red."""
 
     @abstractmethod
     def get_latest(self, owner_id: uuid.UUID) -> NetworkMetricSnapshot | None: ...
 
     @abstractmethod
     def get_latest_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, NetworkMetricSnapshot]:
-        """El snapshot más reciente de cada owner, en una sola consulta (ej.
-        supervision de admin) en vez de get_latest uno por uno."""
+        """El snapshot más reciente de cada dueño en una sola consulta."""
         ...
 
     @abstractmethod
@@ -26,8 +24,7 @@ class NetworkMetricsRepository(ABC):
     def list_latest(
         self, owner_id: uuid.UUID, limit: int, scope: BaselineScope | None = None
     ) -> list[NetworkMetricSnapshot]:
-        """Las `limit` muestras más recientes, más nueva primero; `scope` filtra
-        por fuente y red (None = todas, p. ej. para detectar cortes)."""
+        """Las `limit` muestras más recientes, la más nueva primero; `scope` filtra por fuente y red (None = todas)."""
         ...
 
     @abstractmethod

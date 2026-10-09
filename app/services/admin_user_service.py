@@ -19,8 +19,7 @@ class AdminUserService:
         return self._user_repository.list_all()
 
     def create_user(self, payload: AdminUserCreate) -> User:
-        # El id real lo asigna Supabase Auth al crear la identidad; recien
-        # despues se puede espejar la fila local con ese mismo id.
+        # El id lo asigna Supabase al crear la identidad; recién entonces puedo crear la fila local con ese id.
         user_id = self._supabase_admin_client.invite_user(payload.email, payload.full_name)
         return self._user_repository.create(
             user_id=user_id,
@@ -52,9 +51,7 @@ class AdminUserService:
             raise UserNotFoundError(str(error)) from error
 
     def delete_user(self, user_id: uuid.UUID) -> None:
-        # Se borra primero en Supabase: si eso falla, la fila local sigue
-        # intacta. Si se borrara primero la fila local y Supabase fallara,
-        # el usuario podria loguearse de nuevo y auto-provisionarse otra vez.
+        # Borro primero en Supabase: si fallara después de borrar la fila local, el usuario podría volver a entrar y recrearse.
         self._supabase_admin_client.delete_user(user_id)
         try:
             self._user_repository.delete(user_id)

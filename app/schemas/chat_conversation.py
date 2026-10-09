@@ -33,14 +33,13 @@ class ChatMessageRead(BaseModel):
 
 class ChatSendMessageRequest(BaseModel):
     message: str
-    # Date.getTimezoneOffset() del navegador: fechas del contexto en hora local.
+    # getTimezoneOffset() del navegador, para escribir las fechas en hora local.
     utc_offset_minutes: int = Field(default=0, ge=-MAX_UTC_OFFSET_MINUTES, le=MAX_UTC_OFFSET_MINUTES)
 
 
 class ChatSendMessageResponse(BaseModel):
     reply: str | None
-    # Clave i18n de un aviso fijo: reemplaza a la respuesta si el mensaje no se
-    # procesó (contraseña) o la acompaña (DNS distinto al de la guía).
+    # Clave i18n de un aviso fijo: reemplaza la respuesta (contraseña) o la acompaña (DNS distinto al de la guía).
     notice_key: str | None
     notice_params: dict[str, str] | None = None
 
@@ -48,7 +47,7 @@ class ChatSendMessageResponse(BaseModel):
 class ChatBriefingRequest(BaseModel):
     assessment_id: uuid.UUID
     language: BriefingLanguage
-    # Date.getTimezoneOffset() del navegador: fechas del contexto en hora local.
+    # getTimezoneOffset() del navegador, para escribir las fechas en hora local.
     utc_offset_minutes: int = Field(default=0, ge=-MAX_UTC_OFFSET_MINUTES, le=MAX_UTC_OFFSET_MINUTES)
 
 

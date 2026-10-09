@@ -22,8 +22,7 @@ class SecurityAssessmentResult:
 
 
 class SecurityAssessmentService:
-    """Persiste evaluaciones y delega el cálculo del puntaje en
-    NetworkSecurityScoreService (nunca se guarda el puntaje ya calculado)."""
+    """Guarda evaluaciones y delega el puntaje en NetworkSecurityScoreService; el puntaje nunca se guarda calculado."""
 
     def __init__(self, repository: SecurityAssessmentRepository, score_service: NetworkSecurityScoreService) -> None:
         self._repository = repository
@@ -41,8 +40,7 @@ class SecurityAssessmentService:
         return self._to_result(assessment)
 
     def _to_result(self, assessment: SecurityAssessment) -> SecurityAssessmentResult:
-        # Se recalcula siempre desde lo crudo guardado (respuestas + evidencia),
-        # para que un cambio de pesos aplique también a evaluaciones pasadas.
+        # Recalculo siempre desde lo crudo para que un cambio de pesos aplique también a evaluaciones pasadas.
         resolved = self._evidence_resolver.resolve(assessment)
         return SecurityAssessmentResult(
             id=assessment.id,

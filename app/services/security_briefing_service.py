@@ -9,8 +9,7 @@ BriefingLanguage = Literal["es", "en"]
 
 _LANGUAGE_NAMES: dict[BriefingLanguage, str] = {"es": "espanol", "en": "ingles"}
 
-# Instrucción interna (no la ve el usuario ni se guarda): pide el primer mensaje
-# del asistente tras una evaluación, construido solo con los datos reales del contexto.
+# Instrucción interna (el usuario no la ve y no se guarda) para el primer mensaje tras una evaluación.
 _BRIEFING_REQUEST = """\
 El usuario acaba de enviar su evaluacion de seguridad. Escribe TU el primer mensaje \
 de la conversacion, en {language}, en lenguaje sencillo y sin jerga:
@@ -26,8 +25,7 @@ Usa UNICAMENTE los "Datos actuales del usuario"; no inventes hallazgos. Se breve
 
 
 class SecurityBriefingService:
-    """Redacta el mensaje inicial con el que el asistente abre la conversación
-    después de una evaluación. Solo redacta: guardarlo es de ChatConversationService."""
+    """Redacta el mensaje inicial tras una evaluación; guardarlo es trabajo de ChatConversationService."""
 
     def __init__(self, engine: ChatEngine, prompt_builder: SecurityChatPromptBuilder) -> None:
         self._engine = engine

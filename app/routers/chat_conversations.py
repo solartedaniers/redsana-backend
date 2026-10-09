@@ -59,8 +59,7 @@ def _to_message_read(message: ChatMessage) -> ChatMessageRead:
 
 
 def _chat_engine_unavailable(error: ChatEngineError) -> HTTPException:
-    # El detalle real (código de Groq, cuerpo de la respuesta) queda en el log del
-    # servidor: devolverlo al cliente exponía datos internos del proveedor.
+    # El detalle real de Groq queda en el log del servidor: devolverlo exponía datos internos del proveedor.
     logger.warning("chat engine failed: %s", error)
     return HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=CHAT_ENGINE_UNAVAILABLE_DETAIL)
 
@@ -163,8 +162,7 @@ def start_assessment_briefing(
     db: Session = Depends(get_db),
     service: ChatConversationService = Depends(_get_service),
 ) -> ChatBriefingRead:
-    """Primer mensaje del asistente tras una evaluación (uno por evaluación:
-    llamarlo de nuevo devuelve el mismo, sin otra llamada al modelo)."""
+    """Primer mensaje del asistente tras una evaluación; si se pide de nuevo devuelve el mismo sin llamar al modelo."""
     owner_id = owner_id_from_claims(claims)
     latest = _assessment_service(db).get_latest_assessment(owner_id)
     try:

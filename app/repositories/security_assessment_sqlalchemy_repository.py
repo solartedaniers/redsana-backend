@@ -8,8 +8,7 @@ from app.repositories.security_assessment_repository import SecurityAssessmentRe
 
 
 def _has_technical_evidence():
-    # La columna JSON guarda None como el literal JSON 'null' (no SQL NULL), así
-    # que se comparan ambos: sin esto, toda evaluación web parecería tener puertos.
+    # La columna JSON guarda None como 'null' de JSON y no como NULL de SQL: comparo ambos o toda evaluación web parecería tener puertos.
     return or_(
         SecurityAssessment.wifi_encryption_raw.is_not(None),
         func.coalesce(cast(SecurityAssessment.router_open_ports, String), "null") != "null",

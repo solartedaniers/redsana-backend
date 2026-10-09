@@ -26,8 +26,7 @@ class SqlAlchemyNetworkMetricsRepository(NetworkMetricsRepository):
     def get_latest_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, NetworkMetricSnapshot]:
         if not owner_ids:
             return {}
-        # ROW_NUMBER particionado por owner: trae solo la fila mas reciente de
-        # cada uno en una consulta, no todo el historial de owner_ids grandes.
+        # ROW_NUMBER por dueño: trae solo la fila más reciente de cada uno en una consulta.
         rank = (
             func.row_number()
             .over(partition_by=NetworkMetricSnapshot.owner_id, order_by=NetworkMetricSnapshot.recorded_at.desc())
@@ -98,7 +97,7 @@ def _owner_filters(owner_id: uuid.UUID, scope: BaselineScope | None) -> list:
     filters = [NetworkMetricSnapshot.owner_id == owner_id]
     if scope is not None:
         filters.append(NetworkMetricSnapshot.source == scope.source)
-        # None coincide solo con None (red desconocida), nunca con "cualquier red".
+        # None solo coincide con None (red desconocida), nunca con "cualquier red".
         filters.append(
             NetworkMetricSnapshot.network_id.is_(None)
             if scope.network_id is None

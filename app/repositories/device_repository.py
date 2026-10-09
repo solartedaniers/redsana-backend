@@ -7,15 +7,13 @@ from app.models.device import Device
 
 
 class DeviceRepository(ABC):
-    """Contrato de acceso a datos para dispositivos, independiente de la implementacion concreta."""
 
     @abstractmethod
     def list_by_owner(self, owner_id: uuid.UUID) -> list[Device]: ...
 
     @abstractmethod
     def list_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[Device]]:
-        """Una sola consulta para varios owners (ej. supervision de admin), en vez
-        de list_by_owner uno por uno -- evita repetir la misma query N veces."""
+        """Una sola consulta para varios dueños en vez de repetir list_by_owner N veces."""
         ...
 
     @abstractmethod
@@ -40,8 +38,5 @@ class DeviceRepository(ABC):
     def save_scan(
         self, owner_id: uuid.UUID, new_devices: list[dict[str, Any]], updates: dict[uuid.UUID, dict[str, Any]]
     ) -> list[Device]:
-        """Guarda un escaneo completo en UNA transaccion (todo o nada) y devuelve
-        los dispositivos del owner. Con un commit por dispositivo, un escaneo de
-        ~900 equipos cortado a la mitad dejaba un lote parcial que la regla de
-        presencia leia como si fuera la red entera."""
+        """Guarda un escaneo completo en UNA transacción: un lote a medias se leía como si fuera la red entera."""
         ...

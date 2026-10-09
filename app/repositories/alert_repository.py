@@ -6,20 +6,18 @@ from app.models.alert import Alert
 
 
 class AlertRepository(ABC):
-    """Contrato de acceso a datos para alertas, independiente de la implementacion concreta."""
 
     @abstractmethod
     def list_all(self, owner_id: uuid.UUID) -> list[Alert]: ...
 
     @abstractmethod
     def list_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[Alert]]:
-        """Una sola consulta para varios owners (ej. supervision de admin)."""
+        """Una sola consulta para varios dueños (p. ej. supervisión de admin)."""
         ...
 
     @abstractmethod
     def count_unacknowledged_all(self) -> int:
-        """Total de alertas sin reconocer en toda la plataforma (todos los owners),
-        para métricas de admin; a diferencia del resto de métodos, no scopea por owner."""
+        """Alertas sin reconocer de toda la plataforma, para el admin; a diferencia del resto, no filtra por dueño."""
         ...
 
     @abstractmethod
@@ -30,8 +28,7 @@ class AlertRepository(ABC):
 
     @abstractmethod
     def get_latest_unacknowledged(self, owner_id: uuid.UUID, type_: str) -> Alert | None:
-        """Para deduplicar alertas generadas automáticamente: si ya hay una sin
-        reconocer del mismo tipo, no tiene sentido crear otra."""
+        """Para no duplicar alertas automáticas: si ya hay una sin reconocer del mismo tipo, no creo otra."""
         ...
 
     @abstractmethod

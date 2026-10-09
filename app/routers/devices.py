@@ -85,7 +85,7 @@ def sync_devices(
 ) -> list[DeviceRead]:
     owner_id = owner_id_from_claims(claims)
     devices = service.sync_discovered_devices(owner_id, payload.devices)
-    # El router orquesta: el servicio de dispositivos no conoce las alertas.
+    # El router orquesta: el servicio de dispositivos no sabe nada de alertas.
     untrusted_alerts.alert_for_scan(owner_id, devices)
     latest_seen = latest_seen_among(devices)
     return [_to_device_read(device, latest_seen) for device in devices]

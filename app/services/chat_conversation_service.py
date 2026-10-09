@@ -13,13 +13,12 @@ from app.repositories.chat_message_repository import ChatMessageRepository
 from app.services.security_briefing_service import BriefingLanguage, SecurityBriefingService
 from app.services.security_chat_service import SecurityChatService
 
-# Largo del titulo autogenerado a partir del primer mensaje del usuario.
+# Largo del título que se genera con el primer mensaje.
 AUTO_TITLE_MAX_LENGTH = 40
 
-# Aviso (clave i18n del frontend) cuando el usuario escribe una contraseña.
+# Aviso (clave i18n) cuando el usuario escribe una contraseña.
 PASSWORD_DISCLOSURE_NOTICE_KEY = "user.securityAssistant.chat.passwordWarning"
-# Aviso cuando, en el modo familiar, la respuesta del modelo nombra un DNS distinto
-# a los de la guía: los valores correctos salen de la constante, no del modelo.
+# Aviso cuando en Modo familiar el modelo nombra un DNS distinto a los de la guía.
 FAMILY_DNS_CHECK_NOTICE_KEY = "user.securityAssistant.chat.familyDnsCheck"
 _FAMILY_DNS_NOTICE_PARAMS = {"primary": FAMILY_DNS_PRIMARY, "secondary": FAMILY_DNS_SECONDARY}
 
@@ -34,9 +33,7 @@ class AssessmentNotBriefableError(Exception):
 
 @dataclass(frozen=True)
 class SendMessageOutcome:
-    # reply = respuesta del asistente (None si el mensaje no se procesó, p. ej.
-    # traía una contraseña). notice_key = aviso fijo (i18n) que acompaña o
-    # reemplaza a la respuesta.
+    # reply es la respuesta (None si no se procesó); notice_key es un aviso fijo que la acompaña o reemplaza.
     reply: str | None
     notice_key: str | None
     notice_params: dict[str, str] | None = None
@@ -60,9 +57,7 @@ def _to_turns(messages: list[ChatMessage]) -> list[ChatTurn]:
 
 
 class ChatConversationService:
-    """Orquesta el historial de conversaciones: persistencia de mensajes +
-    auto-titulo, delegando el intercambio con el modelo a SecurityChatService
-    y la redacción del resumen inicial a SecurityBriefingService."""
+    """Maneja el historial y los títulos; delega el modelo en SecurityChatService y el resumen en SecurityBriefingService."""
 
     def __init__(
         self,
@@ -93,8 +88,7 @@ class ChatConversationService:
     ) -> SendMessageOutcome:
         conversation = self._require_owned_conversation(conversation_id, owner_id)
 
-        # La contraseña nunca se guarda ni se envía al modelo (un servicio
-        # externo): el mensaje se descarta aquí y solo se devuelve el aviso.
+        # La contraseña nunca se guarda ni se envía al modelo externo: descarto el mensaje y solo devuelvo el aviso.
         if contains_password_disclosure(text):
             return SendMessageOutcome(reply=None, notice_key=PASSWORD_DISCLOSURE_NOTICE_KEY)
 
@@ -119,8 +113,7 @@ class ChatConversationService:
         language: BriefingLanguage,
         briefing_service: SecurityBriefingService,
     ) -> AssessmentBriefing:
-        """Idempotente: una evaluación tiene a lo sumo un resumen. Si ya existe
-        se devuelve tal cual, sin volver a llamar al modelo."""
+        """Idempotente: una evaluación tiene a lo sumo un resumen; si ya existe, lo devuelvo sin llamar al modelo."""
         if assessment_id != latest_assessment_id:
             raise AssessmentNotBriefableError(f"Assessment '{assessment_id}' is not the owner's latest")
 
@@ -128,8 +121,7 @@ class ChatConversationService:
         if existing is not None:
             return AssessmentBriefing(existing, self._message_repository.list_by_conversation(existing.id))
 
-        # Se redacta antes de crear nada: si el modelo falla no queda una
-        # conversación vacía ni un mensaje inventado.
+        # Lo redacto antes de crear nada: si el modelo falla no queda una conversación vacía.
         text = briefing_service.write(owner_id, language)
         conversation = self._conversation_repository.create(
             owner_id, topic="assessment_briefing", assessment_id=assessment_id

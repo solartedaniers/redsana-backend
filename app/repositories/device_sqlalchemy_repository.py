@@ -49,9 +49,7 @@ class SqlAlchemyDeviceRepository(DeviceRepository):
             network_role=network_role,
         )
         if last_seen is not None:
-            # Un sync trae su propio timestamp (compartido por toda la tanda) en vez
-            # de dejar que cada INSERT tome su propio server_default=func.now(),
-            # para que "is_device_online" compare tiempos consistentes entre sí.
+            # Toda la tanda comparte un timestamp para que is_device_online compare tiempos consistentes.
             device.first_seen = last_seen
             device.last_seen = last_seen
         self._db.add(device)
@@ -62,8 +60,7 @@ class SqlAlchemyDeviceRepository(DeviceRepository):
     def save_scan(
         self, owner_id: uuid.UUID, new_devices: list[dict[str, Any]], updates: dict[uuid.UUID, dict[str, Any]]
     ) -> list[Device]:
-        # Los ids de updates vienen de list_by_owner del mismo owner (ver
-        # DeviceService); se vuelven a filtrar por owner aqui por seguridad.
+        # Los ids ya vienen del mismo dueño, pero vuelvo a filtrar por dueño por seguridad.
         for device in self.list_by_owner(owner_id):
             for field, value in updates.get(device.id, {}).items():
                 setattr(device, field, value)

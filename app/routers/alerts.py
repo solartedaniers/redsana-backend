@@ -71,7 +71,6 @@ def create_alert(
     _admin: User = Depends(require_admin),
     service: AlertService = Depends(_get_service),
 ) -> AlertRead:
-    """Endpoint admin para insertar alertas de prueba, mientras no exista un
-    proceso real que las genere (llegara con el modulo de IA)."""
+    """Inserta alertas de prueba mientras no haya un proceso real que las genere."""
     alert = service.create_alert(payload)
     return _to_alert_read(alert)

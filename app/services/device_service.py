@@ -5,8 +5,7 @@ from app.models.device import Device
 from app.repositories.device_repository import DeviceRepository
 from app.schemas.device import DeviceCreate, DeviceSyncItem, DeviceUpdate
 
-# Un dispositivo recién descubierto no tiene nombre real (el escaneo ARP no lo
-# provee); se deja vacío en vez de inventar uno, y el frontend decide cómo mostrarlo.
+# Un dispositivo nuevo no tiene nombre real (ARP no lo da); lo dejo vacío en vez de inventar uno.
 DISCOVERED_DEVICE_NAME = ""
 DISCOVERED_DEVICE_TRUST = "unknown"
 
@@ -41,22 +40,16 @@ class DeviceService:
         return device
 
     def sync_discovered_devices(self, owner_id: uuid.UUID, discovered: list[DeviceSyncItem]) -> list[Device]:
-        """Alta/actualización a partir de un escaneo real (Tauri + ARP): crea los
-        dispositivos nuevos con confianza "unknown" y actualiza ip/last_seen de los
-        ya existentes (identificados por MAC). No borra nada: un dispositivo que
-        deja de aparecer en el escaneo simplemente deja de estar "online" (ver
-        app.domain.device_presence), pero conserva su historial."""
+        """Crea los dispositivos nuevos y actualiza los conocidos por MAC. No borra nada: el que no aparece deja de estar online."""
         sync_time = datetime.now(timezone.utc)
         existing_by_mac = {device.mac_address: device for device in self._repository.list_by_owner(owner_id)}
-        # Una MAC que responde por dos IPs en el mismo escaneo es un solo equipo:
-        # se queda la ultima, en vez de intentar crearla dos veces (MAC unica por owner).
+        # Una MAC con dos IPs en el mismo escaneo es un solo equipo: me quedo con la última.
         discovered_by_mac = {item.mac_address: item for item in discovered}
 
         new_devices: list[dict] = []
         updates: dict[uuid.UUID, dict] = {}
         for mac_address, item in discovered_by_mac.items():
-            # El papel se refresca en cada escaneo: el mismo equipo puede ser
-            # "otro" en una red y el router de la siguiente.
+            # El papel se refresca en cada escaneo: el mismo equipo puede ser el router en otra red.
             scanned = {"ip_address": item.ip_address, "last_seen": sync_time, "network_role": item.role}
             existing = existing_by_mac.get(mac_address)
             if existing is None:

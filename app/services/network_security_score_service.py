@@ -12,8 +12,7 @@ TECHNICAL_WEIGHT_PERCENT = 70
 class NetworkSecurityScore:
     score: int
     questionnaire_score: int
-    # None = no hubo evidencia técnica (p. ej. evaluado desde la web): el
-    # puntaje es solo del cuestionario y se informa como parcial.
+    # None es que no hubo evidencia técnica: el puntaje sale solo del cuestionario y es parcial.
     technical_score: int | None
     recommendations: list[SecurityRecommendation]
 
@@ -23,8 +22,7 @@ class NetworkSecurityScore:
 
 
 class NetworkSecurityScoreService:
-    """Combina cuestionario (30%) y análisis técnico (70%). No sabe qué mide
-    cada analizador: solo promedia, por peso, los que pudieron evaluar algo."""
+    """Combina cuestionario (30 %) y análisis técnico (70 %), promediando por peso los analizadores que pudieron medir."""
 
     def __init__(self, analyzers: Sequence[TechnicalSecurityAnalyzer]) -> None:
         self._analyzers = analyzers

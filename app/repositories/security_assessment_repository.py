@@ -5,20 +5,18 @@ from app.models.security_assessment import SecurityAssessment
 
 
 class SecurityAssessmentRepository(ABC):
-    """Contrato de acceso a datos para evaluaciones de seguridad del router."""
 
     @abstractmethod
     def get_latest(self, owner_id: uuid.UUID) -> SecurityAssessment | None: ...
 
     @abstractmethod
     def get_latest_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, SecurityAssessment]:
-        """La evaluacion mas reciente de cada owner, en una sola consulta (ej.
-        supervision de admin: solo los que ya respondieron el cuestionario)."""
+        """La evaluación más reciente de cada dueño en una sola consulta (solo los que respondieron)."""
         ...
 
     @abstractmethod
     def get_latest_with_evidence(self, owner_id: uuid.UUID) -> SecurityAssessment | None:
-        """La evaluación más reciente del owner que sí trae evidencia técnica medida."""
+        """La evaluación más reciente del dueño que sí trae evidencia técnica medida."""
         ...
 
     @abstractmethod

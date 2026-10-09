@@ -4,9 +4,7 @@ from app.domain.chat_topic import ChatTopic
 from app.domain.family_mode import FAMILY_DNS_PRIMARY, FAMILY_DNS_SECONDARY, FAMILY_MODE_GUIDE_STEPS
 from app.services.security_chat_context_service import SecurityChatContextBuilder
 
-# El alcance del asistente se controla enteramente aqui, via el system prompt:
-# no hay filtro de keywords en el backend compitiendo con esta instruccion
-# (salvo router_password_guard, que es una barrera de privacidad, no de alcance).
+# El alcance del asistente se controla aquí, en el system prompt; router_password_guard es privacidad, no alcance.
 SECURITY_ASSISTANT_SYSTEM_PROMPT = """\
 Eres el asistente de seguridad de RedSana. RedSana es una aplicacion -de escritorio \
 y web- PENSADA PARA monitorear y diagnosticar redes domesticas. La app de escritorio \
@@ -71,8 +69,7 @@ _TOPIC_CONTEXTS: dict[ChatTopic, str] = {
 
 
 class SecurityChatPromptBuilder:
-    """Arma el system prompt completo (reglas + datos reales del usuario + tema
-    de la conversacion). Lo comparten el chat y el mensaje inicial de resumen."""
+    """Arma el system prompt completo (reglas, datos reales y tema); lo comparten el chat y el resumen inicial."""
 
     def __init__(self, context_builder: SecurityChatContextBuilder) -> None:
         self._context_builder = context_builder

@@ -5,14 +5,12 @@ from app.domain.assistant_reply import to_plain_text
 from app.domain.chat_topic import ChatTopic
 from app.services.security_chat_prompt_builder import SecurityChatPromptBuilder
 
-# Mensajes previos que se envían al modelo: suficientes para seguir el hilo
-# ("¿y cómo cierro eso?") sin inflar el prompt en conversaciones largas.
+# Mensajes previos que van al modelo: suficientes para seguir el hilo sin inflar el prompt.
 CHAT_HISTORY_LIMIT = 12
 
 
 class SecurityChatService:
-    """Responde un mensaje del usuario con el modelo, dándole las reglas, sus
-    datos reales y el historial reciente de la conversación."""
+    """Responde un mensaje con el modelo, dándole las reglas, los datos reales y el historial reciente."""
 
     def __init__(self, engine: ChatEngine, prompt_builder: SecurityChatPromptBuilder) -> None:
         self._engine = engine

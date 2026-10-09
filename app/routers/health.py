@@ -3,8 +3,7 @@ from fastapi import APIRouter
 router = APIRouter(prefix="/api", tags=["health"])
 
 
-# Sin auth ni base de datos a proposito: lo usa la medicion web de latencia
-# (cualquier trabajo extra aqui inflaria la latencia medida) y el health check del hosting.
+# Sin auth ni base de datos a propósito: lo usa la medición web y cualquier trabajo extra inflaría la latencia.
 @router.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}

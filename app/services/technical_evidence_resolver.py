@@ -30,9 +30,7 @@ def _own_evidence(assessment: SecurityAssessment) -> TechnicalEvidence:
 
 
 class TechnicalEvidenceResolver:
-    """Decide qué evidencia técnica usa una evaluación: la suya si la midió
-    (escritorio), o la última realmente medida por ese mismo usuario si no (web).
-    Nunca inventa evidencia: si no hubo ninguna medición, devuelve vacío."""
+    """Usa la evidencia propia si se midió; si no, la última medida por el mismo usuario. Nunca la inventa."""
 
     def __init__(self, repository: SecurityAssessmentRepository) -> None:
         self._repository = repository
@@ -45,8 +43,7 @@ class TechnicalEvidenceResolver:
     def resolve_latest_by_owners(
         self, latest_by_owner: dict[uuid.UUID, SecurityAssessment]
     ) -> dict[uuid.UUID, ResolvedTechnicalEvidence]:
-        """Versión en bloque para la supervisión de admin: una sola consulta para
-        todos los hogares cuya última evaluación no trae evidencia propia."""
+        """Versión en bloque para el admin: una consulta para todos los hogares sin evidencia propia."""
         missing = [owner_id for owner_id, assessment in latest_by_owner.items() if not has_technical_evidence(assessment)]
         previous_by_owner = self._repository.get_latest_with_evidence_by_owners(missing)
         return {

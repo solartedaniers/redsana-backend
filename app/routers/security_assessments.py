@@ -35,8 +35,7 @@ def get_latest_assessment(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> SecurityAssessmentRead | None:
-    """None significa "el usuario nunca ha respondido el cuestionario": el
-    frontend debe mostrar el formulario vacío en ese caso, no un error."""
+    """None es que el usuario nunca respondió: el frontend muestra el formulario vacío, no un error."""
     service = SecurityAssessmentService(
         SqlAlchemySecurityAssessmentRepository(db), default_network_security_score_service()
     )
@@ -50,8 +49,7 @@ def submit_assessment(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> SecurityAssessmentRead:
-    """Cada usuario solo puede registrar su propia evaluación (sin override de
-    admin: nadie más contesta el cuestionario del router de otra persona)."""
+    """Cada usuario solo registra su propia evaluación; nadie contesta el cuestionario del router de otro."""
     service = SecurityAssessmentService(
         SqlAlchemySecurityAssessmentRepository(db), default_network_security_score_service()
     )

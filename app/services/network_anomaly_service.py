@@ -26,17 +26,14 @@ class AnomalyStatus:
 
 
 class NetworkAnomalyService:
-    """Orquesta el detector (dominio puro) con los repositorios de métricas y
-    alertas. NetworkMetricsService no sabe que esto existe: la única relación
-    entre ambos es que el router llama a los dos servicios por separado."""
+    """Une el detector con los repositorios de métricas y alertas; NetworkMetricsService no sabe que esto existe."""
 
     def __init__(self, metrics_repository: NetworkMetricsRepository, alert_repository: AlertRepository) -> None:
         self._metrics_repository = metrics_repository
         self._alert_repository = alert_repository
 
     def get_status(self, owner_id: uuid.UUID) -> AnomalyStatus:
-        # La calibración es por fuente (ver evaluate_latest): se informa la de la
-        # fuente con la que el usuario está midiendo ahora mismo.
+        # La calibración es por fuente: informo la de la fuente con la que el usuario mide ahora.
         latest = self._metrics_repository.get_latest(owner_id)
         source = latest.source if latest is not None else DEFAULT_MEASUREMENT_SOURCE
         required = MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE[source]
@@ -51,16 +48,12 @@ class NetworkAnomalyService:
         return AnomalyStatus(status=status, samples_collected=min(collected, required), samples_required=required)
 
     def evaluate_latest(self, owner_id: uuid.UUID) -> None:
-        """Se llama después de persistir un snapshot nuevo. No hace nada si aún
-        no hay historial suficiente (calibrando) o si el snapshot no es anómalo.
-        Solo entrena con muestras de la misma fuente que la última: la latencia
-        web (HTTP) es sistemáticamente mayor que el ping nativo, y mezclarlas
-        haría que cada medición web pareciera anómala frente a un historial nativo."""
+        """Se llama tras guardar un snapshot. Solo entrena con la misma fuente: la latencia web es mayor que el ping
+         nativo y mezclarlas haría parecer anómala cada medición web."""
         latest = self._metrics_repository.get_latest(owner_id)
         if latest is None:
             return
-        # Solo historial de la misma red: comparar contra otra red (otro router,
-        # otro proveedor) haría que lo normal allá pareciera anomalía aquí.
+        # Solo historial de la misma red: lo normal en otra red parecería anomalía aquí.
         scope = baseline_scope(latest.source, latest.network_id)
         if scope is None:
             return
@@ -68,15 +61,14 @@ class NetworkAnomalyService:
         if len(window) < MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE[latest.source]:
             return
 
-        latest_snapshot, *history_snapshots = window  # window viene más nuevo primero
+        latest_snapshot, *history_snapshots = window  # window viene de más nueva a más vieja
         latest_vector = _to_vector(latest_snapshot)
         history_vectors: list[NetworkMetricVector] = [_to_vector(snapshot) for snapshot in history_snapshots]
 
         if not NetworkAnomalyDetector().is_anomalous(history_vectors, latest_vector):
             return
 
-        # Ya hay una alerta de este tipo sin reconocer: no duplicar mientras el
-        # usuario no la atienda (evita una alerta por minuto si el problema persiste).
+        # Si ya hay una alerta de este tipo sin reconocer no creo otra, o habría una por minuto mientras siga el problema.
         if self._alert_repository.get_latest_unacknowledged(owner_id, PREDICTION_ALERT_TYPE) is not None:
             return
 

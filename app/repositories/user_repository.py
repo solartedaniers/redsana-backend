@@ -6,7 +6,6 @@ from app.models.user import User
 
 
 class UserRepository(ABC):
-    """Contrato de acceso a datos para usuarios, independiente de la implementacion concreta."""
 
     @abstractmethod
     def get_by_id(self, user_id: uuid.UUID) -> User | None: ...

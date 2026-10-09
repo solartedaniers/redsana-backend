@@ -19,7 +19,6 @@ class AlertRead(BaseModel):
 
 
 class AlertCreate(BaseModel):
-    """Payload del endpoint admin para insertar una alerta de prueba."""
 
     owner_id: uuid.UUID
     type: AlertType

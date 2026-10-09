@@ -10,10 +10,7 @@ OUTAGE_MESSAGE_KEY = alert_message_key("briefOutage")
 
 
 class OutageDetectionService:
-    """Complementa a NetworkAnomalyService (mismo punto de enganche en el
-    router: se llama tras persistir un snapshot nuevo), pero no depende de el
-    ni de NetworkMetricsService -- cada detector solo conoce sus propios
-    repositorios, igual que el resto del proyecto."""
+    """Complementa a NetworkAnomalyService sin depender de él: cada detector conoce solo sus repositorios."""
 
     def __init__(self, metrics_repository: NetworkMetricsRepository, alert_repository: AlertRepository) -> None:
         self._metrics_repository = metrics_repository
@@ -27,10 +24,7 @@ class OutageDetectionService:
         if episode is None:
             return
 
-        # Sin chequeo de "ya hay una sin reconocer": a diferencia de prediction
-        # (condicion en curso), un corte ya recuperado es un evento terminado.
-        # La transicion caida->recuperada solo existe una vez por corte -- en
-        # la siguiente evaluacion ya no hay transicion que detectar.
+        # No reviso si ya hay una sin reconocer: un corte recuperado es un evento terminado y la transición ocurre una sola vez.
         self._alert_repository.create(
             owner_id=owner_id,
             type_=OUTAGE_ALERT_TYPE,
