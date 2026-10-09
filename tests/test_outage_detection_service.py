@@ -1,6 +1,4 @@
-"""Chequeo minimo sin DB/red: valida que el servicio genere la alerta correcta
-y que, a diferencia de prediction, SI dispare de nuevo para un segundo corte
-aunque el primero siga sin reconocer (evento terminado, no condicion en curso)."""
+"""Sin base ni red: genera la alerta correcta y, a diferencia de prediction, vuelve a alertar en un segundo corte."""
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -10,7 +8,7 @@ from tests.test_network_metrics_service import FakeNetworkMetricsRepository
 
 
 def _seed(repository: FakeNetworkMetricsRepository, owner_id: uuid.UUID, entries: list[tuple[int, float]]) -> None:
-    """entries: (minutos_atras, packet_loss_percent)."""
+    """entries: (minutos atrás, packet_loss_percent)."""
     now = datetime.now(timezone.utc)
     for minutes_ago, loss in entries:
         repository.create(
@@ -58,17 +56,16 @@ def test_a_second_separate_outage_fires_even_with_the_first_alert_unacknowledged
     owner_id = uuid.uuid4()
     service = OutageDetectionService(metrics_repository, alert_repository)
 
-    # Primer corte, se recupera y genera su alerta (queda sin reconocer).
+    # Primer corte: se recupera y genera su alerta (queda sin reconocer).
     _seed(metrics_repository, owner_id, [(5, 0.0), (4, 100.0), (3, 0.0)])
     service.evaluate_latest(owner_id)
     assert len(alert_repository.list_all(owner_id)) == 1
 
-    # Segundo corte, totalmente separado en el tiempo, tambien se recupera.
+    # Segundo corte, separado en el tiempo, también se recupera.
     _seed(metrics_repository, owner_id, [(1, 100.0), (0, 0.0)])
     service.evaluate_latest(owner_id)
 
-    # A diferencia de prediction, esto SI debe generar una segunda alerta:
-    # es un evento nuevo, no la misma condicion en curso.
+    # A diferencia de prediction, esto SÍ genera una segunda alerta: es un evento nuevo.
     outage_alerts = [a for a in alert_repository.list_all(owner_id) if a.type == "outage"]
     assert len(outage_alerts) == 2
 

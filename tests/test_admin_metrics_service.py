@@ -1,5 +1,4 @@
-"""Chequeo minimo sin DB/red: valida que las métricas de admin combinen los
-dominios existentes (usuarios, hogares, alertas) sin recalcular nada."""
+"""Sin base ni red: las métricas de admin combinan los dominios existentes sin recalcular nada."""
 import uuid
 
 from app.services.network_security_score_service import default_network_security_score_service
@@ -50,13 +49,12 @@ def test_platform_metrics_combine_users_households_alerts_and_average_score() ->
 
     metrics = service.get_platform_metrics()
 
-    # total_users cuenta TODOS los roles (3); monitored_households solo standard (2)
+    # total_users cuenta TODOS los roles (3); monitored_households solo los estándar (2)
     assert metrics.total_users == 3
     assert metrics.monitored_households == 2
     # una sola alerta sin reconocer en toda la plataforma (la de owner_b ya se reconoció)
     assert metrics.active_alerts == 1
-    # owner_a: 50 (sin dispositivos) + 20 (1 alerta sin reconocer) + 10 (red "unknown") = 80
-    # owner_b: 50 + 30 (alerta reconocida) + 10 = 90 -> promedio 85
+    # owner_a: 50 + 20 + 10 = 80; owner_b: 50 + 30 + 10 = 90 -> promedio 85
     assert metrics.average_security_score == 85
 
 

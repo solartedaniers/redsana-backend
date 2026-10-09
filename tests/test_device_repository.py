@@ -1,5 +1,4 @@
-"""Repositorio real sobre SQLite en memoria: last_seen solo debe moverse cuando
-un escaneo ve el dispositivo, no al editar otros campos (p. ej. la confianza)."""
+"""Repositorio real en SQLite: last_seen solo se mueve cuando un escaneo ve el dispositivo."""
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -46,7 +45,7 @@ def test_save_scan_is_all_or_nothing() -> None:
         new_scan = datetime.now(timezone.utc)
         valid = {"mac_address": "bb-bb-bb-bb-bb-bb", "ip_address": "10.0.0.3", "name": "", "trust": "unknown",
                  "last_seen": new_scan, "first_seen": new_scan}
-        clashing = {**valid, "mac_address": known.mac_address}  # rompe la MAC unica a mitad del escaneo
+        clashing = {**valid, "mac_address": known.mac_address}  # rompe la MAC única a mitad del escaneo
 
         with pytest.raises(IntegrityError):
             repository.save_scan(owner_id, [valid, clashing], {known.id: {"last_seen": new_scan}})

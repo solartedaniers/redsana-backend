@@ -1,4 +1,4 @@
-"""Chequeo minimo sin DB/red: valida el auto-provisioning contra un repositorio en memoria."""
+"""Sin base ni red: auto-provisioning contra un repositorio en memoria."""
 import uuid
 from datetime import datetime, timezone
 
@@ -95,7 +95,7 @@ def test_update_current_user_ignores_email_changes() -> None:
     claims = {"sub": sub, "email": "existing@redsana.dev"}
     service.get_or_create_current_user(claims)
 
-    # Un cliente que aun envie email (o una llamada directa a la API) no lo cambia.
+    # Un cliente que todavía envíe email no lo cambia.
     updated = service.update_current_user(claims, UserUpdate.model_validate({"email": "hijack@redsana.dev"}))
 
     assert updated.email == "existing@redsana.dev"

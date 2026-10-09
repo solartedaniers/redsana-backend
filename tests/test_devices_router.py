@@ -1,6 +1,4 @@
-"""E2E a nivel de router (SQLite en memoria): marcar un dispositivo como
-confiable/inseguro solo cambia `trust`; no mueve last_seen ni la presencia del
-resto (ya pasó: el onupdate de last_seen desconectaba a todos los demás)."""
+"""Cambiar la confianza solo cambia `trust`: antes el onupdate de last_seen desconectaba a todos los demás."""
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -27,7 +25,7 @@ def setup():
     session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     with session_factory() as db:
         repository = SqlAlchemyDeviceRepository(db)
-        # Los dos los vio el mismo escaneo (mismo last_seen): ambos "en línea".
+        # Los dos los vio el mismo escaneo: ambos en línea.
         ids = [
             str(repository.create(OWNER_ID, "", mac, ip, "unknown", last_seen=SCANNED_AT).id)
             for mac, ip in (("aa-aa-aa-aa-aa-01", "192.168.0.10"), ("aa-aa-aa-aa-aa-02", "192.168.0.11"))
@@ -66,7 +64,7 @@ def test_marking_trust_only_changes_the_trust_field(setup, trust: str) -> None:
     for device_id in (marked_id, other_id):
         unchanged = {key: value for key, value in after[device_id].items() if key != "trust"}
         assert unchanged == {key: value for key, value in before[device_id].items() if key != "trust"}
-    # Ningún dispositivo quedó "desconectado" por el cambio de confianza.
+    # Ningún dispositivo quedó desconectado por el cambio de confianza.
     assert all(device["is_online"] for device in after.values())
 
 

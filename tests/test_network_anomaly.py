@@ -1,9 +1,7 @@
-"""Chequeo minimo sin DB: valida el detector (IsolationForest real, sin mocks,
-datos sinteticos) y la clasificacion de severidad/mensaje por separado."""
+"""Sin base: el detector con IsolationForest real y datos sintéticos, y la severidad por separado."""
 from app.domain.network_anomaly import NetworkAnomalyDetector, NetworkMetricVector, classify_deviation
 
-# Red domestica "normal": latencia ~20ms, jitter ~2ms, perdida ~0%, con algo de
-# ruido para que StandardScaler tenga una desviacion real que no sea cero.
+# Red doméstica normal (~20 ms, ~2 ms de jitter, ~0 % de pérdida) con algo de ruido para que la desviación no sea cero.
 _NORMAL_HISTORY: list[NetworkMetricVector] = [
     (20.0 + (i % 5) * 0.4, 2.0 + (i % 3) * 0.1, 0.0 + (i % 2) * 0.05) for i in range(60)
 ]
@@ -35,8 +33,7 @@ def test_classify_deviation_is_critical_for_a_very_large_deviation() -> None:
 
 
 def test_classify_deviation_is_warning_for_a_mild_deviation() -> None:
-    # z aprox 2 en latencia (desviacion tipica ~0.35 en _NORMAL_HISTORY): notorio
-    # pero lejos del umbral critico de 3 desviaciones.
+    # z ≈ 2 en latencia: notorio pero lejos del umbral crítico de 3.
     result = classify_deviation(_NORMAL_HISTORY, (20.7, 2.0, 0.0))
 
     assert result.severity == "warning"

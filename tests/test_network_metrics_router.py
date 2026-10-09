@@ -1,7 +1,4 @@
-"""E2E a nivel de router: valida el nuevo modelo de permisos del POST usando
-la app real (autorizacion + servicio + repositorio reales), con SQLite en
-memoria y el token ya "decodificado" via dependency_overrides (una firma JWT
-real de Supabase no es verificable offline)."""
+"""Permisos del POST con la app real y SQLite, con el token ya decodificado porque la firma de Supabase no se verifica offline."""
 import uuid
 
 import pytest
@@ -34,8 +31,7 @@ def _sqlite_session_factory():
 
 @pytest.fixture()
 def client():
-    """Cliente con el token ya "decodificado" (overridea get_current_claims):
-    usado para probar la logica de autorizacion propia del router."""
+    """Cliente con el token ya decodificado, para probar la autorización propia del router."""
     engine, session_factory = _sqlite_session_factory()
 
     def override_get_db():
@@ -59,9 +55,7 @@ def client():
 
 @pytest.fixture()
 def client_without_claims_override():
-    """Cliente que deja correr el HTTPBearer real: sirve para probar el caso
-    sin token, sin overridear get_current_claims (evita el fetch de JWKS
-    porque nunca llega a decodificar nada sin Authorization header)."""
+    """Cliente con el HTTPBearer real, para el caso sin token (nunca llega a pedir el JWKS)."""
     engine, session_factory = _sqlite_session_factory()
 
     def override_get_db():

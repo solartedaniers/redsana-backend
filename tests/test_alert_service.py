@@ -1,4 +1,4 @@
-"""Chequeo minimo sin DB/red: valida filtrado por owner, "nuevas desde X" y acknowledge."""
+"""Sin base ni red: filtrado por dueño, "nuevas desde X" y reconocer."""
 import uuid
 from datetime import datetime, timedelta, timezone
 

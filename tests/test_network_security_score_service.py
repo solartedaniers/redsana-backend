@@ -1,4 +1,4 @@
-"""Ponderación 30% cuestionario / 70% técnico y extensibilidad por analizadores."""
+"""Ponderación 30 % cuestionario y 70 % técnico, y extensibilidad por analizadores."""
 from app.domain.security_analyzers import (
     AnalyzerResult,
     RouterOpenPortsAnalyzer,
@@ -14,7 +14,7 @@ NO_EVIDENCE = TechnicalEvidence(wifi_encryption_raw=None, router_open_ports=None
 
 
 def test_technical_analysis_weighs_70_percent() -> None:
-    # Cuestionario perfecto pero WiFi abierta y Telnet+FTP abiertos: la red real manda.
+    # Cuestionario perfecto pero WiFi abierta y Telnet y FTP abiertos: manda la red real.
     evidence = TechnicalEvidence(wifi_encryption_raw="Abierta", router_open_ports=[21, 23])
 
     result = default_network_security_score_service().evaluate(ALL_YES, evidence)
@@ -40,7 +40,7 @@ def test_missing_evidence_is_not_scored_as_bad() -> None:
 
 
 def test_only_measured_analyzers_count_in_the_technical_score() -> None:
-    # Puertos sin medir (None) no pesan; el técnico es solo el cifrado WPA2 (85).
+    # Los puertos sin medir no pesan; el técnico es solo el cifrado WPA2 (85).
     evidence = TechnicalEvidence(wifi_encryption_raw="WPA2-Personal", router_open_ports=None)
 
     assert default_network_security_score_service().evaluate(ALL_YES, evidence).technical_score == 85

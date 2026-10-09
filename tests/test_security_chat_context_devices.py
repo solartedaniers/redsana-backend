@@ -1,5 +1,4 @@
-"""La IA recibe el mismo conteo que ve el usuario en Dispositivos, con el
-desglose de sus marcas, y no el total histórico (otras redes, MAC rotadas)."""
+"""La IA recibe el mismo conteo que ve el usuario en Dispositivos, no el total histórico."""
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -26,5 +25,5 @@ def test_devices_line_counts_like_the_devices_screen_and_breaks_down_marks() -> 
 
     line = builder._devices_line(devices)
 
-    assert "ultimo escaneo: 4 " in line  # 3 equipos + este PC, sin el router ni el historial
+    assert "ultimo escaneo: 4 " in line  # 3 equipos más este PC, sin el router ni el historial
     assert "1 marcados de confianza, 1 marcados como inseguros y 1 sin revisar" in line

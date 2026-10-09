@@ -1,4 +1,4 @@
-"""Chequeo minimo sin DB/red: valida filtrado por owner y la sincronización de un escaneo real."""
+"""Sin base ni red: filtrado por dueño y sincronización de un escaneo real."""
 import uuid
 from datetime import datetime, timezone
 

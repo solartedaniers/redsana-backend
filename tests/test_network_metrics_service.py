@@ -1,4 +1,4 @@
-"""Chequeo minimo sin DB/red: valida el calculo de status y el rango por defecto del historico."""
+"""Sin base ni red: cálculo del estado y rango por defecto del historial."""
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -122,7 +122,7 @@ def test_record_snapshot_stores_a_keyed_network_id_never_the_raw_fingerprint() -
 
     assert snapshot.network_id is not None and len(snapshot.network_id) == 64
     assert snapshot.network_id != FINGERPRINT
-    # Mismo router, mismo usuario -> misma red; otro usuario u otro secreto -> otra.
+    # Mismo router y mismo usuario -> misma red; otro usuario u otro secreto -> otra.
     assert NetworkIdentifier("test-secret").network_id(owner_id, FINGERPRINT) == snapshot.network_id
     assert NetworkIdentifier("test-secret").network_id(uuid.uuid4(), FINGERPRINT) != snapshot.network_id
     assert NetworkIdentifier("other-secret").network_id(owner_id, FINGERPRINT) != snapshot.network_id

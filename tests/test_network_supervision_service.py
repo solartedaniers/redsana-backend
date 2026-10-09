@@ -1,6 +1,4 @@
-"""Chequeo minimo sin DB/red: valida el filtrado a hogares standard, el proxy
-de security score, y que el score real del cuestionario tenga prioridad sobre
-el proxy cuando existe."""
+"""Sin base ni red: solo hogares estándar, el puntaje aproximado y que el del cuestionario tenga prioridad."""
 import uuid
 
 from app.services.network_security_score_service import default_network_security_score_service
@@ -59,7 +57,7 @@ def test_security_score_combines_device_trust_alerts_and_network_status() -> Non
 
     household = service.list_households()[0]
 
-    # 50% dispositivos de confianza (25/50) + 1 alerta sin reconocer (20/30) + red "good" (20/20)
+    # 50 % de dispositivos de confianza (25/50) + 1 alerta sin reconocer (20/30) + red "good" (20/20)
     assert household.security_score == 65
     assert household.security_score_source == "estimated"  # sin cuestionario respondido
     assert household.status == "good"
@@ -72,7 +70,7 @@ def test_security_score_defaults_when_no_devices_alerts_or_metrics_exist() -> No
 
     household = service.list_households()[0]
 
-    # Sin evidencia negativa: dispositivos y alertas puntuan completo, red "unknown" puntua mitad
+    # Sin evidencia negativa: dispositivos y alertas puntúan completo y la red "unknown" la mitad
     assert household.security_score == 90
     assert household.security_score_source == "estimated"
     assert household.status == "unknown"
@@ -83,13 +81,13 @@ def test_real_assessment_score_takes_priority_over_the_proxy() -> None:
     user_repository = FakeUserRepository()
     owner = user_repository.create(uuid.uuid4(), "answered@redsana.dev", "Answered", "standard")
 
-    # Este hogar tendria proxy bajo (dispositivo bloqueado, alerta sin reconocer)...
+    # Este hogar tendría un puntaje aproximado bajo...
     device_repository = FakeDeviceRepository()
     device_repository.create(owner.id, "blocked-1", "BB:BB", "1.1.1.2", "blocked")
     alert_repository = FakeAlertRepository()
     alert_repository.create(owner.id, "outage", "critical", "a", None, None)
 
-    # ...pero SI respondio el cuestionario, y ese es el que debe mostrarse.
+    # ...pero SÍ respondió el cuestionario, y ese es el que debe mostrarse.
     assessment_repository = FakeSecurityAssessmentRepository()
     SecurityAssessmentService(assessment_repository, default_network_security_score_service()).submit_assessment(
         owner.id, SecurityAssessmentCreate(answers=ALL_YES_ANSWERS, wifi_encryption_raw="WPA3")
@@ -101,7 +99,7 @@ def test_real_assessment_score_takes_priority_over_the_proxy() -> None:
 
     household = service.list_households()[0]
 
-    assert household.security_score == 100  # el real del cuestionario, no el proxy bajo
+    assert household.security_score == 100  # el real del cuestionario, no el aproximado
     assert household.security_score_source == "real"
 
 
@@ -118,7 +116,7 @@ def test_household_score_uses_the_desktop_evidence_reused_by_a_web_submission() 
 
     household = _build_service(user_repository, assessment_repository=assessment_repository).list_households()[0]
 
-    # El admin ve el mismo puntaje completo que el usuario, no el 100 "solo cuestionario".
+    # El admin ve el mismo puntaje completo que el usuario, no el 100 de solo cuestionario.
     assert household.security_score == desktop.security_score.score < 100
 
 
@@ -182,12 +180,12 @@ def test_trusted_ratio_only_counts_devices_connected_now_excluding_router_and_th
     device_repository.create(owner.id, "", "R0:00", "10.0.0.1", "unknown", now, "gateway")
     device_repository.create(owner.id, "", "PC:00", "10.0.0.2", "unknown", now, "this_device")
     device_repository.create(owner.id, "", "PH:01", "10.0.0.3", "trusted", now, "other")
-    # Historial de otra red / equipos que ya no están: no deben diluir el %.
+    # Historial de otra red o equipos que ya no están: no deben diluir el porcentaje.
     for index in range(50):
         device_repository.create(owner.id, "", f"OL:{index:02d}", "192.168.1.9", "unknown", old_scan, "other")
 
     service = _build_service(user_repository, device_repository, FakeAlertRepository(), FakeNetworkMetricsRepository())
     household = service.list_households()[0]
 
-    # 1 de 1 conectado es de confianza (50/50) + sin alertas (30/30) + red sin medir "unknown" (10/20)
+    # 1 de 1 conectado es de confianza (50/50) + sin alertas (30/30) + red sin medir (10/20)
     assert household.security_score == 90

@@ -1,5 +1,4 @@
-"""Chequeo minimo sin DB: valida el recalculo de score/recomendaciones y que
-"no sé" puntúe igual que "no"."""
+"""Sin base: recálculo de puntaje y recomendaciones, y que "no sé" puntúe igual que "no"."""
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -144,7 +143,7 @@ def test_web_submission_reuses_the_last_desktop_measurement_with_its_date() -> N
     web = service.submit_assessment(owner_id, WEB_SUBMISSION)
 
     assert not web.security_score.is_partial
-    assert web.security_score == desktop.security_score  # mismas respuestas + misma evidencia real
+    assert web.security_score == desktop.security_score  # mismas respuestas y misma evidencia real
     assert web.technical_evidence_reused
     assert web.technical_measured_at == desktop.submitted_at
 

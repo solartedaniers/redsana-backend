@@ -1,5 +1,4 @@
-"""Chequeo minimo, sin DB: la presencia se deriva de last_seen relativo al grupo,
-nunca de cuánto tiempo absoluto pasó (los escaneos son manuales, no periódicos)."""
+"""Sin base: la presencia sale de last_seen relativo al grupo, nunca del tiempo transcurrido."""
 import uuid
 from datetime import datetime, timedelta, timezone
 

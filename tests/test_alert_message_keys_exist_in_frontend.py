@@ -1,6 +1,4 @@
-"""Cada clave de alerta que guarda el backend debe existir en los diccionarios
-del frontend: si no, el Centro de alertas muestra la clave cruda (pasó con
-"alertsCenter.messages.briefOutage")."""
+"""Cada clave de alerta del backend debe existir en el frontend, o el Centro de alertas muestra la clave cruda."""
 import json
 from pathlib import Path
 

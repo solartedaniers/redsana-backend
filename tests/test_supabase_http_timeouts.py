@@ -1,5 +1,4 @@
-"""Las llamadas a Supabase corren dentro del pool de hilos de FastAPI: sin
-timeout, un Supabase colgado bloquea un hilo por petición hasta agotar el pool."""
+"""Las llamadas a Supabase corren en el pool de hilos: sin timeout, un Supabase colgado lo agota."""
 import io
 import json
 import urllib.error

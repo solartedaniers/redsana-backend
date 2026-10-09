@@ -1,4 +1,4 @@
-"""Chequeo minimo sin DB/red: valida el CRUD de admin sobre un repositorio de usuarios en memoria."""
+"""Sin base ni red: CRUD de admin sobre un repositorio de usuarios en memoria."""
 import uuid
 
 from app.schemas.admin import AdminUserCreate, AdminUserUpdate
@@ -7,7 +7,7 @@ from tests.test_user_service import FakeUserRepository
 
 
 class FakeSupabaseAdminClient:
-    """Doble de pruebas: no golpea la Admin API real de Supabase."""
+    """Doble de pruebas: no llama a la Admin API real de Supabase."""
 
     def __init__(self) -> None:
         self.invited: list[tuple[str, str | None]] = []

@@ -1,5 +1,4 @@
-"""E2E a nivel de router con un GroqClient falso (dependency_overrides) y SQLite
-en memoria, mismo patron que test_security_assessment_router.py."""
+"""De punta a punta en el router, con un GroqClient falso y SQLite en memoria."""
 import time
 import uuid
 
@@ -243,8 +242,7 @@ def test_only_the_latest_own_assessment_can_be_briefed_and_a_model_failure_leave
     client, engine = _make_client(_StubGroqClient(error="groq caido"))
     try:
         old = _submit_assessment(client)
-        # SQLite guarda now() con resolución de segundos: sin esta pausa ambas
-        # evaluaciones empatan y "la más reciente" sería ambigua (Postgres usa µs).
+        # SQLite guarda now() al segundo: sin esta pausa las dos evaluaciones empatan.
         time.sleep(1.1)
         latest = _submit_assessment(client)
 
@@ -253,7 +251,7 @@ def test_only_the_latest_own_assessment_can_be_briefed_and_a_model_failure_leave
 
         assert stale.status_code == 404
         assert failed.status_code == 502
-        # El error interno del proveedor ("groq caido") queda en el log, no en la respuesta.
+        # El error interno del proveedor queda en el log, no en la respuesta.
         assert "groq caido" not in failed.text
         assert client.get("/api/conversations", headers=AUTH).json() == []
     finally:

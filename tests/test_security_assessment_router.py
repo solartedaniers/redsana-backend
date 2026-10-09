@@ -1,6 +1,4 @@
-"""E2E a nivel de router: sin admin override (cada usuario solo ve/escribe la
-suya), con SQLite en memoria y el token ya "decodificado" via
-dependency_overrides (igual patron que test_network_metrics_router.py)."""
+"""Sin override de admin: cada usuario solo ve y escribe la suya. SQLite en memoria y token ya decodificado."""
 import uuid
 
 import pytest
@@ -75,8 +73,7 @@ def test_submit_then_latest_returns_computed_score(client: TestClient) -> None:
         "/api/security-assessments", json=ANSWERS_PAYLOAD, headers={"Authorization": "Bearer fake"}
     )
     assert submit.status_code == 201
-    # Cuestionario: (25 + 20) / 80 = 56; técnico: solo WPA2 medido = 85.
-    # Total: 56 * 30% + 85 * 70% = 76.
+    # Cuestionario: (25 + 20) / 80 = 56; técnico: solo WPA2 = 85. Total: 56 * 30% + 85 * 70% = 76.
     assert submit.json()["score"] == 76
     assert submit.json()["questionnaire_score"] == 56
     assert submit.json()["technical_score"] == 85

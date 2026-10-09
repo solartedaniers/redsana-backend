@@ -1,5 +1,4 @@
-"""Chequeo minimo sin DB/red: valida calibracion, deteccion y deduplicacion
-usando los mismos Fake repository que ya usan otros tests de este dominio."""
+"""Sin base ni red: calibración, detección y deduplicación con los repositorios falsos de siempre."""
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -125,7 +124,7 @@ def test_evaluate_latest_does_not_duplicate_an_already_open_alert() -> None:
 
     service.evaluate_latest(owner_id)
 
-    # Sigue habiendo solo la alerta original: la nueva evaluacion no agrego otra.
+    # Sigue solo la alerta original: la nueva evaluación no agregó otra.
     assert len(alert_repository.list_all(owner_id)) == 1
 
 
@@ -134,7 +133,7 @@ def test_evaluate_latest_ignores_history_from_another_source() -> None:
     alert_repository = FakeAlertRepository()
     owner_id = uuid.uuid4()
     _seed_normal_history(metrics_repository, owner_id, ANOMALY_WINDOW_SIZE, source="native")
-    # Latencia web normal (HTTP, ~2x el ping): contra el historial nativo se vería anómala.
+    # Latencia web normal (~2x el ping): contra el historial nativo se vería anómala.
     metrics_repository.create(
         owner_id=owner_id, latency_ms=45.0, jitter_ms=2.0, packet_loss_percent=0.0, status="good", source="web", recorded_at=None
     )
@@ -189,7 +188,7 @@ def test_two_networks_calibrate_separately() -> None:
     metrics_repository = FakeNetworkMetricsRepository()
     alert_repository = FakeAlertRepository()
     owner_id = uuid.uuid4()
-    # Casa calibrada hace un rato; ahora el usuario mide en la oficina (pocas muestras).
+    # Casa ya calibrada; ahora el usuario mide en la oficina con pocas muestras.
     _seed_normal_history(metrics_repository, owner_id, MIN_NATIVE_SAMPLES, network_id=HOME_NETWORK, minutes_ago=200)
     _seed_normal_history(metrics_repository, owner_id, 100, network_id=OFFICE_NETWORK)
     _anomalous_sample(metrics_repository, owner_id, OFFICE_NETWORK)
@@ -207,11 +206,10 @@ def test_returning_to_a_network_resumes_its_own_calibration() -> None:
     metrics_repository = FakeNetworkMetricsRepository()
     alert_repository = FakeAlertRepository()
     owner_id = uuid.uuid4()
-    # 1439 + la medición nueva = calibración completa justo al volver (misma
-    # preparación que test_evaluate_latest_creates_a_prediction_alert...).
+    # 1439 más la medición nueva completan la calibración justo al volver.
     _seed_normal_history(metrics_repository, owner_id, MIN_NATIVE_SAMPLES - 1, network_id=HOME_NETWORK, minutes_ago=300)
     _seed_normal_history(metrics_repository, owner_id, 100, network_id=OFFICE_NETWORK, minutes_ago=50)
-    # De vuelta en casa: retoma su calibración (las 100 de la oficina no cuentan) y detecta.
+    # De vuelta en casa retoma su calibración (las de la oficina no cuentan) y detecta.
     _anomalous_sample(metrics_repository, owner_id, HOME_NETWORK)
     service = NetworkAnomalyService(metrics_repository, alert_repository)
 
