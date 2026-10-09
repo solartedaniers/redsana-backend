@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     supabase_http_timeout_seconds: int = 10
     # Baja a propósito: con temperatura alta el asistente cambiaba dígitos al copiar DNS (llegó a escribir 0.0.0.3).
     groq_temperature: float = 0.2
+    # Apagado por defecto: el endpoint de alertas de prueba solo debe existir en desarrollo.
+    enable_test_alerts_endpoint: bool = False
 
     @property
     def supabase_jwks_url(self) -> str:
