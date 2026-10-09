@@ -40,7 +40,7 @@ uvicorn app.main:app --reload
 pytest
 ```
 
-- Las pruebas necesitan un `.env` con las variables obligatorias, incluida `DATABASE_URL` (ver `.env.example`). Tres pruebas de `tests/test_network_metrics_router.py` disparan las tareas en segundo plano del POST de mediciones, que abren su propia sesión contra esa base: hoy solo leen, pero la base debe ser accesible.
+- Las pruebas necesitan un `.env` con las variables obligatorias (ver `.env.example`). `DATABASE_URL` debe tener formato válido de Postgres porque el engine se crea al importar, pero las pruebas no se conectan a ella: usan SQLite en memoria, también para las tareas en segundo plano.
 - La prueba que verifica que cada clave de alerta tiene texto en el frontend lee los diccionarios i18n del repo del frontend. Sin `FRONTEND_I18N_DIR` se salta. Para correrla, clona los dos repos lado a lado y define la variable (en el entorno o en `.env`), relativa a esta carpeta:
 
   ```

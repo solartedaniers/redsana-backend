@@ -30,9 +30,11 @@ def _sqlite_session_factory():
 
 
 @pytest.fixture()
-def client():
+def client(monkeypatch: pytest.MonkeyPatch):
     """Cliente con el token ya decodificado, para probar la autorización propia del router."""
     engine, session_factory = _sqlite_session_factory()
+    # Las tareas en segundo plano abren su propia sesión: también van a la base de prueba, nunca a la real.
+    monkeypatch.setattr("app.routers.network_metrics.SessionLocal", session_factory)
 
     def override_get_db():
         db = session_factory()
