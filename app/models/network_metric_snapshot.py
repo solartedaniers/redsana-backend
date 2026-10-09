@@ -26,8 +26,7 @@ class NetworkMetricSnapshot(Base):
     owner_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    # timezone=True: se guarda con offset UTC explícito, para que el frontend
-    # pueda convertir correctamente a la hora local del usuario.
+    # timezone=True: se guarda con offset UTC para que el frontend lo pase bien a la hora local.
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     latency_ms: Mapped[float] = mapped_column(Float, nullable=False)
     jitter_ms: Mapped[float] = mapped_column(Float, nullable=False)
@@ -39,7 +38,5 @@ class NetworkMetricSnapshot(Base):
         default=DEFAULT_MEASUREMENT_SOURCE,
         server_default=DEFAULT_MEASUREMENT_SOURCE,
     )
-    # Red en la que se midió (HMAC de la huella del router, ver
-    # app.domain.network_identity). None = red desconocida: historial previo a
-    # esta columna, mediciones web o router no resuelto.
+    # Red donde se midió (HMAC de la huella del router). None es red desconocida.
     network_id: Mapped[str | None] = mapped_column(String(64), nullable=True)

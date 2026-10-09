@@ -1,6 +1,4 @@
-# Espejo intencional de frontend/src/app/core/domain/family-dns.ts y de la guía
-# de la pantalla "Modo familiar" (sin código compartido entre frontend y backend):
-# es el contexto con el que el asistente guía al usuario paso a paso.
+# Copia a propósito de family-dns.ts y de la guía del Modo familiar: es el contexto con el que guía el asistente.
 FAMILY_DNS_PRIMARY = "1.1.1.3"
 FAMILY_DNS_SECONDARY = "1.0.0.3"
 

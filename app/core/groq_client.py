@@ -13,15 +13,12 @@ class GroqClientError(ChatEngineError):
 
 
 def get_chat_engine() -> ChatEngine:
-    # Dependencia FastAPI separada del constructor para poder overridearla
-    # en tests (mismo patron que get_db), sin pegarle a la API real de Groq.
+    # Va separada del constructor para poder reemplazarla en las pruebas sin llamar a la API real de Groq.
     return GroqClient(get_settings())
 
 
 class GroqClient(ChatEngine):
-    """Unica clase que sabe hablar HTTP con la API de Groq (urllib de la
-    stdlib: httpx2 en requirements.txt solo lo usa el TestClient de Starlette
-    en las pruebas). El resto del dominio no conoce el detalle HTTP."""
+    """Única clase que habla HTTP con Groq (con urllib de la stdlib); el resto del dominio no conoce ese detalle."""
 
     def __init__(self, settings: Settings) -> None:
         self._api_key = settings.groq_api_key
@@ -43,13 +40,12 @@ class GroqClient(ChatEngine):
             headers={
                 "Authorization": f"Bearer {self._api_key}",
                 "Content-Type": "application/json",
-                # Cloudflare (delante de la API de Groq) devuelve 403 sin un
-                # User-Agent "de navegador real": el default de urllib lo dispara.
+                # Cloudflare, delante de Groq, devuelve 403 con el User-Agent por defecto de urllib.
                 "User-Agent": "Mozilla/5.0 (compatible; RedSana-backend/1.0)",
             },
         )
         try:
-            # Sin timeout, un Groq colgado dejaba la petición del usuario abierta indefinidamente.
+            # Sin timeout, un Groq colgado dejaba abierta la petición del usuario indefinidamente.
             with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
                 payload = json.loads(response.read())
         except urllib.error.HTTPError as error:

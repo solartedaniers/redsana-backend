@@ -1,6 +1,4 @@
-# Las alertas guardan la clave i18n del frontend y el frontend la traduce tal
-# cual: tiene que ser la ruta completa del diccionario. Sin el "user." las
-# alertas se veían como "alertsCenter.messages.briefOutage" en vez del texto.
+# Guardo la ruta completa de la clave i18n: sin el "user." el frontend mostraba la clave cruda.
 ALERT_MESSAGE_KEY_PREFIX = "user.alertsCenter.messages."
 
 

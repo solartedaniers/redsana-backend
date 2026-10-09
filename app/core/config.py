@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Configuracion de la aplicacion, cargada desde variables de entorno (.env)."""
+    """Configuración de la aplicación, cargada desde las variables de entorno (.env)."""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -17,17 +17,13 @@ class Settings(BaseSettings):
     supabase_service_role_key: str
     groq_api_key: str
     groq_model: str = "openai/gpt-oss-120b"
-    # Secreto del HMAC que convierte la huella de red del escritorio en network_id
-    # (ver app.domain.network_identity). Debe ser el mismo en todo backend que
-    # comparta base de datos: si cambia, cada red vuelve a calibrar desde cero.
+    # Secreto del HMAC que convierte la huella de red en network_id; si cambia, cada red vuelve a calibrar
+    # desde cero, así que debe ser el mismo en todo backend que comparta la base.
     network_id_secret: str
     groq_timeout_seconds: int = 30
-    # Timeout de las llamadas a Supabase (JWKS y Admin API): los endpoints son
-    # síncronos y corren en el pool de hilos; sin timeout, un Supabase colgado
-    # deja cada hilo bloqueado para siempre hasta agotar el pool.
+    # Sin timeout, un Supabase colgado dejaría bloqueado cada hilo del pool hasta agotarlo.
     supabase_http_timeout_seconds: int = 10
-    # Baja a propósito: el asistente copia datos exactos (DNS, puertos) y una
-    # temperatura alta lo hacía variar dígitos (llegó a escribir 0.0.0.3 por 1.0.0.3).
+    # Baja a propósito: con temperatura alta el asistente cambiaba dígitos al copiar DNS (llegó a escribir 0.0.0.3).
     groq_temperature: float = 0.2
 
     @property
@@ -36,11 +32,11 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        # env var como lista separada por comas (mas simple que exigir JSON en el .env)
+        # lista separada por comas, más simple que exigir JSON en el .env
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
 
 @lru_cache
 def get_settings() -> Settings:
-    # cacheada porque Settings() relee y parsea el .env en cada instanciacion
+    # La cacheo porque Settings() vuelve a leer y parsear el .env cada vez.
     return Settings()

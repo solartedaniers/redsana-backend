@@ -12,13 +12,12 @@ class ChatTurn:
 
 
 class ChatEngineError(Exception):
-    """El motor no pudo responder (red, cuota, respuesta inválida)."""
+    """El motor no pudo responder (red, cuota o respuesta inválida)."""
 
 
 class ChatEngine(ABC):
-    """Strategy del modelo conversacional: el resto del dominio solo conoce
-    esta interfaz, así cambiar Groq por otro proveedor es una clase nueva."""
+    """Interfaz del modelo conversacional: cambiar Groq por otro proveedor es escribir una clase nueva."""
 
     @abstractmethod
     def complete(self, system_prompt: str, turns: list[ChatTurn]) -> str:
-        """turns: conversación en orden cronológico, terminando en el mensaje a responder."""
+        """turns: la conversación en orden, terminando en el mensaje a responder."""

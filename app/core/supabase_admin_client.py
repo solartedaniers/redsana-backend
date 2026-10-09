@@ -11,9 +11,7 @@ class SupabaseAdminError(Exception):
 
 
 class SupabaseAdminClient:
-    """Unica clase que sabe hablar con la Admin API de Supabase Auth (requiere
-    el service_role key, nunca el anon key). El resto del dominio de admin
-    no conoce el detalle HTTP de Supabase."""
+    """Única clase que habla con la Admin API de Supabase Auth; necesita la service_role key, nunca la anon."""
 
     def __init__(self, settings: Settings) -> None:
         self._base_url = settings.supabase_url.rstrip("/")
@@ -21,8 +19,7 @@ class SupabaseAdminClient:
         self._timeout_seconds = settings.supabase_http_timeout_seconds
 
     def invite_user(self, email: str, full_name: str | None) -> uuid.UUID:
-        """Crea el usuario en Supabase Auth y le envia el correo de invitacion
-        (el usuario define su propia contraseña, el admin nunca la conoce)."""
+        """Crea el usuario y le envía la invitación; la contraseña la define él, el admin nunca la conoce."""
         body = {"email": email, "data": {"full_name": full_name}}
         response = self._request("POST", "/auth/v1/invite", body)
         return uuid.UUID(response["id"])

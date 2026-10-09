@@ -28,10 +28,7 @@ class Device(Base):
     trust: Mapped[str] = mapped_column(
         Enum(*DEVICE_TRUST_VALUES, name="device_trust"), nullable=False, server_default="unknown"
     )
-    # timezone=True: se guarda con offset UTC explícito, para que el frontend
-    # pueda convertir correctamente a la hora local del usuario.
+    # timezone=True: se guarda con offset UTC para que el frontend lo pase bien a la hora local.
     first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    # Sin onupdate a propósito: last_seen es la señal de presencia (ver
-    # app.domain.device_presence) y solo debe moverlo un escaneo real; con
-    # onupdate, cambiar la confianza de un dispositivo lo marcaba "visto ahora".
+    # Sin onupdate a propósito: last_seen es la señal de presencia y solo lo mueve un escaneo real.
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

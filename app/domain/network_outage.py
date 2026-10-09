@@ -3,19 +3,13 @@ from datetime import datetime, timedelta
 
 OutageSample = tuple[datetime, float]  # (recorded_at, packet_loss_percent)
 
-# Perdida total (los 5 pings de la muestra fallaron) -- no una degradacion
-# parcial, eso ya lo cubre el status "critical" normal del dashboard.
+# Pérdida total (los 5 pings fallaron); la degradación parcial ya la cubre el estado "critical".
 OUTAGE_PACKET_LOSS_THRESHOLD_PERCENT = 100.0
 
-# Si el salto entre dos mediciones consecutivas de la racha supera esto, no se
-# puede asumir que la app estuvo corriendo (midiendo) todo ese tiempo -- lo mas
-# probable es que estuviera cerrada. No se afirma un corte continuo que no se
-# puede sostener con evidencia continua (mediciones reales de por medio).
+# Si entre dos mediciones de la racha pasa más que esto, la app probablemente estuvo cerrada y no afirmo un corte continuo.
 MAX_GAP_BETWEEN_SAMPLES = timedelta(minutes=5)
 
-# Cuantas muestras hacia atras se buscan como maximo para encontrar el inicio
-# de una racha de caida (2h a 60s/medicion) -- una racha mas larga que eso
-# simplemente se reporta con esta duracion como piso, no como error.
+# Cuántas muestras hacia atrás busco el inicio de una racha (2 h a una por minuto); más larga se reporta con este piso.
 OUTAGE_LOOKBACK_LIMIT = 120
 
 OUTAGE_CRITICAL_DURATION_MINUTES = 15
@@ -33,25 +27,21 @@ class OutageEpisode:
 
 
 def detect_recovered_outage(window: list[OutageSample]) -> OutageEpisode | None:
-    """window: muestras mas recientes primero. Detecta si la mas reciente es
-    una recuperacion (perdida < 100%) justo despues de una racha de caidas
-    totales con espaciado continuo entre si (ver MAX_GAP_BETWEEN_SAMPLES) --
-    si la racha existio pero el hueco hasta la recuperacion es demasiado
-    grande, no se reporta (posible cierre de la app en el medio, no un corte
-    continuo real)."""
+    """window va de más nueva a más vieja. Detecta una recuperación justo después de una racha de caídas totales
+     continuas; si el hueco es demasiado grande no lo reporto, porque la app pudo estar cerrada."""
     if len(window) < 2:
         return None
 
     latest_time, latest_loss = window[0]
     if latest_loss >= OUTAGE_PACKET_LOSS_THRESHOLD_PERCENT:
-        return None  # sigue caida, todavia no hay recuperacion que reportar
+        return None  # sigue caída: todavía no hay recuperación que reportar
 
     previous_time, previous_loss = window[1]
     if previous_loss < OUTAGE_PACKET_LOSS_THRESHOLD_PERCENT:
-        return None  # no habia corte, nada que reportar
+        return None  # no había corte, nada que reportar
 
     if latest_time - previous_time > MAX_GAP_BETWEEN_SAMPLES:
-        return None  # la recuperacion no llego "pronto": no se puede afirmar corte continuo
+        return None  # la recuperación no llegó pronto: no puedo afirmar un corte continuo
 
     outage_start_time = previous_time
     for i in range(1, len(window) - 1):

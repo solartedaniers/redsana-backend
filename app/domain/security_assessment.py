@@ -3,9 +3,7 @@ from typing import Literal
 
 AnswerValue = Literal["yes", "no", "unknown"]
 
-# Pesos de las 4 preguntas del cuestionario, suman 80 y se normalizan a 0..100.
-# El cifrado WiFi ya no está aquí: lo mide WifiEncryptionAnalyzer como parte del
-# análisis técnico (ver app.services.network_security_score_service).
+# Pesos de las 4 preguntas (suman 80 y se normalizan a 0..100). El cifrado WiFi ya no está aquí: es técnico.
 QUESTION_WEIGHTS: dict[str, int] = {
     "default-password": 25,
     "firmware-updated": 20,
@@ -22,9 +20,7 @@ class SecurityRecommendation:
     priority: int
 
 
-# Una entrada "no" (corrígelo) y otra "unknown" (ve a revisarlo) por pregunta:
-# el texto debe sonar distinto según si el usuario confirmó el problema o
-# simplemente no lo sabe.
+# Una entrada para "no" (corrígelo) y otra para "unknown" (ve a revisarlo): deben sonar distinto.
 _RECOMMENDATIONS: dict[str, dict[Literal["no", "unknown"], SecurityRecommendation]] = {
     "default-password": {
         "no": SecurityRecommendation(
@@ -86,7 +82,7 @@ _RECOMMENDATIONS: dict[str, dict[Literal["no", "unknown"], SecurityRecommendatio
 
 
 def compute_questionnaire_score(answers: dict[str, AnswerValue]) -> tuple[int, list[SecurityRecommendation]]:
-    """Preguntas sin responder cuentan como "unknown" (0 puntos), igual que "no"."""
+    """Las preguntas sin responder cuentan como "unknown" (0 puntos), igual que "no"."""
     total_weight = sum(QUESTION_WEIGHTS.values())
     earned_weight = sum(
         weight for question_id, weight in QUESTION_WEIGHTS.items() if answers.get(question_id) == "yes"

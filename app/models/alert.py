@@ -23,7 +23,6 @@ class Alert(Base):
     severity: Mapped[str] = mapped_column(Enum(*ALERT_SEVERITY_VALUES, name="alert_severity"), nullable=False)
     message_key: Mapped[str] = mapped_column(String(255), nullable=False)
     message_params: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    # timezone=True: se guarda con offset UTC explícito, para que el frontend
-    # pueda convertir correctamente a la hora local del usuario.
+    # timezone=True: se guarda con offset UTC para que el frontend lo pase bien a la hora local.
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     acknowledged: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")

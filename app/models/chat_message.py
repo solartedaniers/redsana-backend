@@ -20,6 +20,5 @@ class ChatMessage(Base):
     )
     role: Mapped[str] = mapped_column(Enum(*CHAT_MESSAGE_ROLE_VALUES, name="chat_message_role"), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    # timezone=True: se guarda con offset UTC explícito, para que el frontend
-    # pueda convertir correctamente a la hora local del usuario.
+    # timezone=True: se guarda con offset UTC para que el frontend lo pase bien a la hora local.
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

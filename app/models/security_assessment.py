@@ -15,14 +15,10 @@ class SecurityAssessment(Base):
     owner_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    # Respuestas crudas del usuario ({"default-password": "yes", ...}); el
-    # score y las recomendaciones se recalculan en cada lectura desde aquí
-    # (ver app/domain/security_assessment.py), nunca se guardan ya calculados.
+    # Respuestas crudas del usuario; el puntaje se recalcula siempre desde aquí, nunca se guarda calculado.
     answers: Mapped[dict] = mapped_column(JSON, nullable=False)
     wifi_encryption_raw: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    # Puertos de riesgo abiertos en el router según el escaneo del escritorio;
-    # NULL = no se escaneó (web o evaluaciones previas), distinto de [] = escaneado y limpio.
+    # Puertos de riesgo según el escritorio; NULL es que no se escaneó, distinto de [] (escaneado y limpio).
     router_open_ports: Mapped[list[int] | None] = mapped_column(JSON, nullable=True)
-    # timezone=True: se guarda con offset UTC explícito, para que el frontend
-    # pueda convertir correctamente a la hora local del usuario.
+    # timezone=True: se guarda con offset UTC para que el frontend lo pase bien a la hora local.
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

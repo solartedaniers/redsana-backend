@@ -12,30 +12,20 @@ from app.domain.measurement_source import MeasurementSource
 NetworkMetricVector = tuple[float, float, float]  # (latency_ms, jitter_ms, packet_loss_percent)
 DeviatingMetric = Literal["latency", "jitter", "packet_loss"]
 
-# A 60s/medición (ver MEASUREMENT_INTERVAL_MS en el frontend), 1440 muestras son
-# ~24h: la ventana de entrenamiento cubre un ciclo día/noche completo (la red es
-# distinta a las 3am que a las 8pm), para ambas fuentes.
+# A una medición por minuto, 1440 muestras son ~24 h: así el entrenamiento cubre un ciclo día/noche completo.
 ANOMALY_WINDOW_SIZE = 1440
 
-# Historial mínimo de la misma fuente antes de empezar a evaluar. Escritorio
-# mide en segundo plano y llega a 24h sin esfuerzo, así que exige el ciclo
-# completo. La web solo mide con la pestaña abierta (24h seguidas es casi
-# imposible): empieza con 12h, aceptando menos precisión hasta completar el
-# día, porque con medio día visto las horas que el modelo no conoce (p. ej. la
-# hora pico nocturna) pueden marcarse como anomalías.
+# Historial mínimo antes de evaluar. La web casi nunca junta 24 h seguidas, así que empieza con 12 h
+# aunque sea menos precisa hasta completar el día.
 MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE: dict[MeasurementSource, int] = {
     "native": ANOMALY_WINDOW_SIZE,
     "web": ANOMALY_WINDOW_SIZE // 2,
 }
 
-# Umbral de desviación (en desviaciones estándar) a partir del cual una anomalía
-# ya confirmada por IsolationForest se considera grave en vez de leve.
+# Desviaciones estándar a partir de las cuales una anomalía ya confirmada se considera grave y no leve.
 SEVERITY_CRITICAL_Z_SCORE = 3.0
 
-# contamination='auto' calibra su propio umbral de forma inestable en ventanas
-# con poca varianza real (llegó a marcar muestras normales como anómalas en
-# pruebas); 0.1 es el valor clásico de la literatura de IsolationForest
-# (Liu et al.) y da un umbral estable y predecible.
+# Con contamination='auto' el umbral era inestable en ventanas de poca varianza; 0.1 es el valor clásico y estable.
 ISOLATION_FOREST_CONTAMINATION = 0.1
 
 
@@ -55,18 +45,14 @@ _MESSAGE_KEYS: dict[DeviatingMetric, str] = {
 
 
 class NetworkAnomalyDetector:
-    """Única clase que sabe hablar con IsolationForest/StandardScaler: el resto
-    del dominio solo conoce "anómalo o no". Instancia nueva por evaluación (fit
-    muta el estado interno del scaler y del bosque, no hay nada que reutilizar
-    entre evaluaciones de distintos usuarios o distintos snapshots)."""
+    """Única clase que conoce IsolationForest y StandardScaler; creo una por evaluación porque fit muta su estado."""
 
     def __init__(self) -> None:
         self._scaler = StandardScaler()
         self._model = IsolationForest(contamination=ISOLATION_FOREST_CONTAMINATION, random_state=42)
 
     def is_anomalous(self, history: list[NetworkMetricVector], latest: NetworkMetricVector) -> bool:
-        """Entrena solo sobre history (la muestra nueva nunca entra a su propio
-        baseline) y evalúa si latest se sale del patrón conjunto aprendido."""
+        """Entrena solo con history (la muestra nueva nunca entra a su propio baseline) y evalúa latest."""
         scaled_history = self._scaler.fit_transform(np.array(history))
         self._model.fit(scaled_history)
         scaled_latest = self._scaler.transform([latest])
@@ -75,12 +61,8 @@ class NetworkAnomalyDetector:
 
 
 def classify_deviation(history: list[NetworkMetricVector], latest: NetworkMetricVector) -> DeviationClassification:
-    """Decide qué métrica se desvió más (para el mensaje) y qué tan grave es
-    (para la severidad), a partir del z-score de cada métrica de latest contra
-    la media/desviación de history. Separado de NetworkAnomalyDetector a propósito:
-    el modelo decide SI hay anomalía (patrón conjunto), esto decide QUÉ y QUÉ
-    TAN GRAVE (comparación simple por métrica, sin jerga estadística de cara
-    al usuario -- eso lo traduce el mensaje elegido, no el número en sí)."""
+    """Decide qué métrica se desvió más y qué tan grave es con el z-score de cada una.
+     El modelo decide SI hay anomalía; esto decide QUÉ fue y qué tan grave."""
     metrics: tuple[DeviatingMetric, ...] = ("latency", "jitter", "packet_loss")
     z_scores: dict[DeviatingMetric, float] = {}
     typical_values: dict[DeviatingMetric, float] = {}
@@ -88,7 +70,7 @@ def classify_deviation(history: list[NetworkMetricVector], latest: NetworkMetric
     for index, metric in enumerate(metrics):
         column = [sample[index] for sample in history]
         average = mean(column)
-        deviation = pstdev(column) or 1.0  # evita división por cero si history es constante
+        deviation = pstdev(column) or 1.0  # evita dividir por cero si history es constante
         z_scores[metric] = abs(latest[index] - average) / deviation
         typical_values[metric] = average
 

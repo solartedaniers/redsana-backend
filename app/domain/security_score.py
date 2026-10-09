@@ -5,8 +5,7 @@ MAX_ALERT_POINTS = 30
 MAX_NETWORK_STATUS_POINTS = 20
 POINTS_LOST_PER_UNACKNOWLEDGED_ALERT = 10
 
-# El status ya viene calculado (compute_network_status): aqui solo se traduce a
-# puntaje, no se reimplementan los umbrales de latencia/perdida de paquetes.
+# El estado ya viene calculado; aquí solo lo traduzco a puntaje sin repetir los umbrales.
 NETWORK_STATUS_POINTS: dict[NetworkStatus, int] = {
     "good": MAX_NETWORK_STATUS_POINTS,
     "warning": MAX_NETWORK_STATUS_POINTS // 2,
@@ -20,14 +19,8 @@ def compute_security_score(
     unacknowledged_alert_count: int,
     network_status: NetworkStatus,
 ) -> int:
-    """Proxy del puntaje de seguridad por hogar para el panel de admin: combina
-    señales que ya son reales hoy (confianza de dispositivos, alertas sin
-    reconocer, estado de red), pero no es el score real que ve el usuario en
-    security-assistant (ese cuestionario ya persiste su propia evaluación en
-    security_assessments; nadie unió ambos dominios todavía). Evaluar si el
-    panel de admin debería consultar security_assessment_repository en vez de
-    -o junto con- este proxy.
-    """
+    """Puntaje aproximado por hogar para el admin, con señales reales; no es el del cuestionario del usuario.
+     Queda pendiente decidir si el admin debería leer security_assessment_repository en su lugar."""
     device_points = (
         MAX_DEVICE_TRUST_POINTS
         if trusted_device_ratio is None

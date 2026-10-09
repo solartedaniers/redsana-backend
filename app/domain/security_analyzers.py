@@ -8,8 +8,7 @@ MAX_ANALYZER_SCORE = 100
 
 @dataclass(frozen=True)
 class TechnicalEvidence:
-    """Lo que la app de escritorio midió de la red real. None en un campo =
-    no se pudo medir (p. ej. desde la web), que no es lo mismo que "medido y mal"."""
+    """Lo que el escritorio midió de la red real. None es que no se pudo medir, no que se midió mal."""
 
     wifi_encryption_raw: str | None
     router_open_ports: list[int] | None
@@ -23,18 +22,14 @@ class AnalyzerResult:
 
 
 class TechnicalSecurityAnalyzer(ABC):
-    """Strategy: cada analizador evalúa un solo aspecto técnico de la red. Un
-    analizador nuevo solo implementa esto y se registra en
-    default_technical_analyzers(); los existentes no se tocan."""
+    """Cada analizador evalúa un solo aspecto técnico; uno nuevo solo se registra en default_technical_analyzers()."""
 
     @abstractmethod
     def analyze(self, evidence: TechnicalEvidence) -> AnalyzerResult | None:
-        """None si la evidencia que necesita no está disponible: el analizador
-        no puntúa (ni a favor ni en contra) lo que no pudo medir."""
+        """None si falta la evidencia que necesita: no puntúa ni a favor ni en contra lo que no pudo medir."""
 
 
-# Puntaje por tipo de cifrado según el campo "Autenticación" de netsh (el orden
-# importa: "WPA2"/"WPA3" deben evaluarse antes que el prefijo genérico "WPA").
+# Puntaje por cifrado según netsh; el orden importa: WPA2 y WPA3 antes que el prefijo genérico WPA.
 _WIFI_ENCRYPTION_SCORES: tuple[tuple[str, int], ...] = (
     ("WPA3", 100),
     ("WPA2", 85),
@@ -45,7 +40,7 @@ _WIFI_ENCRYPTION_SCORES: tuple[tuple[str, int], ...] = (
     ("OPEN", 0),
     ("ABIERTA", 0),
 )
-# Por debajo de esto (WPA o peor) se recomienda cambiar el cifrado.
+# Por debajo de esto (WPA o peor) recomiendo cambiar el cifrado.
 _MIN_ACCEPTABLE_WIFI_ENCRYPTION_SCORE = 85
 
 _WIFI_ENCRYPTION_RECOMMENDATION = SecurityRecommendation(
@@ -65,7 +60,7 @@ class WifiEncryptionAnalyzer(TechnicalSecurityAnalyzer):
         normalized = evidence.wifi_encryption_raw.upper()
         score = next((score for prefix, score in _WIFI_ENCRYPTION_SCORES if normalized.startswith(prefix)), None)
         if score is None:
-            # Valor de netsh que no reconocemos: no se arriesga un puntaje inventado.
+            # Un valor de netsh que no reconozco: prefiero no inventar un puntaje.
             return None
         recommendations = [] if score >= _MIN_ACCEPTABLE_WIFI_ENCRYPTION_SCORE else [_WIFI_ENCRYPTION_RECOMMENDATION]
         return AnalyzerResult(score=score, weight=self.WEIGHT, recommendations=recommendations)
@@ -82,8 +77,7 @@ _FILE_SHARING = _port_recommendation("closeFileSharing", 2)
 _TR069 = _port_recommendation("closeRemoteProvisioning", 3)
 _SSH = _port_recommendation("closeSsh", 4)
 
-# Puerto -> (puntos que resta, recomendación). Espejo intencional de
-# PROBED_PORTS en frontend/src-tauri/src/router_ports.rs (que solo los prueba).
+# Puerto -> (puntos que resta, recomendación). Copia a propósito de PROBED_PORTS en router_ports.rs.
 RISKY_ROUTER_PORTS: dict[int, tuple[int, SecurityRecommendation]] = {
     23: (60, _TELNET),  # Telnet: administración sin cifrar, vector clásico de botnets
     21: (35, _FTP),  # FTP: credenciales y archivos en texto plano
@@ -94,8 +88,7 @@ RISKY_ROUTER_PORTS: dict[int, tuple[int, SecurityRecommendation]] = {
 }
 
 
-# Nombre del servicio de cada puerto de riesgo, para hablarle al usuario de
-# "Telnet" y no de "puerto 23" (lo usa el contexto del asistente).
+# Nombre del servicio de cada puerto, para hablarle al usuario de "Telnet" y no de "puerto 23".
 ROUTER_PORT_SERVICE_NAMES: dict[int, str] = {
     23: "Telnet",
     21: "FTP",
@@ -114,7 +107,7 @@ class RouterOpenPortsAnalyzer(TechnicalSecurityAnalyzer):
             return None
         risky = [RISKY_ROUTER_PORTS[port] for port in sorted(set(evidence.router_open_ports)) if port in RISKY_ROUTER_PORTS]
         penalty = sum(points for points, _ in risky)
-        # dict.fromkeys: 139 y 445 comparten recomendación, se muestra una sola vez.
+        # dict.fromkeys: 139 y 445 comparten recomendación y la muestro una sola vez.
         recommendations = list(dict.fromkeys(recommendation for _, recommendation in risky))
         return AnalyzerResult(
             score=max(0, MAX_ANALYZER_SCORE - penalty), weight=self.WEIGHT, recommendations=recommendations

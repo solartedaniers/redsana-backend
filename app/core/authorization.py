@@ -16,8 +16,7 @@ def get_current_user(
     claims: dict[str, Any] = Depends(get_current_claims),
     db: Session = Depends(get_db),
 ) -> User:
-    """Resuelve el usuario propio completo (con rol); separado de get_current_claims
-    porque requiere acceso a datos, no solo validar el token."""
+    """Resuelve el usuario propio completo, con su rol; va aparte porque necesita la base de datos."""
     service = UserService(SqlAlchemyUserRepository(db))
     return service.get_or_create_current_user(claims)
 

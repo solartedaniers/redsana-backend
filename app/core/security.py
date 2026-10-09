@@ -23,7 +23,7 @@ def _fetch_jwks() -> list[dict[str, Any]]:
 
 
 def _get_signing_key(kid: str) -> dict[str, Any]:
-    """Busca la clave en el JWKS cacheado; si no aparece (rotacion de claves), refresca una vez."""
+    """Busca la clave en el JWKS cacheado; si no está (rotación de claves), lo refresca una vez."""
     settings = get_settings()
     now = time.time()
     if not _jwks_cache["keys"] or (now - _jwks_cache["fetched_at"]) > settings.jwks_cache_ttl_seconds:
@@ -59,10 +59,10 @@ def decode_supabase_token(token: str) -> dict[str, Any]:
 def get_current_claims(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
 ) -> dict[str, Any]:
-    """Dependency de FastAPI: valida el Bearer token y devuelve los claims del JWT de Supabase."""
+    """Valida el Bearer token y devuelve los claims del JWT de Supabase."""
     return decode_supabase_token(credentials.credentials)
 
 
 def owner_id_from_claims(claims: dict[str, Any]) -> uuid.UUID:
-    """El dueño de los datos es el usuario del token (claim "sub" de Supabase)."""
+    """El dueño de los datos es el usuario del token (claim "sub")."""
     return uuid.UUID(claims["sub"])

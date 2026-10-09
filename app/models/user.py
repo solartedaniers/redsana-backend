@@ -11,7 +11,7 @@ from app.models.base import Base
 class User(Base):
     __tablename__ = "users"
 
-    # id = mismo UUID del claim "sub" del JWT de Supabase (no autogenerado por esta tabla)
+    # id = el mismo UUID del claim "sub" de Supabase (esta tabla no lo genera)
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     full_name: Mapped[str | None] = mapped_column(String(255))
