@@ -1,11 +1,12 @@
 # Blueprint de Render para el backend. Los secretos van con sync: false para
 # que se carguen en el dashboard y nunca queden en el repositorio.
+# Solo aplica si el servicio se creó como Blueprint; si se creó desde el panel,
+# estos mismos valores se configuran allí a mano.
 services:
   - type: web
     name: redsana-api
     runtime: python
     plan: free
-    rootDir: backend
     buildCommand: pip install -r requirements.txt
     # Render termina el HTTPS en su proxy: sin forwarded-allow-ips, uvicorn
     # generaría redirecciones http:// que el navegador bloquea como mixed content.
