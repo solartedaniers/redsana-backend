@@ -40,6 +40,19 @@ uvicorn app.main:app --reload
 pytest
 ```
 
+- Las pruebas necesitan un `.env` con las variables obligatorias, incluida `DATABASE_URL` (ver `.env.example`). Tres pruebas de `tests/test_network_metrics_router.py` disparan las tareas en segundo plano del POST de mediciones, que abren su propia sesión contra esa base: hoy solo leen, pero la base debe ser accesible.
+- La prueba que verifica que cada clave de alerta tiene texto en el frontend lee los diccionarios i18n del repo del frontend. Sin `FRONTEND_I18N_DIR` se salta. Para correrla, clona los dos repos lado a lado y define la variable (en el entorno o en `.env`), relativa a esta carpeta:
+
+  ```
+  proyectos/
+  ├── redsana-backend/    # este repo
+  └── redsana-frontend/
+  ```
+
+  ```bash
+  FRONTEND_I18N_DIR=../redsana-frontend/public/assets/i18n pytest
+  ```
+
 ## Despliegue
 
 `render.yaml` describe el servicio de Render: build `pip install -r requirements.txt`, inicio con `uvicorn` y las variables secretas (`sync: false`) se cargan en el panel de Render.
