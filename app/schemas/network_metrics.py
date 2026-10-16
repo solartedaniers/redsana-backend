@@ -13,6 +13,8 @@ class NetworkMetricSnapshotRead(BaseModel):
     jitter_ms: float
     packet_loss_percent: float
     updated_at: datetime
+    # El frontend rotula la web como "latencia al servidor"; None mientras no haya mediciones.
+    source: MeasurementSource | None = None
 
 
 class NetworkMetricSampleRead(BaseModel):
