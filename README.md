@@ -78,7 +78,7 @@ En modo remoto:
 | Endpoint | Qué hace |
 |---|---|
 | `GET /api/ai/status` | `{"status": "ready" \| "warming_up" \| "unavailable"}`. Liviano: con sesión pero sin base de datos; en modo local siempre `ready`. |
-| `POST /api/ai/warm-up` | `202` con el estado actual; despierta el servicio en segundo plano (hasta `AI_SERVICE_WARM_UP_TIMEOUT_SECONDS`) y abre la ventana de uso interactivo. |
+| `POST /api/ai/warm-up` | `202` con el estado actual; despierta el servicio en segundo plano (hasta `AI_SERVICE_WARM_UP_TIMEOUT_SECONDS`; cada consulta espera hasta `AI_SERVICE_WARM_UP_PROBE_TIMEOUT_SECONDS` y queda en el log como `AI warm-up probe N: ...`) y abre la ventana de uso interactivo. |
 
 Todas las variables están documentadas en `.env.example`.
 
