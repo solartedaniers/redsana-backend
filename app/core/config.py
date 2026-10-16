@@ -40,8 +40,11 @@ class Settings(BaseSettings):
     ai_service_timeout_seconds: float = 45.0
     # Corto a propósito: el estado se consulta seguido y un servicio dormido no debe frenar al usuario.
     ai_service_status_timeout_seconds: float = 5.0
-    # Lo que se espera a que Render despierte el servicio en un calentamiento (en segundo plano).
-    ai_service_warm_up_timeout_seconds: float = 90.0
+    # Lo que se espera a que Render despierte el servicio en un calentamiento (en segundo plano); el arranque en frío
+    # incluye importar scikit-learn, así que es el mismo tope amplio que usa el frontend.
+    ai_service_warm_up_timeout_seconds: float = 150.0
+    # Cada cuánto se vuelve a consultar el estado mientras dura un calentamiento.
+    ai_service_warm_up_poll_seconds: float = 2.0
     ai_service_max_retries: int = 2
     ai_service_retry_backoff_seconds: float = 1.0
     # Tras el último uso interactivo (calentamiento, chat o resumen), cuánto tiempo los detectores en segundo plano
