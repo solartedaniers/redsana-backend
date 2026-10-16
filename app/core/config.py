@@ -1,5 +1,7 @@
 from functools import lru_cache
+from typing import Literal
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,7 +17,8 @@ class Settings(BaseSettings):
     cors_origins: str = ""
     network_metrics_default_history_hours: int = 24
     supabase_service_role_key: str
-    groq_api_key: str
+    # Solo la exige el modo local (ver _require_ai_mode_settings); en modo remoto Groq vive en el servicio de IA.
+    groq_api_key: str = ""
     groq_model: str = "openai/gpt-oss-120b"
     groq_api_url: str = "https://api.groq.com/openai/v1/chat/completions"
     # Secreto del HMAC que convierte la huella de red en network_id; si cambia, cada red vuelve a calibrar
@@ -28,6 +31,30 @@ class Settings(BaseSettings):
     groq_temperature: float = 0.2
     # Apagado por defecto: el endpoint de alertas de prueba solo debe existir en desarrollo.
     enable_test_alerts_endpoint: bool = False
+    # local usa el paquete redsana_ai en este proceso; remote llama al servicio de IA. Local por defecto para que
+    # subir código no cambie producción hasta que se cambie esta variable.
+    ai_mode: Literal["local", "remote"] = "local"
+    ai_service_url: str = ""
+    ai_service_api_key: str = ""
+    # Mayor que groq_timeout_seconds del servicio: si no, cortaría respuestas que Groq sí iba a dar.
+    ai_service_timeout_seconds: float = 45.0
+    # Corto a propósito: el estado se consulta seguido y un servicio dormido no debe frenar al usuario.
+    ai_service_status_timeout_seconds: float = 5.0
+    # Lo que se espera a que Render despierte el servicio en un calentamiento (en segundo plano).
+    ai_service_warm_up_timeout_seconds: float = 90.0
+    ai_service_max_retries: int = 2
+    ai_service_retry_backoff_seconds: float = 1.0
+    # Tras el último uso interactivo (calentamiento, chat o resumen), cuánto tiempo los detectores en segundo plano
+    # siguen usando el servicio; fuera de la ventana usan el paquete local para no despertarlo con cada medición.
+    ai_service_interactive_window_seconds: int = 600
+
+    @model_validator(mode="after")
+    def _require_ai_mode_settings(self) -> "Settings":
+        if self.ai_mode == "local" and not self.groq_api_key:
+            raise ValueError("GROQ_API_KEY is required when AI_MODE=local")
+        if self.ai_mode == "remote" and not (self.ai_service_url and self.ai_service_api_key):
+            raise ValueError("AI_SERVICE_URL and AI_SERVICE_API_KEY are required when AI_MODE=remote")
+        return self
 
     @property
     def supabase_jwks_url(self) -> str:
