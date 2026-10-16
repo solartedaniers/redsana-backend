@@ -1,8 +1,16 @@
 import uuid
 from collections import Counter
-from datetime import tzinfo
+from datetime import datetime, timezone, tzinfo
 
+from app.domain.app_screens import USER_APP_SCREENS
 from app.domain.device_presence import connected_members, is_device_online, latest_seen_among
+from app.domain.measurement_source import MeasurementSource
+from app.domain.network_status import (
+    LATENCY_CRITICAL_MS,
+    LATENCY_WARNING_MS,
+    PACKET_LOSS_CRITICAL_PERCENT,
+    PACKET_LOSS_WARNING_PERCENT,
+)
 from app.domain.security_analyzers import RISKY_ROUTER_PORTS, ROUTER_PORT_SERVICE_NAMES
 from app.models.alert import Alert
 from app.models.device import Device
@@ -18,6 +26,20 @@ THIS_DEVICE_ROLE = "this_device"
 MAX_ALERTS_IN_CONTEXT = 10
 
 _WEAK_ANSWERS = ("no", "unknown")
+
+# La IA inventaba umbrales ("> 200 ms") y menús ("Dashboard → Estado de la Red"); le doy los reales y se lo prohíbo.
+_ONLY_CONTEXT_FACTS_RULE = (
+    "- Regla: para umbrales, fechas, origen de la medicion y nombres de pantallas o secciones usa solo los de este "
+    "contexto; no inventes otros valores, menus ni rutas."
+)
+
+_MEASUREMENT_ORIGINS: dict[MeasurementSource, str] = {
+    "native": "la app de escritorio (ping ICMP a internet)",
+    "web": (
+        "la web (latencia al servidor: peticiones HTTPS al servidor de RedSana, incluye el viaje hasta el servidor; "
+        "no es un ping a la red local)"
+    ),
+}
 
 
 class SecurityChatContextBuilder:
@@ -51,7 +73,10 @@ class SecurityChatContextBuilder:
             self._devices_line(devices),
             self._alerts_line(unacknowledged),
             self._snapshot_line(snapshot),
+            self._thresholds_line(),
+            self._screens_line(),
             *self._assessment_lines(assessment),
+            _ONLY_CONTEXT_FACTS_RULE,
         ]
         return "\n".join(lines)
 
@@ -82,11 +107,32 @@ class SecurityChatContextBuilder:
     def _snapshot_line(self, snapshot: NetworkMetricSnapshot | None) -> str:
         if snapshot is None:
             return "- Ultimo snapshot de red: aun no hay ninguno registrado."
+        # SQLite devuelve la fecha sin zona; la guardo siempre en UTC.
+        recorded_at = snapshot.recorded_at if snapshot.recorded_at.tzinfo else snapshot.recorded_at.replace(tzinfo=timezone.utc)
+        minutes_ago = max(0, int((datetime.now(timezone.utc) - recorded_at).total_seconds() // 60))
+        local_time = recorded_at.astimezone(self._user_timezone)
         return (
             "- Ultimo snapshot de red: "
             f"latencia {snapshot.latency_ms:.1f} ms, jitter {snapshot.jitter_ms:.1f} ms, "
-            f"perdida de paquetes {snapshot.packet_loss_percent:.1f}%, estado '{snapshot.status}'."
+            f"perdida de paquetes {snapshot.packet_loss_percent:.1f}%, estado '{snapshot.status}'. "
+            f"Medido el {local_time:%Y-%m-%d %H:%M} (hora local, hace {minutes_ago} min) "
+            f"desde {_MEASUREMENT_ORIGINS[snapshot.source]}."
         )
+
+    def _thresholds_line(self) -> str:
+        return (
+            "- Umbrales reales del estado de la red (fijos, no dependen del historial): alerta desde "
+            f"{LATENCY_WARNING_MS} ms de latencia o {PACKET_LOSS_WARNING_PERCENT}% de perdida; critica desde "
+            f"{LATENCY_CRITICAL_MS} ms o {PACKET_LOSS_CRITICAL_PERCENT}% de perdida. El jitter no cambia el estado."
+        )
+
+    def _screens_line(self) -> str:
+        screens = "; ".join(
+            f"{screen.title.text} ({', '.join(section.text for section in screen.sections)})" if screen.sections
+            else screen.title.text
+            for screen in USER_APP_SCREENS
+        )
+        return f"- Pantallas reales de la app: {screens}."
 
     def _assessment_lines(self, assessment: SecurityAssessmentResult | None) -> list[str]:
         if assessment is None:
