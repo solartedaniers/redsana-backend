@@ -6,6 +6,7 @@ from app.routers import (
     admin_households,
     admin_metrics,
     admin_users,
+    ai,
     alerts,
     chat_conversations,
     devices,
@@ -37,3 +38,4 @@ app.include_router(admin_users.router)
 app.include_router(security_assessments.router)
 app.include_router(admin_metrics.router)
 app.include_router(chat_conversations.router)
+app.include_router(ai.router)
