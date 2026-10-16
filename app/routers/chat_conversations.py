@@ -1,4 +1,5 @@
 import logging
+import math
 import uuid
 from typing import Any
 
@@ -7,7 +8,9 @@ from redsana_ai import ChatEngineError
 from sqlalchemy.orm import Session
 
 from app.ai_gateway.ai_gateway import AiGateway
+from app.ai_gateway.ai_service_errors import AiServiceUnavailableError
 from app.core.ai_composition import get_ai_gateway
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_current_claims, owner_id_from_claims
 from app.domain.user_timezone import timezone_from_browser_offset
@@ -41,6 +44,8 @@ from app.services.security_chat_context_service import SecurityChatContextBuilde
 
 logger = logging.getLogger(__name__)
 CHAT_ENGINE_UNAVAILABLE_DETAIL = "Chat engine unavailable"
+# Lo lee el frontend para mostrar "IA encendiendo" en vez de un error.
+AI_WARMING_UP_DETAIL = "ai_warming_up"
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
@@ -61,6 +66,17 @@ def _chat_engine_unavailable(error: ChatEngineError) -> HTTPException:
     # El detalle real de Groq queda en el log del servidor: devolverlo exponía datos internos del proveedor.
     logger.warning("chat engine failed: %s", error)
     return HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=CHAT_ENGINE_UNAVAILABLE_DETAIL)
+
+
+def _ai_warming_up(error: AiServiceUnavailableError) -> HTTPException:
+    # El servicio de IA está dormido o arrancando en Render: no es un error para el usuario, solo hay que esperar.
+    logger.info("AI service still warming up: %s", error)
+    retry_after = math.ceil(get_settings().ai_service_warm_up_poll_seconds)
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail=AI_WARMING_UP_DETAIL,
+        headers={"Retry-After": str(retry_after)},
+    )
 
 
 def _assessment_service(db: Session) -> SecurityAssessmentService:
@@ -148,6 +164,8 @@ def send_message(
         outcome = service.send_message(conversation_id, owner_id_from_claims(claims), payload.message, assistant)
     except ChatConversationNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found") from error
+    except AiServiceUnavailableError as error:
+        raise _ai_warming_up(error) from error
     except ChatEngineError as error:
         raise _chat_engine_unavailable(error) from error
     return ChatSendMessageResponse(
@@ -176,6 +194,8 @@ def start_assessment_briefing(
         )
     except AssessmentNotBriefableError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found") from error
+    except AiServiceUnavailableError as error:
+        raise _ai_warming_up(error) from error
     except ChatEngineError as error:
         raise _chat_engine_unavailable(error) from error
     return ChatBriefingRead(
