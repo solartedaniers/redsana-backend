@@ -45,6 +45,7 @@ def _remote_ai_gateway() -> RemoteAiGateway:
         usage_window=InteractiveUsageWindow(settings.ai_service_interactive_window_seconds),
         status_timeout_seconds=settings.ai_service_status_timeout_seconds,
         warm_up_timeout_seconds=settings.ai_service_warm_up_timeout_seconds,
+        warm_up_probe_timeout_seconds=settings.ai_service_warm_up_probe_timeout_seconds,
         warm_up_poll_seconds=settings.ai_service_warm_up_poll_seconds,
     )
 

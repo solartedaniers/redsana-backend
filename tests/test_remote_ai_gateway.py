@@ -18,9 +18,11 @@ class _FakeStatusClient(AiServiceClient):
         super().__init__("https://ai.example.invalid", "test-key", 5, max_retries=0, retry_backoff_seconds=0)
         self._answers = list(answers)
         self.calls = 0
+        self.timeouts: list[float] = []
 
     def health(self, timeout_seconds: float) -> bool:
         self.calls += 1
+        self.timeouts.append(timeout_seconds)
         answer = self._answers[min(self.calls, len(self._answers)) - 1]
         if isinstance(answer, Exception):
             raise answer
@@ -49,6 +51,7 @@ def _gateway(status_client: AiServiceClient, window: InteractiveUsageWindow | No
         usage_window=window or InteractiveUsageWindow(600),
         status_timeout_seconds=5,
         warm_up_timeout_seconds=90,
+        warm_up_probe_timeout_seconds=30,
         warm_up_poll_seconds=2,
         clock=fake_time.clock,
         sleep=fake_time.sleep,
@@ -91,6 +94,21 @@ def test_warm_up_gives_up_after_its_timeout_without_raising() -> None:
 
     assert fake_time.now >= 90
     assert len(fake_time.sleeps) == 45
+
+
+def test_warm_up_keeps_each_probe_open_without_passing_its_cap_and_logs_it(caplog) -> None:
+    status_client = _FakeStatusClient(AiServiceUnavailableError("asleep"))
+    gateway = _gateway(status_client)
+
+    with caplog.at_level("INFO", logger="app.ai_gateway.remote_ai_gateway"):
+        gateway.warm_up()
+    gateway.status()
+
+    assert status_client.timeouts[0] == 30
+    assert status_client.timeouts[-2] == 5  # a 2 s del tope no abro otra espera de 30 s
+    assert status_client.timeouts[-1] == 5  # el estado normal sigue siendo corto
+    assert "AI warm-up probe 1: warming_up" in caplog.text
+    assert "AI warm-up finished: warming_up after 46 probes" in caplog.text
 
 
 def test_warm_up_stops_at_once_if_the_service_is_misconfigured() -> None:

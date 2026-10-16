@@ -32,6 +32,7 @@ class RemoteAiGateway(AiGateway):
         usage_window: InteractiveUsageWindow,
         status_timeout_seconds: float,
         warm_up_timeout_seconds: float,
+        warm_up_probe_timeout_seconds: float,
         warm_up_poll_seconds: float,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
@@ -43,6 +44,7 @@ class RemoteAiGateway(AiGateway):
         self._usage_window = usage_window
         self._status_timeout_seconds = status_timeout_seconds
         self._warm_up_timeout_seconds = warm_up_timeout_seconds
+        self._warm_up_probe_timeout_seconds = warm_up_probe_timeout_seconds
         self._warm_up_poll_seconds = warm_up_poll_seconds
         self._clock = clock
         self._sleep = sleep
@@ -65,8 +67,11 @@ class RemoteAiGateway(AiGateway):
         )
 
     def status(self) -> AiAvailability:
+        return self._probe(self._status_timeout_seconds)
+
+    def _probe(self, timeout_seconds: float) -> AiAvailability:
         try:
-            return "ready" if self._status_client.health(self._status_timeout_seconds) else "warming_up"
+            return "ready" if self._status_client.health(timeout_seconds) else "warming_up"
         except AiServiceUnavailableError:
             # Dormido o arrancando en Render: para el usuario es "encendiendo", no un error.
             return "warming_up"
@@ -79,10 +84,23 @@ class RemoteAiGateway(AiGateway):
         self._usage_window.record_use()
         # Si ya hay un calentamiento en curso no lanzo otro: varios usuarios a la vez despertarían lo mismo.
         if not self._warm_up_lock.acquire(blocking=False):
+            logger.info("AI warm-up already running, skipping")
             return
         try:
-            deadline = self._clock() + self._warm_up_timeout_seconds
-            while self.status() == "warming_up" and self._clock() < deadline:
+            started = self._clock()
+            deadline = started + self._warm_up_timeout_seconds
+            attempt = 0
+            while True:
+                attempt += 1
+                # Dejo la petición abierta mientras Render despierta el servicio, sin pasarme del tope del calentamiento.
+                timeout = min(self._warm_up_probe_timeout_seconds,
+                              max(deadline - self._clock(), self._status_timeout_seconds))
+                availability = self._probe(timeout)
+                logger.info("AI warm-up probe %d: %s (timeout %.0fs, %.1fs since start)",
+                            attempt, availability, timeout, self._clock() - started)
+                if availability != "warming_up" or self._clock() >= deadline:
+                    break
                 self._sleep(self._warm_up_poll_seconds)
+            logger.info("AI warm-up finished: %s after %d probes and %.1fs", availability, attempt, self._clock() - started)
         finally:
             self._warm_up_lock.release()

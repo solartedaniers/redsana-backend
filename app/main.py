@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -15,6 +17,10 @@ from app.routers import (
     network_metrics,
     security_assessments,
 )
+
+# uvicorn solo configura sus loggers: sin esto Python descartaba los INFO de la app (p. ej. el calentamiento de la IA).
+logging.basicConfig(format="%(levelname)s:     %(name)s: %(message)s")
+logging.getLogger("app").setLevel(logging.INFO)
 
 settings = get_settings()
 
