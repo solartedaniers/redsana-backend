@@ -14,6 +14,7 @@ API REST de RedSana con FastAPI. Autentica con los JWT de Supabase, guarda medic
 
 ```
 app/
+├── ai_gateway/    # Acceso a la IA: AiGateway con implementación local (paquete) y remota (servicio HTTP)
 ├── core/          # Configuración, seguridad, base de datos y ai_composition.py
 ├── domain/        # Reglas de negocio puras (sin I/O)
 ├── models/        # Modelos SQLAlchemy
@@ -25,7 +26,7 @@ alembic/           # Migraciones
 tests/
 ```
 
-La IA se construye solo en `app/core/ai_composition.py`; el resto del backend la usa a través de las interfaces de `redsana_ai` (`ChatEngine`, `SecurityChat`, `SecurityBriefing`, `AnomalyDetector`, `OutageDetector`).
+La IA se construye solo en `app/core/ai_composition.py`; el resto del backend la usa a través de `AiGateway` y de las interfaces de `redsana_ai` (`SecurityChat`, `SecurityBriefing`, `AnomalyDetector`, `OutageDetector`), sin saber si corre aquí o en el servicio de IA.
 
 ## Ejecución local
 
@@ -59,6 +60,28 @@ pytest
   FRONTEND_I18N_DIR=../redsana-frontend/public/assets/i18n pytest
   ```
 
+## Modo de la IA (`AI_MODE`)
+
+| Modo | Qué hace |
+|---|---|
+| `local` (por defecto) | El paquete `redsana_ai` corre dentro de este proceso, como siempre. Exige `GROQ_API_KEY`. |
+| `remote` | Chat, resumen y detectores llaman al servicio de IA desplegado aparte ([redsana-ai](https://github.com/solartedaniers/redsana-ai)). Exige `AI_SERVICE_URL` y `AI_SERVICE_API_KEY`; Groq vive en el servicio. |
+
+Con `local` por defecto, subir este código no cambia producción: el cambio de modo es solo la variable.
+
+En modo remoto:
+
+- **Chat y resumen** siempre van al servicio. Si está dormido o arrancando (Render apaga el plan gratuito tras un rato sin uso), responden `503` con `{"detail": "ai_warming_up"}` y `Retry-After`, que el frontend muestra como "IA encendiendo" en vez de un error. La pregunta del chat se guarda solo cuando hay respuesta, así que reintentar no la duplica. Un fallo de Groq dentro del servicio sigue siendo `502`, igual que en modo local.
+- **Detectores en segundo plano** (anomalías y cortes, que corren con cada medición): cualquier petición despierta un servicio de Render, así que solo usan el servicio dentro de una ventana de `AI_SERVICE_INTERACTIVE_WINDOW_SECONDS` tras el último uso interactivo (calentamiento, chat o resumen). Fuera de ella, o si el servicio falla, usan el paquete local, que da el mismo resultado (lo prueban las pruebas de paridad). Estas llamadas no renuevan la ventana.
+- **Cliente HTTP** (`AiServiceClient`, urllib de la stdlib): timeout por llamada (`AI_SERVICE_TIMEOUT_SECONDS`), reintentos limitados (`AI_SERVICE_MAX_RETRIES`, con espera creciente desde `AI_SERVICE_RETRY_BACKOFF_SECONDS`) solo ante conexión rechazada o `502/503/504` del proxy, y errores tipados (`AiServiceUnavailableError`, `AiServiceChatEngineError`, `AiServiceRejectedError`, `AiServiceResponseError`).
+
+| Endpoint | Qué hace |
+|---|---|
+| `GET /api/ai/status` | `{"status": "ready" \| "warming_up" \| "unavailable"}`. Liviano: con sesión pero sin base de datos; en modo local siempre `ready`. |
+| `POST /api/ai/warm-up` | `202` con el estado actual; despierta el servicio en segundo plano (hasta `AI_SERVICE_WARM_UP_TIMEOUT_SECONDS`) y abre la ventana de uso interactivo. |
+
+Todas las variables están documentadas en `.env.example`.
+
 ## Versión de la IA
 
 `redsana-ai` se instala desde su repositorio de GitHub, fijado a un tag en `requirements.txt`:
@@ -77,4 +100,4 @@ Para probar cambios de la IA sin publicar un tag, instala tu copia local encima:
 
 ## Despliegue
 
-`render.yaml` describe el servicio de Render: build `pip install -r requirements.txt`, inicio con `uvicorn` y las variables secretas (`sync: false`) se cargan en el panel de Render.
+`render.yaml` describe el servicio de Render: build `pip install -r requirements.txt`, inicio con `uvicorn` y las variables secretas (`sync: false`) se cargan en el panel de Render. `AI_MODE` queda en `local`; para pasar al servicio de IA se cambia a `remote` en el panel junto con `AI_SERVICE_URL` y `AI_SERVICE_API_KEY`, y volver atrás es poner `local` otra vez.
