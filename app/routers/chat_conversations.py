@@ -3,10 +3,11 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from redsana_ai import ChatEngine, ChatEngineError
+from redsana_ai import ChatEngineError
 from sqlalchemy.orm import Session
 
-from app.core.ai_composition import build_security_briefing, build_security_chat, get_chat_engine
+from app.ai_gateway.ai_gateway import AiGateway
+from app.core.ai_composition import get_ai_gateway
 from app.core.database import get_db
 from app.core.security import get_current_claims, owner_id_from_claims
 from app.domain.user_timezone import timezone_from_browser_offset
@@ -66,10 +67,10 @@ def _assessment_service(db: Session) -> SecurityAssessmentService:
     return SecurityAssessmentService(SqlAlchemySecurityAssessmentRepository(db), default_network_security_score_service())
 
 
-def _build_assistant(engine: ChatEngine, db: Session, utc_offset_minutes: int) -> SecurityAssistantService:
+def _build_assistant(gateway: AiGateway, db: Session, utc_offset_minutes: int) -> SecurityAssistantService:
     return SecurityAssistantService(
-        build_security_chat(engine),
-        build_security_briefing(engine),
+        gateway.security_chat(),
+        gateway.security_briefing(),
         SecurityChatContextBuilder(
             device_repository=SqlAlchemyDeviceRepository(db),
             alert_repository=SqlAlchemyAlertRepository(db),
@@ -138,11 +139,11 @@ def send_message(
     conversation_id: uuid.UUID,
     payload: ChatSendMessageRequest,
     claims: dict[str, Any] = Depends(get_current_claims),
-    engine: ChatEngine = Depends(get_chat_engine),
+    gateway: AiGateway = Depends(get_ai_gateway),
     db: Session = Depends(get_db),
     service: ChatConversationService = Depends(_get_service),
 ) -> ChatSendMessageResponse:
-    assistant = _build_assistant(engine, db, payload.utc_offset_minutes)
+    assistant = _build_assistant(gateway, db, payload.utc_offset_minutes)
     try:
         outcome = service.send_message(conversation_id, owner_id_from_claims(claims), payload.message, assistant)
     except ChatConversationNotFoundError as error:
@@ -158,7 +159,7 @@ def send_message(
 def start_assessment_briefing(
     payload: ChatBriefingRequest,
     claims: dict[str, Any] = Depends(get_current_claims),
-    engine: ChatEngine = Depends(get_chat_engine),
+    gateway: AiGateway = Depends(get_ai_gateway),
     db: Session = Depends(get_db),
     service: ChatConversationService = Depends(_get_service),
 ) -> ChatBriefingRead:
@@ -171,7 +172,7 @@ def start_assessment_briefing(
             payload.assessment_id,
             latest.id if latest else None,
             payload.language,
-            _build_assistant(engine, db, payload.utc_offset_minutes),
+            _build_assistant(gateway, db, payload.utc_offset_minutes),
         )
     except AssessmentNotBriefableError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found") from error
