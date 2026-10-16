@@ -42,6 +42,7 @@ def _to_snapshot_read(snapshot: NetworkMetricSnapshot) -> NetworkMetricSnapshotR
         jitter_ms=snapshot.jitter_ms,
         packet_loss_percent=snapshot.packet_loss_percent,
         updated_at=snapshot.recorded_at,
+        source=snapshot.source,
     )
 
 

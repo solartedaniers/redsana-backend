@@ -138,3 +138,17 @@ def test_a_malformed_fingerprint_is_rejected(client: TestClient) -> None:
 
 if __name__ == "__main__":
     print("Run via pytest: python -m pytest tests/test_network_metrics_router.py")
+
+
+def test_latest_says_which_source_measured_it(client: TestClient) -> None:
+    client.post("/api/network-metrics", json={**SNAPSHOT_PAYLOAD, "source": "web"}, headers={"Authorization": "Bearer fake"})
+
+    latest = client.get("/api/network-metrics/latest", headers={"Authorization": "Bearer fake"})
+
+    assert latest.json()["source"] == "web"
+
+
+def test_latest_without_measurements_has_no_source(client: TestClient) -> None:
+    latest = client.get("/api/network-metrics/latest", headers={"Authorization": "Bearer fake"})
+
+    assert latest.json()["source"] is None
