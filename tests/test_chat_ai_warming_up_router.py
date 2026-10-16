@@ -65,6 +65,9 @@ def test_a_sleeping_ai_service_makes_the_chat_answer_warming_up():
         assert response.status_code == 503
         assert response.json() == {"detail": "ai_warming_up"}
         assert int(response.headers["Retry-After"]) >= 1
+        # Nada quedó guardado: al reintentar cuando la IA esté lista la pregunta no aparece dos veces.
+        assert client.get(f"/api/conversations/{conversation_id}/messages", headers=AUTH).json() == []
+        assert client.get("/api/conversations", headers=AUTH).json()[0]["title"] is None
     finally:
         app.dependency_overrides.clear()
         Base.metadata.drop_all(engine)

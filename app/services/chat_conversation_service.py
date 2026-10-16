@@ -93,12 +93,12 @@ class ChatConversationService:
             return SendMessageOutcome(reply=None, notice_key=PASSWORD_DISCLOSURE_NOTICE_KEY)
 
         history = _to_turns(self._message_repository.list_by_conversation(conversation_id))
+        # Pido la respuesta antes de guardar nada: si la IA está encendiendo o falla, reintentar no duplica la pregunta.
+        reply = assistant.ask(owner_id, history, text, conversation.topic)
+
         self._message_repository.create(conversation_id, "user", text)
         if conversation.title is None:
             self._conversation_repository.update_title(conversation_id, owner_id, _auto_title(text))
-
-        reply = assistant.ask(owner_id, history, text, conversation.topic)
-
         self._message_repository.create(conversation_id, "assistant", reply)
         self._conversation_repository.touch(conversation_id)
         if conversation.topic == "family_mode" and mentions_unexpected_dns(reply, _FAMILY_DNS):
