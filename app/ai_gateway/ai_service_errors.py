@@ -8,10 +8,12 @@ class AiServiceError(ChatEngineError):
 class AiServiceUnavailableError(AiServiceError):
     """Dormido, encendiendo o inalcanzable: al usuario se le muestra "encendiendo", nunca un error."""
 
-    def __init__(self, message: str, retry_after_seconds: float | None = None) -> None:
+    def __init__(self, message: str, retry_after_seconds: float | None = None, rate_limited: bool = False) -> None:
         super().__init__(message)
         # Lo que pidió esperar el proxy (Retry-After); el calentamiento lo respeta antes de volver a consultar.
         self.retry_after_seconds = retry_after_seconds
+        # Render frena las peticiones a un servicio que despierta: insistir seguido solo alarga el bloqueo.
+        self.rate_limited = rate_limited
 
 
 class AiServiceChatEngineError(AiServiceError):

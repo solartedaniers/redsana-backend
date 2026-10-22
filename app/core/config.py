@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     ai_service_warm_up_backoff_seconds: float = 5.0
     ai_service_warm_up_max_backoff_seconds: float = 15.0
     ai_service_warm_up_backoff_factor: float = 1.5
+    # Ante un 429 de Render con x-render-routing=hibernate-rate-limited espero al menos esto: insistir lo empeora.
+    ai_service_warm_up_rate_limited_backoff_seconds: float = 30.0
     # Retry-After que el chat devuelve al frontend cuando la IA aún está encendiendo.
     ai_service_warm_up_poll_seconds: float = 2.0
     ai_service_max_retries: int = 2

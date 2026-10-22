@@ -174,3 +174,21 @@ def test_a_wrong_path_is_rejected_at_once_with_what_the_service_said() -> None:
 
     assert urlopen.call_count == 1
     assert "Not Found" in str(raised.value)
+
+
+def test_a_render_429_hibernate_rate_limited_is_flagged() -> None:
+    error = _http_error(429, headers={"x-render-routing": "hibernate-rate-limited"})
+    with patch("urllib.request.urlopen", side_effect=error):
+        with pytest.raises(AiServiceUnavailableError) as raised:
+            _client(max_retries=0).health(timeout_seconds=3)
+
+    assert raised.value.rate_limited is True
+
+
+def test_other_proxy_answers_are_not_flagged_as_rate_limited() -> None:
+    error = _http_error(502, headers={"x-render-routing": "no-deploy"})
+    with patch("urllib.request.urlopen", side_effect=error):
+        with pytest.raises(AiServiceUnavailableError) as raised:
+            _client(max_retries=0).health(timeout_seconds=3)
+
+    assert raised.value.rate_limited is False

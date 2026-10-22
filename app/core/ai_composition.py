@@ -51,6 +51,7 @@ def _remote_ai_gateway() -> RemoteAiGateway:
             backoff_seconds=settings.ai_service_warm_up_backoff_seconds,
             max_backoff_seconds=settings.ai_service_warm_up_max_backoff_seconds,
             backoff_factor=settings.ai_service_warm_up_backoff_factor,
+            rate_limited_backoff_seconds=settings.ai_service_warm_up_rate_limited_backoff_seconds,
         ),
     )
 

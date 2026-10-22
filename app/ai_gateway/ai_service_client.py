@@ -21,14 +21,17 @@ _CHAT_ENGINE_UNAVAILABLE_CODE = "chat_engine_unavailable"
 # Lo que se copia al error de una respuesta fallida para poder diagnosticarla en los logs de Render.
 _LOGGED_HEADERS = ("Retry-After", "Content-Type", "Server", "x-render-routing", "rndr-id")
 _LOGGED_BODY_CHARS = 200
+# Valor de x-render-routing con el que Render avisa que limita las peticiones mientras despierta el servicio.
+_RENDER_RATE_LIMITED_ROUTING = "hibernate-rate-limited"
 
 
 class _RetryableError(Exception):
     """Fallo que vale la pena reintentar: conexión rechazada o el proxy diciendo que el servicio aún no está."""
 
-    def __init__(self, message: str, retry_after_seconds: float | None = None) -> None:
+    def __init__(self, message: str, retry_after_seconds: float | None = None, rate_limited: bool = False) -> None:
         super().__init__(message)
         self.retry_after_seconds = retry_after_seconds
+        self.rate_limited = rate_limited
 
 
 class AiServiceClient:
@@ -68,7 +71,9 @@ class AiServiceClient:
             except _RetryableError as error:
                 if attempt >= self._max_retries:
                     raise AiServiceUnavailableError(
-                        f"AI service unavailable after {attempt + 1} attempts: {error}", error.retry_after_seconds
+                        f"AI service unavailable after {attempt + 1} attempts: {error}",
+                        error.retry_after_seconds,
+                        error.rate_limited,
                     ) from error
                 # Espera creciente y con tope en max_retries: insistir sin pausa solo cargaría un servicio que arranca.
                 self._sleep(self._retry_backoff_seconds * 2**attempt)
@@ -125,6 +130,10 @@ def _retry_after_seconds(error: urllib.error.HTTPError) -> float | None:
         return None
 
 
+def _is_render_rate_limited(error: urllib.error.HTTPError) -> bool:
+    return (error.headers or {}).get("x-render-routing") == _RENDER_RATE_LIMITED_ROUTING
+
+
 def _diagnostics(error: urllib.error.HTTPError, raw: bytes) -> str:
     received = error.headers or {}
     headers = {name: received.get(name) for name in _LOGGED_HEADERS if received.get(name) is not None}
@@ -139,7 +148,9 @@ def _http_error(error: urllib.error.HTTPError) -> Exception:
         return AiServiceChatEngineError("AI service chat engine unavailable")
     if code is None and error.code in _PROXY_UNAVAILABLE_STATUSES:
         return _RetryableError(
-            f"AI service proxy answered {error.code} {_diagnostics(error, raw)}", _retry_after_seconds(error)
+            f"AI service proxy answered {error.code} {_diagnostics(error, raw)}",
+            _retry_after_seconds(error),
+            _is_render_rate_limited(error),
         )
     if 400 <= error.code < 500:
         return AiServiceRejectedError(f"AI service rejected the request: {error.code} {code} {_diagnostics(error, raw)}")

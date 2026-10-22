@@ -30,6 +30,8 @@ class WarmUpSchedule:
     backoff_seconds: float
     max_backoff_seconds: float
     backoff_factor: float
+    # Espera mínima cuando Render responde que está limitando las peticiones (429 hibernate-rate-limited).
+    rate_limited_backoff_seconds: float
 
 
 @dataclass(frozen=True)
@@ -37,6 +39,7 @@ class _Probe:
     availability: AiAvailability
     reason: AiUnavailableReason | None = None
     retry_after_seconds: float | None = None
+    rate_limited: bool = False
 
 
 def _start_daemon_thread(target: Callable[[], None]) -> None:
@@ -154,8 +157,10 @@ class RemoteAiGateway(AiGateway):
                 remaining = deadline - self._clock()
                 if remaining <= 0:
                     break
-                # Si Render pidió esperar (Retry-After) lo respeto; si no, espera creciente con tope.
-                self._sleep(min(max(backoff, probe.retry_after_seconds or 0), remaining))
+                # Si Render pidió esperar (Retry-After) o está limitando peticiones, espero al menos eso; si no, espera
+                # creciente con tope.
+                floor = schedule.rate_limited_backoff_seconds if probe.rate_limited else 0
+                self._sleep(min(max(backoff, probe.retry_after_seconds or 0, floor), remaining))
                 backoff = min(backoff * schedule.backoff_factor, schedule.max_backoff_seconds)
         finally:
             with self._state_lock:
@@ -176,7 +181,7 @@ class RemoteAiGateway(AiGateway):
         except AiServiceUnavailableError as error:
             # Dormido o arrancando en Render (429, 50x, sin respuesta): para el usuario es "encendiendo", no un error.
             logger.info("AI service still waking up: %s", error)
-            return _Probe("warming_up", retry_after_seconds=error.retry_after_seconds)
+            return _Probe("warming_up", retry_after_seconds=error.retry_after_seconds, rate_limited=error.rate_limited)
         except AiServiceError as error:
             logger.warning("AI service status check failed: %s", error)
             return _Probe("unavailable", "service_error")

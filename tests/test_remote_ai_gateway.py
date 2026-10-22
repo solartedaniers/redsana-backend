@@ -13,7 +13,12 @@ from app.ai_gateway.remote_ai_gateway import RemoteAiGateway, WarmUpSchedule
 from app.ai_gateway.windowed_detectors import WindowedAnomalyDetector, WindowedOutageDetector
 
 _SCHEDULE = WarmUpSchedule(
-    timeout_seconds=300, probe_timeout_seconds=90, backoff_seconds=5, max_backoff_seconds=15, backoff_factor=1.5
+    timeout_seconds=300,
+    probe_timeout_seconds=90,
+    backoff_seconds=5,
+    max_backoff_seconds=15,
+    backoff_factor=1.5,
+    rate_limited_backoff_seconds=30,
 )
 _ASLEEP = AiServiceUnavailableError("proxy answered 429")
 
@@ -160,6 +165,16 @@ def test_warm_up_respects_retry_after() -> None:
     _gateway(status_client, fake_time).start_warm_up()
 
     assert fake_time.sleeps == [20]
+
+
+def test_warm_up_waits_longer_while_render_rate_limits_the_wake() -> None:
+    fake_time = _FakeTime()
+    rate_limited = AiServiceUnavailableError("proxy answered 429", rate_limited=True)
+    status_client = _FakeStatusClient(rate_limited, _ASLEEP, True)
+
+    _gateway(status_client, fake_time).start_warm_up()
+
+    assert fake_time.sleeps == [30, 7.5]
 
 
 def test_warm_up_gives_up_at_its_deadline_as_timed_out_with_a_capped_backoff(caplog) -> None:
