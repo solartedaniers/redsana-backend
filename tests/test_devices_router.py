@@ -75,3 +75,29 @@ def test_last_seen_cannot_be_set_through_the_update_endpoint(setup) -> None:
     client.patch(f"/api/devices/{marked_id}", json={"trust": "trusted", "last_seen": "2030-01-01T00:00:00Z"})
 
     assert _devices(client)[marked_id]["last_seen"] == before
+
+
+def _sync(client: TestClient, macs: list[str], **extra) -> dict[str, bool]:
+    payload = {"devices": [{"mac_address": mac, "ip_address": "192.168.0.50"} for mac in macs], **extra}
+    response = client.post("/api/devices/sync", json=payload)
+    assert response.status_code == 200
+    return {device["mac_address"]: device["is_online"] for device in response.json()}
+
+
+def test_sync_without_the_manual_flag_keeps_the_presence_tolerance(setup) -> None:
+    client, _ = setup
+    _sync(client, ["aa-aa-aa-aa-aa-01", "aa-aa-aa-aa-aa-02"])
+
+    # Lo que envía el instalador 0.1.5 y el escaneo al entrar: el que faltó hace segundos sigue en línea.
+    online = _sync(client, ["aa-aa-aa-aa-aa-01"])
+
+    assert online == {"aa-aa-aa-aa-aa-01": True, "aa-aa-aa-aa-aa-02": True}
+
+
+def test_manual_sync_marks_offline_what_did_not_answer_this_scan(setup) -> None:
+    client, _ = setup
+    _sync(client, ["aa-aa-aa-aa-aa-01", "aa-aa-aa-aa-aa-02"])
+
+    online = _sync(client, ["aa-aa-aa-aa-aa-01"], manual=True)
+
+    assert online == {"aa-aa-aa-aa-aa-01": True, "aa-aa-aa-aa-aa-02": False}

@@ -44,3 +44,5 @@ class DeviceSyncItem(BaseModel):
 
 class DeviceSyncRequest(BaseModel):
     devices: list[DeviceSyncItem]
+    # Opcional para que el instalador 0.1.5, que no lo envía, siga igual que antes.
+    manual: bool = False

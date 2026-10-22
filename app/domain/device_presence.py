@@ -8,17 +8,22 @@ NON_MEMBER_ROLES = frozenset({"gateway", "this_device"})
 # Los escaneos son manuales, así que el tiempo transcurrido no dice nada: lo que cuenta es haber quedado
 # fuera de la última sincronización.
 DEVICE_PRESENCE_TOLERANCE = timedelta(seconds=30)
+# El botón "Escanear en busca de intrusos" confirma cada equipo en el momento: lo que no respondió ya no está,
+# aunque otro escaneo lo haya visto hace segundos.
+MANUAL_SCAN_PRESENCE_TOLERANCE = timedelta(0)
 
 
 def latest_seen_among(devices: list[Device]) -> datetime | None:
     return max((device.last_seen for device in devices), default=None)
 
 
-def is_device_online(device: Device, latest_seen: datetime | None) -> bool:
+def is_device_online(
+    device: Device, latest_seen: datetime | None, tolerance: timedelta = DEVICE_PRESENCE_TOLERANCE
+) -> bool:
     """True si la última sincronización del dueño tocó este dispositivo; False si quedó fuera del último escaneo."""
     if latest_seen is None:
         return False
-    return (latest_seen - device.last_seen) <= DEVICE_PRESENCE_TOLERANCE
+    return (latest_seen - device.last_seen) <= tolerance
 
 
 def connected_members(devices: list[Device]) -> list[Device]:

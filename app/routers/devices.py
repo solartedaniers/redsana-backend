@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,7 +7,12 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import get_current_claims, owner_id_from_claims
-from app.domain.device_presence import is_device_online, latest_seen_among
+from app.domain.device_presence import (
+    DEVICE_PRESENCE_TOLERANCE,
+    MANUAL_SCAN_PRESENCE_TOLERANCE,
+    is_device_online,
+    latest_seen_among,
+)
 from app.models.device import Device
 from app.repositories.alert_sqlalchemy_repository import SqlAlchemyAlertRepository
 from app.repositories.device_sqlalchemy_repository import SqlAlchemyDeviceRepository
@@ -18,7 +23,9 @@ from app.services.untrusted_device_alert_service import UntrustedDeviceAlertServ
 router = APIRouter(prefix="/api/devices", tags=["devices"])
 
 
-def _to_device_read(device: Device, latest_seen: datetime | None) -> DeviceRead:
+def _to_device_read(
+    device: Device, latest_seen: datetime | None, tolerance: timedelta = DEVICE_PRESENCE_TOLERANCE
+) -> DeviceRead:
     return DeviceRead(
         id=device.id,
         name=device.name,
@@ -27,7 +34,7 @@ def _to_device_read(device: Device, latest_seen: datetime | None) -> DeviceRead:
         trust=device.trust,
         first_seen=device.first_seen,
         last_seen=device.last_seen,
-        is_online=is_device_online(device, latest_seen),
+        is_online=is_device_online(device, latest_seen, tolerance),
         network_role=device.network_role,
     )
 
@@ -88,4 +95,5 @@ def sync_devices(
     # El router orquesta: el servicio de dispositivos no sabe nada de alertas.
     untrusted_alerts.alert_for_scan(owner_id, devices)
     latest_seen = latest_seen_among(devices)
-    return [_to_device_read(device, latest_seen) for device in devices]
+    tolerance = MANUAL_SCAN_PRESENCE_TOLERANCE if payload.manual else DEVICE_PRESENCE_TOLERANCE
+    return [_to_device_read(device, latest_seen, tolerance) for device in devices]
