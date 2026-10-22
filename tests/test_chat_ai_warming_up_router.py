@@ -45,7 +45,7 @@ class _FailingGateway(AiGateway):
     def status(self) -> AiAvailability:
         return "warming_up"
 
-    def warm_up(self) -> None:
+    def start_warm_up(self) -> None:
         return None
 
 

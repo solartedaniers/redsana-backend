@@ -37,6 +37,6 @@ class LocalAiGateway(AiGateway):
     def status(self) -> AiAvailability:
         return "ready"
 
-    def warm_up(self) -> None:
+    def start_warm_up(self) -> None:
         # Nada que despertar: el paquete ya está cargado en este proceso.
         return None

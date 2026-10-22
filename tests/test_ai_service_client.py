@@ -31,9 +31,9 @@ def _json(payload: object) -> _Response:
     return _Response(json.dumps(payload).encode())
 
 
-def _http_error(status: int, body: object | None = None) -> urllib.error.HTTPError:
+def _http_error(status: int, body: object | None = None, headers: dict[str, str] | None = None) -> urllib.error.HTTPError:
     raw = json.dumps(body).encode() if body is not None else b"<html>Service Unavailable</html>"
-    return urllib.error.HTTPError(_BASE_URL, status, "error", {}, io.BytesIO(raw))
+    return urllib.error.HTTPError(_BASE_URL, status, "error", headers or {}, io.BytesIO(raw))
 
 
 def _client(sleeps: list[float] | None = None, max_retries: int = 2) -> AiServiceClient:
@@ -143,3 +143,34 @@ def test_a_body_that_is_not_json_is_a_response_error() -> None:
 def test_every_service_error_is_a_chat_engine_error() -> None:
     # Así el chat sigue respondiendo 502 como cuando Groq falla en modo local.
     assert issubclass(AiServiceError, ChatEngineError)
+
+
+def test_a_render_429_while_waking_is_unavailable_not_rejected_and_keeps_retry_after() -> None:
+    error = _http_error(429, headers={"Retry-After": "20", "x-render-routing": "hibernate-wake"})
+    with patch("urllib.request.urlopen", side_effect=error):
+        with pytest.raises(AiServiceUnavailableError) as raised:
+            _client(max_retries=0).health(timeout_seconds=3)
+
+    assert raised.value.retry_after_seconds == 20
+    # Lo que respondió Render queda en el mensaje para verlo en los logs.
+    assert "429" in str(raised.value)
+    assert "hibernate-wake" in str(raised.value)
+    assert "Service Unavailable" in str(raised.value)
+
+
+def test_a_retry_after_given_as_a_date_is_ignored() -> None:
+    error = _http_error(503, headers={"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"})
+    with patch("urllib.request.urlopen", side_effect=error):
+        with pytest.raises(AiServiceUnavailableError) as raised:
+            _client(max_retries=0).health(timeout_seconds=3)
+
+    assert raised.value.retry_after_seconds is None
+
+
+def test_a_wrong_path_is_rejected_at_once_with_what_the_service_said() -> None:
+    with patch("urllib.request.urlopen", side_effect=_http_error(404, {"detail": "Not Found"})) as urlopen:
+        with pytest.raises(AiServiceRejectedError) as raised:
+            _client().health(timeout_seconds=3)
+
+    assert urlopen.call_count == 1
+    assert "Not Found" in str(raised.value)

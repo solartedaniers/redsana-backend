@@ -38,14 +38,20 @@ class Settings(BaseSettings):
     ai_service_api_key: str = ""
     # Mayor que groq_timeout_seconds del servicio: si no, cortaría respuestas que Groq sí iba a dar.
     ai_service_timeout_seconds: float = 45.0
-    # Corto a propósito: el estado se consulta seguido y un servicio dormido no debe frenar al usuario.
+    # Corto a propósito: una consulta suelta de estado (fuera del calentamiento) no debe frenar al usuario.
     ai_service_status_timeout_seconds: float = 5.0
-    # Lo que se espera a que Render despierte el servicio en un calentamiento (en segundo plano); el arranque en frío
-    # incluye importar scikit-learn, así que es el mismo tope amplio que usa el frontend.
-    ai_service_warm_up_timeout_seconds: float = 150.0
-    # Durante el calentamiento sí espero: si corto a los 5 s, Render puede descartar el despertar.
-    ai_service_warm_up_probe_timeout_seconds: float = 30.0
-    # Cada cuánto se vuelve a consultar el estado mientras dura un calentamiento.
+    # Cuánto vale el último estado conocido sin volver a consultar al servicio: /api/ai/status lee la memoria.
+    ai_service_status_cache_seconds: float = 5.0
+    # Plazo total del calentamiento en segundo plano: el arranque en frío en Render incluye importar scikit-learn y
+    # se midió en ~43 s solo para la IA; con varios minutos sobra margen. Vencido, la IA queda "no disponible".
+    ai_service_warm_up_timeout_seconds: float = 300.0
+    # Cada consulta del calentamiento queda abierta este tiempo, como el navegador: Render la retiene mientras despierta.
+    ai_service_warm_up_probe_timeout_seconds: float = 90.0
+    # Si una consulta falla (429/50x/sin conexión), la siguiente espera esto y crece por el factor hasta el tope.
+    ai_service_warm_up_backoff_seconds: float = 5.0
+    ai_service_warm_up_max_backoff_seconds: float = 15.0
+    ai_service_warm_up_backoff_factor: float = 1.5
+    # Retry-After que el chat devuelve al frontend cuando la IA aún está encendiendo.
     ai_service_warm_up_poll_seconds: float = 2.0
     ai_service_max_retries: int = 2
     ai_service_retry_backoff_seconds: float = 1.0

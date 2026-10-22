@@ -8,7 +8,7 @@ from app.ai_gateway.ai_gateway import AiGateway
 from app.ai_gateway.ai_service_client import AiServiceClient
 from app.ai_gateway.interactive_usage_window import InteractiveUsageWindow
 from app.ai_gateway.local_ai_gateway import LocalAiGateway
-from app.ai_gateway.remote_ai_gateway import RemoteAiGateway
+from app.ai_gateway.remote_ai_gateway import RemoteAiGateway, WarmUpSchedule
 from app.core.config import get_settings
 
 
@@ -44,9 +44,14 @@ def _remote_ai_gateway() -> RemoteAiGateway:
         local_fallback=LocalAiGateway(get_chat_engine),
         usage_window=InteractiveUsageWindow(settings.ai_service_interactive_window_seconds),
         status_timeout_seconds=settings.ai_service_status_timeout_seconds,
-        warm_up_timeout_seconds=settings.ai_service_warm_up_timeout_seconds,
-        warm_up_probe_timeout_seconds=settings.ai_service_warm_up_probe_timeout_seconds,
-        warm_up_poll_seconds=settings.ai_service_warm_up_poll_seconds,
+        status_cache_seconds=settings.ai_service_status_cache_seconds,
+        warm_up_schedule=WarmUpSchedule(
+            timeout_seconds=settings.ai_service_warm_up_timeout_seconds,
+            probe_timeout_seconds=settings.ai_service_warm_up_probe_timeout_seconds,
+            backoff_seconds=settings.ai_service_warm_up_backoff_seconds,
+            max_backoff_seconds=settings.ai_service_warm_up_max_backoff_seconds,
+            backoff_factor=settings.ai_service_warm_up_backoff_factor,
+        ),
     )
 
 

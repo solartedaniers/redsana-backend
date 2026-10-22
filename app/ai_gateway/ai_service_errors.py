@@ -8,6 +8,11 @@ class AiServiceError(ChatEngineError):
 class AiServiceUnavailableError(AiServiceError):
     """Dormido, encendiendo o inalcanzable: al usuario se le muestra "encendiendo", nunca un error."""
 
+    def __init__(self, message: str, retry_after_seconds: float | None = None) -> None:
+        super().__init__(message)
+        # Lo que pidió esperar el proxy (Retry-After); el calentamiento lo respeta antes de volver a consultar.
+        self.retry_after_seconds = retry_after_seconds
+
 
 class AiServiceChatEngineError(AiServiceError):
     """El servicio está despierto pero su motor (Groq) falló: igual que un fallo de Groq en modo local."""

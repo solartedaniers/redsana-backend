@@ -47,6 +47,6 @@ def test_detectors_do_not_build_a_chat_engine() -> None:
 def test_local_ai_is_always_ready_and_warm_up_is_a_no_op() -> None:
     gateway = LocalAiGateway(lambda: _EchoEngine())
 
-    gateway.warm_up()
+    gateway.start_warm_up()
 
     assert gateway.status() == "ready"

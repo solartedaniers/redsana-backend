@@ -15,12 +15,20 @@ from app.ai_gateway.ai_service_errors import (
 # Nombre del encabezado acordado con redsana_ai_service; el valor de la clave vive solo en el entorno.
 API_KEY_HEADER = "X-AI-Service-Key"
 # Lo que devuelve el proxy de Render mientras el servicio arranca o se reinicia (sin el cuerpo tipado del servicio).
-_PROXY_UNAVAILABLE_STATUSES = frozenset({502, 503, 504})
+# El 429 también: el servicio no limita peticiones, así que es Render frenando consultas mientras lo despierta.
+_PROXY_UNAVAILABLE_STATUSES = frozenset({429, 502, 503, 504})
 _CHAT_ENGINE_UNAVAILABLE_CODE = "chat_engine_unavailable"
+# Lo que se copia al error de una respuesta fallida para poder diagnosticarla en los logs de Render.
+_LOGGED_HEADERS = ("Retry-After", "Content-Type", "Server", "x-render-routing", "rndr-id")
+_LOGGED_BODY_CHARS = 200
 
 
 class _RetryableError(Exception):
     """Fallo que vale la pena reintentar: conexión rechazada o el proxy diciendo que el servicio aún no está."""
+
+    def __init__(self, message: str, retry_after_seconds: float | None = None) -> None:
+        super().__init__(message)
+        self.retry_after_seconds = retry_after_seconds
 
 
 class AiServiceClient:
@@ -59,7 +67,9 @@ class AiServiceClient:
                 return self._send(method, path, body, timeout_seconds, authenticated)
             except _RetryableError as error:
                 if attempt >= self._max_retries:
-                    raise AiServiceUnavailableError(f"AI service unavailable after {attempt + 1} attempts: {error}") from error
+                    raise AiServiceUnavailableError(
+                        f"AI service unavailable after {attempt + 1} attempts: {error}", error.retry_after_seconds
+                    ) from error
                 # Espera creciente y con tope en max_retries: insistir sin pausa solo cargaría un servicio que arranca.
                 self._sleep(self._retry_backoff_seconds * 2**attempt)
                 attempt += 1
@@ -99,20 +109,38 @@ class AiServiceClient:
             raise AiServiceResponseError("AI service returned a body that is not JSON") from error
 
 
-def _service_error_code(error: urllib.error.HTTPError) -> str | None:
+def _service_error_code(raw: bytes) -> str | None:
     try:
-        payload = json.loads(error.read())
+        payload = json.loads(raw)
     except ValueError:
         return None
     return payload.get("code") if isinstance(payload, dict) else None
 
 
+def _retry_after_seconds(error: urllib.error.HTTPError) -> float | None:
+    # ponytail: solo la forma en segundos; la de fecha HTTP se ignora y el calentamiento usa su propia espera.
+    try:
+        return float((error.headers or {}).get("Retry-After", ""))
+    except (TypeError, ValueError):
+        return None
+
+
+def _diagnostics(error: urllib.error.HTTPError, raw: bytes) -> str:
+    received = error.headers or {}
+    headers = {name: received.get(name) for name in _LOGGED_HEADERS if received.get(name) is not None}
+    body = raw[:_LOGGED_BODY_CHARS].decode("utf-8", errors="replace")
+    return f"headers={headers} body={body!r}"
+
+
 def _http_error(error: urllib.error.HTTPError) -> Exception:
-    code = _service_error_code(error)
+    raw = error.read()
+    code = _service_error_code(raw)
     if code == _CHAT_ENGINE_UNAVAILABLE_CODE:
         return AiServiceChatEngineError("AI service chat engine unavailable")
     if code is None and error.code in _PROXY_UNAVAILABLE_STATUSES:
-        return _RetryableError(f"AI service proxy answered {error.code}")
+        return _RetryableError(
+            f"AI service proxy answered {error.code} {_diagnostics(error, raw)}", _retry_after_seconds(error)
+        )
     if 400 <= error.code < 500:
-        return AiServiceRejectedError(f"AI service rejected the request: {error.code} {code}")
-    return AiServiceResponseError(f"AI service failed: {error.code} {code}")
+        return AiServiceRejectedError(f"AI service rejected the request: {error.code} {code} {_diagnostics(error, raw)}")
+    return AiServiceResponseError(f"AI service failed: {error.code} {code} {_diagnostics(error, raw)}")

@@ -3,7 +3,7 @@
 from fastapi.testclient import TestClient
 from redsana_ai import AnomalyDetector, OutageDetector, SecurityBriefing, SecurityChat
 
-from app.ai_gateway.ai_gateway import AiAvailability, AiGateway
+from app.ai_gateway.ai_gateway import AiAvailability, AiGateway, AiUnavailableReason
 from app.core.ai_composition import get_ai_gateway
 from app.core.security import get_current_claims
 from app.main import app
@@ -12,8 +12,9 @@ AUTH = {"Authorization": "Bearer fake"}
 
 
 class _FakeGateway(AiGateway):
-    def __init__(self, availability: AiAvailability) -> None:
+    def __init__(self, availability: AiAvailability, reason: AiUnavailableReason | None = None) -> None:
         self._availability = availability
+        self._reason = reason
         self.warm_ups = 0
 
     def security_chat(self) -> SecurityChat:
@@ -31,9 +32,12 @@ class _FakeGateway(AiGateway):
     def status(self) -> AiAvailability:
         return self._availability
 
-    def warm_up(self) -> None:
+    def unavailable_reason(self) -> AiUnavailableReason | None:
+        return self._reason
+
+    def start_warm_up(self) -> None:
         self.warm_ups += 1
-        self._availability = "ready"
+        self._availability, self._reason = "warming_up", None
 
 
 def _client(gateway: AiGateway) -> TestClient:
@@ -48,20 +52,39 @@ def test_status_reports_each_availability():
             response = _client(_FakeGateway(availability)).get("/api/ai/status", headers=AUTH)
 
             assert response.status_code == 200
-            assert response.json() == {"status": availability}
+            assert response.json()["status"] == availability
     finally:
         app.dependency_overrides.clear()
 
 
-def test_warm_up_is_accepted_and_runs_after_answering():
-    gateway = _FakeGateway("warming_up")
+def test_warm_up_restarts_a_finished_attempt_and_answers_without_waiting_for_it():
+    gateway = _FakeGateway("unavailable", "timed_out")
     try:
         response = _client(gateway).post("/api/ai/warm-up", headers=AUTH)
 
         assert response.status_code == 202
-        # Responde con el estado de ese momento; el calentamiento corre después de la respuesta.
-        assert response.json() == {"status": "warming_up"}
+        # El calentamiento sigue en su propio hilo: la respuesta trae el estado recién iniciado.
+        assert response.json() == {"status": "warming_up", "reason": None}
         assert gateway.warm_ups == 1
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_status_explains_why_the_ai_is_unavailable():
+    try:
+        response = _client(_FakeGateway("unavailable", "service_error")).get("/api/ai/status", headers=AUTH)
+
+        assert response.json() == {"status": "unavailable", "reason": "service_error"}
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_status_does_not_start_a_warm_up():
+    gateway = _FakeGateway("warming_up")
+    try:
+        _client(gateway).get("/api/ai/status", headers=AUTH)
+
+        assert gateway.warm_ups == 0
     finally:
         app.dependency_overrides.clear()
 
@@ -82,6 +105,6 @@ def test_local_mode_is_always_ready():
     try:
         response = TestClient(app).get("/api/ai/status", headers=AUTH)
 
-        assert response.json() == {"status": "ready"}
+        assert response.json() == {"status": "ready", "reason": None}
     finally:
         app.dependency_overrides.clear()
