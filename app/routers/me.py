@@ -10,7 +10,11 @@ from app.repositories.user_sqlalchemy_repository import SqlAlchemyUserRepository
 from app.schemas.user import UserRead, UserUpdate
 from app.services.user_service import UserService
 
-router = APIRouter(prefix="/api", tags=["me"])
+router = APIRouter(prefix="/api", tags=["users"])
+
+CURRENT_USER_PATH = "/users/me"
+# Ruta anterior: la siguen usando el instalador 0.1.5 y la web ya desplegada; queda fuera de la documentación.
+LEGACY_CURRENT_USER_PATH = "/me"
 
 
 def _to_user_read(user: User) -> UserRead:
@@ -28,7 +32,8 @@ def _get_service(db: Session = Depends(get_db)) -> UserService:
     return UserService(SqlAlchemyUserRepository(db))
 
 
-@router.get("/me", response_model=UserRead)
+@router.get(CURRENT_USER_PATH, response_model=UserRead)
+@router.get(LEGACY_CURRENT_USER_PATH, response_model=UserRead, include_in_schema=False)
 def read_current_user(
     claims: dict[str, Any] = Depends(get_current_claims),
     service: UserService = Depends(_get_service),
@@ -37,7 +42,8 @@ def read_current_user(
     return _to_user_read(user)
 
 
-@router.patch("/me", response_model=UserRead)
+@router.patch(CURRENT_USER_PATH, response_model=UserRead)
+@router.patch(LEGACY_CURRENT_USER_PATH, response_model=UserRead, include_in_schema=False)
 def update_current_user(
     payload: UserUpdate,
     claims: dict[str, Any] = Depends(get_current_claims),
