@@ -29,6 +29,8 @@ class NetworkStatusThresholdsRead(BaseModel):
 class NetworkMetricSampleRead(BaseModel):
     timestamp: datetime
     latency_ms: float
+    # Campo agregado: el gráfico clasifica por latencia y pérdida, como el estado; los clientes anteriores lo ignoran.
+    packet_loss_percent: float
 
 
 class NetworkMetricSnapshotCreate(BaseModel):

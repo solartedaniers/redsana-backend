@@ -97,7 +97,10 @@ def get_history(
     service: NetworkMetricsService = Depends(_get_metrics_service),
 ) -> list[NetworkMetricSampleRead]:
     snapshots = service.get_history(_resolve_target_owner_id(user, user_id), from_, to)
-    return [NetworkMetricSampleRead(timestamp=s.recorded_at, latency_ms=s.latency_ms) for s in snapshots]
+    return [
+        NetworkMetricSampleRead(timestamp=s.recorded_at, latency_ms=s.latency_ms, packet_loss_percent=s.packet_loss_percent)
+        for s in snapshots
+    ]
 
 
 @router.get("/thresholds", response_model=NetworkStatusThresholdsRead)

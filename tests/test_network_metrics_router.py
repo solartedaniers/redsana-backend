@@ -138,6 +138,16 @@ def test_post_with_50_ms_and_3_percent_loss_is_a_warning(client: TestClient) -> 
     assert response.json()["status"] == "warning"
 
 
+def test_history_includes_packet_loss_next_to_the_existing_fields(client: TestClient) -> None:
+    client.post("/api/network-metrics", json={"latency_ms": 50, "jitter_ms": 2, "packet_loss_percent": 3})
+
+    samples = client.get("/api/network-metrics/history").json()
+
+    assert len(samples) == 1
+    assert set(samples[0]) == {"timestamp", "latency_ms", "packet_loss_percent"}
+    assert (samples[0]["latency_ms"], samples[0]["packet_loss_percent"]) == (50, 3)
+
+
 def test_post_without_token_is_unauthorized(client_without_claims_override: TestClient) -> None:
     response = client_without_claims_override.post("/api/network-metrics", json=SNAPSHOT_PAYLOAD)
 
