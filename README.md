@@ -60,14 +60,18 @@ pytest
   FRONTEND_I18N_DIR=../redsana-frontend/public/assets/i18n pytest
   ```
 
+## Estado de la red (umbrales)
+
+Cada medición se guarda con su estado (`good`, `warning` o `critical`), calculado por latencia **o** pérdida de paquetes con los umbrales `NETWORK_STATUS_*` (por defecto 80 / 150 ms y 1 / 5 %; ver `.env.example`). `GET /api/network-metrics/thresholds` los publica para que el gráfico del frontend clasifique igual que el dashboard. Cambiarlos solo afecta a las mediciones nuevas: el estado de las guardadas no se recalcula.
+
 ## Modo de la IA (`AI_MODE`)
 
 | Modo | Qué hace |
 |---|---|
-| `local` (por defecto) | El paquete `redsana_ai` corre dentro de este proceso, como siempre. Exige `GROQ_API_KEY`. |
-| `remote` | Chat, resumen y detectores llaman al servicio de IA desplegado aparte ([redsana-ai](https://github.com/solartedaniers/redsana-ai)). Exige `AI_SERVICE_URL` y `AI_SERVICE_API_KEY`; Groq vive en el servicio. |
+| `remote` (**producción**) | Chat, resumen y detectores llaman al servicio de IA desplegado aparte en Render ([redsana-ai](https://github.com/solartedaniers/redsana-ai)). Exige `AI_SERVICE_URL` y `AI_SERVICE_API_KEY`; Groq vive en el servicio. |
+| `local` (valor por defecto del código) | El paquete `redsana_ai` corre dentro de este proceso, sin el servicio de IA; útil en desarrollo. Exige `GROQ_API_KEY`. |
 
-Con `local` por defecto, subir este código no cambia producción: el cambio de modo es solo la variable.
+Producción usa `remote`. Cambiar de modo es solo la variable, sin tocar código.
 
 En modo remoto:
 
