@@ -11,7 +11,7 @@ class InteractiveUsageWindow:
         self._duration_seconds = duration_seconds
         self._clock = clock
         self._last_use: float | None = None
-        # ponytail: estado en memoria del proceso; con varios workers cada uno tendría su ventana (Render free usa uno).
+        # Estado en memoria del proceso: con varios workers cada uno tendría su ventana (Render free usa uno).
         self._lock = threading.Lock()
 
     def record_use(self) -> None:

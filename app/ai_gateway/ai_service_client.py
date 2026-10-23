@@ -123,7 +123,7 @@ def _service_error_code(raw: bytes) -> str | None:
 
 
 def _retry_after_seconds(error: urllib.error.HTTPError) -> float | None:
-    # ponytail: solo la forma en segundos; la de fecha HTTP se ignora y el calentamiento usa su propia espera.
+    # Solo la forma en segundos: la de fecha HTTP se ignora y el calentamiento usa su propia espera.
     try:
         return float((error.headers or {}).get("Retry-After", ""))
     except (TypeError, ValueError):
