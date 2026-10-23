@@ -46,59 +46,36 @@ def _start_daemon_thread(target: Callable[[], None]) -> None:
     threading.Thread(target=target, name="ai-warm-up", daemon=True).start()
 
 
-class RemoteAiGateway(AiGateway):
-    """La IA vive en el servicio aparte: chat y resumen siempre van allí; los detectores en segundo plano solo dentro
-     de la ventana de uso interactivo, y si no con el paquete local.
-
-    El estado de la IA vive en memoria: lo actualiza un único calentamiento en segundo plano y status() lo lee, así
+class WarmUpController:
+    """El estado de la IA vive en memoria: lo actualiza un único calentamiento en segundo plano y status() lo lee, así
     las consultas del frontend no le llegan al servicio mientras Render lo despierta (eso provocaba sus 429)."""
 
     def __init__(
         self,
-        client: AiServiceClient,
         status_client: AiServiceClient,
-        local_fallback: AiGateway,
         usage_window: InteractiveUsageWindow,
         status_timeout_seconds: float,
         status_cache_seconds: float,
-        warm_up_schedule: WarmUpSchedule,
-        clock: Callable[[], float] = time.monotonic,
-        sleep: Callable[[float], None] = time.sleep,
-        start_thread: Callable[[Callable[[], None]], None] = _start_daemon_thread,
+        schedule: WarmUpSchedule,
+        clock: Callable[[], float],
+        sleep: Callable[[float], None],
+        start_thread: Callable[[Callable[[], None]], None],
     ) -> None:
-        self._client = client
         # Cliente sin reintentos: cada consulta del calentamiento decide por sí misma cuánto esperar.
         self._status_client = status_client
-        self._local_fallback = local_fallback
         self._usage_window = usage_window
         self._status_timeout_seconds = status_timeout_seconds
         self._status_cache_seconds = status_cache_seconds
-        self._schedule = warm_up_schedule
+        self._schedule = schedule
         self._clock = clock
         self._sleep = sleep
         self._start_thread = start_thread
-        # ponytail: estado en memoria del proceso; con varios workers cada uno calentaría por su cuenta (Render free usa uno).
+        # Estado en memoria del proceso: con varios workers cada uno calentaría por su cuenta (Render free usa uno).
         self._state_lock = threading.Lock()
         self._warming_up = False
         self._availability: AiAvailability = "warming_up"
         self._reason: AiUnavailableReason | None = None
         self._checked_at: float | None = None
-
-    def security_chat(self) -> SecurityChat:
-        return RemoteSecurityChat(self._client, self._usage_window)
-
-    def security_briefing(self) -> SecurityBriefing:
-        return RemoteSecurityBriefing(self._client, self._usage_window)
-
-    def anomaly_detector(self) -> AnomalyDetector:
-        return WindowedAnomalyDetector(
-            RemoteAnomalyDetector(self._client), self._local_fallback.anomaly_detector(), self._usage_window
-        )
-
-    def outage_detector(self) -> OutageDetector:
-        return WindowedOutageDetector(
-            RemoteOutageDetector(self._client), self._local_fallback.outage_detector(), self._usage_window
-        )
 
     def status(self) -> AiAvailability:
         with self._state_lock:
@@ -120,7 +97,7 @@ class RemoteAiGateway(AiGateway):
         with self._state_lock:
             return self._reason if self._availability == "unavailable" else None
 
-    def start_warm_up(self) -> None:
+    def start(self) -> None:
         with self._state_lock:
             if self._warming_up:
                 logger.info("AI warm-up already running, skipping")
@@ -134,9 +111,9 @@ class RemoteAiGateway(AiGateway):
                 return
             self._warming_up = True
             self._availability, self._reason = "warming_up", None
-        self._start_thread(self._run_warm_up)
+        self._start_thread(self._run)
 
-    def _run_warm_up(self) -> None:
+    def _run(self) -> None:
         schedule = self._schedule
         started = self._clock()
         deadline = started + schedule.timeout_seconds
@@ -185,3 +162,55 @@ class RemoteAiGateway(AiGateway):
         except AiServiceError as error:
             logger.warning("AI service status check failed: %s", error)
             return _Probe("unavailable", "service_error")
+
+
+class RemoteAiGateway(AiGateway):
+    """La IA vive en el servicio aparte: chat y resumen siempre van allí; los detectores en segundo plano solo dentro
+     de la ventana de uso interactivo, y si no con el paquete local. El estado y el calentamiento son de
+     WarmUpController."""
+
+    def __init__(
+        self,
+        client: AiServiceClient,
+        status_client: AiServiceClient,
+        local_fallback: AiGateway,
+        usage_window: InteractiveUsageWindow,
+        status_timeout_seconds: float,
+        status_cache_seconds: float,
+        warm_up_schedule: WarmUpSchedule,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
+        start_thread: Callable[[Callable[[], None]], None] = _start_daemon_thread,
+    ) -> None:
+        self._client = client
+        self._local_fallback = local_fallback
+        self._usage_window = usage_window
+        self._warm_up = WarmUpController(
+            status_client, usage_window, status_timeout_seconds, status_cache_seconds, warm_up_schedule, clock, sleep,
+            start_thread,
+        )
+
+    def security_chat(self) -> SecurityChat:
+        return RemoteSecurityChat(self._client, self._usage_window)
+
+    def security_briefing(self) -> SecurityBriefing:
+        return RemoteSecurityBriefing(self._client, self._usage_window)
+
+    def anomaly_detector(self) -> AnomalyDetector:
+        return WindowedAnomalyDetector(
+            RemoteAnomalyDetector(self._client), self._local_fallback.anomaly_detector(), self._usage_window
+        )
+
+    def outage_detector(self) -> OutageDetector:
+        return WindowedOutageDetector(
+            RemoteOutageDetector(self._client), self._local_fallback.outage_detector(), self._usage_window
+        )
+
+    def status(self) -> AiAvailability:
+        return self._warm_up.status()
+
+    def unavailable_reason(self) -> AiUnavailableReason | None:
+        return self._warm_up.unavailable_reason()
+
+    def start_warm_up(self) -> None:
+        self._warm_up.start()

@@ -1,7 +1,9 @@
 """Sin red: el gateway remoto traduce el /health del servicio a lista/encendiendo/no disponible, mantiene ese estado en
  memoria con un único calentamiento en segundo plano y los detectores respetan la ventana de uso interactivo."""
 from collections.abc import Callable
+from dataclasses import replace
 
+from fastapi.testclient import TestClient
 from redsana_ai import IsolationForestAnomalyDetector, StreakOutageDetector
 
 from app.ai_gateway.ai_service_client import AiServiceClient
@@ -11,6 +13,9 @@ from app.ai_gateway.local_ai_gateway import LocalAiGateway
 from app.ai_gateway.remote_ai_adapters import RemoteSecurityBriefing, RemoteSecurityChat
 from app.ai_gateway.remote_ai_gateway import RemoteAiGateway, WarmUpSchedule
 from app.ai_gateway.windowed_detectors import WindowedAnomalyDetector, WindowedOutageDetector
+from app.core.ai_composition import get_ai_gateway
+from app.core.security import get_current_claims
+from app.main import app
 
 _SCHEDULE = WarmUpSchedule(
     timeout_seconds=300,
@@ -76,6 +81,7 @@ def _gateway(
     fake_time: _FakeTime | None = None,
     window: InteractiveUsageWindow | None = None,
     threads: _Threads | None = None,
+    schedule: WarmUpSchedule = _SCHEDULE,
 ) -> RemoteAiGateway:
     fake_time = fake_time or _FakeTime()
     return RemoteAiGateway(
@@ -85,7 +91,7 @@ def _gateway(
         usage_window=window or InteractiveUsageWindow(600, clock=fake_time.clock),
         status_timeout_seconds=5,
         status_cache_seconds=5,
-        warm_up_schedule=_SCHEDULE,
+        warm_up_schedule=schedule,
         clock=fake_time.clock,
         sleep=fake_time.sleep,
         start_thread=(threads or _Threads()).start,
@@ -297,3 +303,86 @@ def test_detectors_are_windowed_over_the_local_package() -> None:
     assert isinstance(anomaly._local, IsolationForestAnomalyDetector)
     assert isinstance(outage, WindowedOutageDetector)
     assert isinstance(outage._local, StreakOutageDetector)
+
+
+def test_a_502_or_503_from_render_does_not_end_the_warm_up_either() -> None:
+    status_client = _FakeStatusClient(
+        AiServiceUnavailableError("proxy answered 502"), AiServiceUnavailableError("proxy answered 503"), True
+    )
+    gateway = _gateway(status_client)
+
+    gateway.start_warm_up()
+
+    assert status_client.calls == 3
+    assert gateway.status() == "ready"
+
+
+def test_the_production_600s_limit_waits_with_the_exact_capped_backoff_then_times_out() -> None:
+    # render.yaml fija AI_SERVICE_WARM_UP_TIMEOUT_SECONDS=600: 5, 7.5, 11.25 y luego 15 s hasta el límite exacto.
+    fake_time = _FakeTime()
+    status_client = _FakeStatusClient(_ASLEEP)
+    gateway = _gateway(status_client, fake_time, schedule=replace(_SCHEDULE, timeout_seconds=600))
+
+    gateway.start_warm_up()
+
+    assert fake_time.sleeps == [5, 7.5, 11.25] + [15] * 38 + [6.25]
+    assert fake_time.now == 600
+    assert status_client.timeouts[0] == 90
+    assert status_client.timeouts[-2:] == [6.25, 5]
+    assert gateway.status() == "unavailable"
+    assert gateway.unavailable_reason() == "timed_out"
+
+
+def test_the_warm_up_goes_from_warming_up_to_ready() -> None:
+    threads = _Threads(run_now=False)
+    status_client = _FakeStatusClient(_ASLEEP, True)
+    gateway = _gateway(status_client, threads=threads)
+
+    gateway.start_warm_up()
+    assert (gateway.status(), gateway.unavailable_reason(), status_client.calls) == ("warming_up", None, 0)
+
+    threads.started[0]()
+    assert (gateway.status(), gateway.unavailable_reason()) == ("ready", None)
+
+
+def test_the_warm_up_goes_from_warming_up_to_unavailable_and_back_on_retry() -> None:
+    threads = _Threads(run_now=False)
+    gateway = _gateway(_FakeStatusClient(AiServiceRejectedError("bad key")), threads=threads)
+
+    gateway.start_warm_up()
+    assert gateway.status() == "warming_up"
+    threads.started[0]()
+    assert (gateway.status(), gateway.unavailable_reason()) == ("unavailable", "service_error")
+
+    gateway.start_warm_up()
+    assert (gateway.status(), gateway.unavailable_reason(), len(threads.started)) == ("warming_up", None, 2)
+
+
+def test_status_never_starts_a_warm_up() -> None:
+    fake_time = _FakeTime()
+    threads = _Threads(run_now=False)
+    gateway = _gateway(_FakeStatusClient(_ASLEEP), fake_time, threads=threads)
+
+    for _ in range(3):
+        assert gateway.status() == "warming_up"
+        fake_time.now += 10
+
+    assert threads.started == []
+
+
+def test_get_ai_status_only_reads_and_never_starts_the_warm_up() -> None:
+    threads = _Threads(run_now=False)
+    status_client = _FakeStatusClient(_ASLEEP)
+    gateway = _gateway(status_client, threads=threads)
+    app.dependency_overrides[get_current_claims] = lambda: {"sub": "00000000-0000-0000-0000-000000000001"}
+    app.dependency_overrides[get_ai_gateway] = lambda: gateway
+    try:
+        client = TestClient(app)
+        responses = [client.get("/api/ai/status", headers={"Authorization": "Bearer fake"}) for _ in range(3)]
+    finally:
+        app.dependency_overrides.clear()
+
+    assert [response.json() for response in responses] == [{"status": "warming_up", "reason": None}] * 3
+    # Una sola consulta corta, que queda en caché; nunca el hilo del calentamiento.
+    assert status_client.timeouts == [5]
+    assert threads.started == []
