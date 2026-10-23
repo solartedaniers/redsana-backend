@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     supabase_url: str
     supabase_jwt_audience: str = "authenticated"
     jwks_cache_ttl_seconds: int = 3600
+    # Un kid desconocido refresca el JWKS (rotación de claves) como mucho una vez por este intervalo: un token con un kid
+    # inventado no puede hacer que cada petición consulte a Supabase.
+    jwks_unknown_kid_refresh_seconds: int = 60
     cors_origins: str = ""
     network_metrics_default_history_hours: int = 24
     # Umbrales del estado de cada medición (advertencia / crítica). Cambiarlos solo afecta a las mediciones nuevas: el

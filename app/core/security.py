@@ -13,7 +13,7 @@ from app.core.config import get_settings
 
 _bearer_scheme = HTTPBearer()
 
-_jwks_cache: dict[str, Any] = {"keys": [], "fetched_at": 0.0}
+_jwks_cache: dict[str, Any] = {"keys": [], "fetched_at": 0.0, "unknown_kid_refreshed_at": 0.0}
 
 
 def _fetch_jwks() -> list[dict[str, Any]]:
@@ -22,8 +22,9 @@ def _fetch_jwks() -> list[dict[str, Any]]:
         return json.load(response)["keys"]
 
 
-def _get_signing_key(kid: str) -> dict[str, Any]:
-    """Busca la clave en el JWKS cacheado; si no está (rotación de claves), lo refresca una vez."""
+def _get_signing_key(kid: str | None) -> dict[str, Any]:
+    """Busca la clave en el JWKS cacheado. Si no está (rotación de claves) lo refresca, pero como mucho una vez por
+    intervalo: así un kid inventado no convierte cada petición en una consulta a Supabase."""
     settings = get_settings()
     now = time.time()
     if not _jwks_cache["keys"] or (now - _jwks_cache["fetched_at"]) > settings.jwks_cache_ttl_seconds:
@@ -31,7 +32,8 @@ def _get_signing_key(kid: str) -> dict[str, Any]:
         _jwks_cache["fetched_at"] = now
 
     key = next((k for k in _jwks_cache["keys"] if k.get("kid") == kid), None)
-    if key is None:
+    if key is None and now - _jwks_cache["unknown_kid_refreshed_at"] >= settings.jwks_unknown_kid_refresh_seconds:
+        _jwks_cache["unknown_kid_refreshed_at"] = now
         _jwks_cache["keys"] = _fetch_jwks()
         _jwks_cache["fetched_at"] = now
         key = next((k for k in _jwks_cache["keys"] if k.get("kid") == kid), None)
@@ -45,7 +47,7 @@ def decode_supabase_token(token: str) -> dict[str, Any]:
     settings = get_settings()
     try:
         unverified_header = jwt.get_unverified_header(token)
-        signing_key = _get_signing_key(unverified_header["kid"])
+        signing_key = _get_signing_key(unverified_header.get("kid"))
         return jwt.decode(
             token,
             signing_key,
