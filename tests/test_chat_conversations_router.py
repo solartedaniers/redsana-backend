@@ -12,6 +12,7 @@ from app.core.database import get_db
 from app.core.ai_composition import get_chat_engine
 from app.core.security import get_current_claims
 from app.main import app
+from app.routers import chat_conversations
 from app.models.base import Base
 from app.models.role import Role
 
@@ -316,3 +317,29 @@ def test_correct_family_dns_replies_have_no_notice():
         app.dependency_overrides.clear()
         Base.metadata.drop_all(engine)
 
+
+def test_the_router_asks_the_composition_root_for_the_assistant(monkeypatch):
+    """El router no arma el asistente: lo pide a ai_composition con la zona horaria que mandó el navegador."""
+    requested_offsets = []
+    real_build = chat_conversations.build_security_assistant
+
+    def spy(gateway, db, utc_offset_minutes):
+        requested_offsets.append(utc_offset_minutes)
+        return real_build(gateway, db, utc_offset_minutes)
+
+    monkeypatch.setattr(chat_conversations, "build_security_assistant", spy)
+    client, engine = _make_client(_StubGroqClient(reply="hola"))
+    try:
+        conversation_id = client.post("/api/chat-conversations", headers={"Authorization": "Bearer fake"}).json()["id"]
+
+        sent = client.post(
+            f"/api/chat-conversations/{conversation_id}/messages",
+            json={"message": "hola", "utc_offset_minutes": 300},
+            headers={"Authorization": "Bearer fake"},
+        )
+
+        assert sent.status_code == 200
+        assert requested_offsets == [300]
+    finally:
+        app.dependency_overrides.clear()
+        Base.metadata.drop_all(engine)

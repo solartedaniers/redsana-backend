@@ -1,5 +1,9 @@
-"""Sin base ni red: AI_MODE elige el gateway en el único punto de composición."""
+"""Sin base ni red: AI_MODE elige el gateway en el único punto de composición, que también arma el asistente del chat."""
+from datetime import timedelta, timezone
+
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 from redsana_ai import ChatEngine, ChatTurn, IsolationForestAnomalyDetector, StreakOutageDetector
 
 from app.ai_gateway.local_ai_gateway import LocalAiGateway
@@ -65,3 +69,19 @@ def test_remote_mode_background_detectors_are_windowed(monkeypatch: pytest.Monke
 
     assert isinstance(ai_composition.build_anomaly_detector(), WindowedAnomalyDetector)
     assert isinstance(ai_composition.build_outage_detector(), WindowedOutageDetector)
+
+
+def test_the_chat_assistant_is_built_here_with_the_gateway_ai_and_the_browser_timezone() -> None:
+    gateway = LocalAiGateway(lambda: _EchoEngine())
+    with Session(create_engine("sqlite://")) as db:
+        assistant = ai_composition.build_security_assistant(gateway, db, utc_offset_minutes=300)
+
+        context = assistant._context_builder
+        assert type(assistant._chat) is type(gateway.security_chat())
+        assert type(assistant._briefing) is type(gateway.security_briefing())
+        # getTimezoneOffset() de Colombia es 300: UTC-5.
+        assert context._user_timezone == timezone(timedelta(hours=-5))
+        assert all(
+            repository._db is db
+            for repository in (context._device_repository, context._alert_repository, context._network_metrics_repository)
+        )

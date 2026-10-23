@@ -3,6 +3,7 @@ from functools import lru_cache
 
 from fastapi import Depends
 from redsana_ai import AnomalyDetector, ChatEngine, GroqClient, OutageDetector
+from sqlalchemy.orm import Session
 
 from app.ai_gateway.ai_gateway import AiGateway
 from app.ai_gateway.ai_service_client import AiServiceClient
@@ -10,6 +11,15 @@ from app.ai_gateway.interactive_usage_window import InteractiveUsageWindow
 from app.ai_gateway.local_ai_gateway import LocalAiGateway
 from app.ai_gateway.remote_ai_gateway import RemoteAiGateway, WarmUpSchedule
 from app.core.config import get_settings
+from app.domain.user_timezone import timezone_from_browser_offset
+from app.repositories.alert_sqlalchemy_repository import SqlAlchemyAlertRepository
+from app.repositories.device_sqlalchemy_repository import SqlAlchemyDeviceRepository
+from app.repositories.network_metrics_sqlalchemy_repository import SqlAlchemyNetworkMetricsRepository
+from app.repositories.security_assessment_sqlalchemy_repository import SqlAlchemySecurityAssessmentRepository
+from app.services.network_security_score_service import default_network_security_score_service
+from app.services.security_assessment_service import SecurityAssessmentService
+from app.services.security_assistant_service import SecurityAssistantService
+from app.services.security_chat_context_service import SecurityChatContextBuilder
 
 
 def get_chat_engine() -> ChatEngine:
@@ -76,3 +86,22 @@ def build_anomaly_detector() -> AnomalyDetector:
 
 def build_outage_detector() -> OutageDetector:
     return build_ai_gateway().outage_detector()
+
+
+def build_security_assessment_service(db: Session) -> SecurityAssessmentService:
+    return SecurityAssessmentService(SqlAlchemySecurityAssessmentRepository(db), default_network_security_score_service())
+
+
+def build_security_assistant(gateway: AiGateway, db: Session, utc_offset_minutes: int) -> SecurityAssistantService:
+    """El asistente del chat: la IA del gateway más el contexto de la red del usuario, con las horas en su zona."""
+    return SecurityAssistantService(
+        gateway.security_chat(),
+        gateway.security_briefing(),
+        SecurityChatContextBuilder(
+            device_repository=SqlAlchemyDeviceRepository(db),
+            alert_repository=SqlAlchemyAlertRepository(db),
+            network_metrics_repository=SqlAlchemyNetworkMetricsRepository(db),
+            security_assessment_service=build_security_assessment_service(db),
+            user_timezone=timezone_from_browser_offset(utc_offset_minutes),
+        )
+    )

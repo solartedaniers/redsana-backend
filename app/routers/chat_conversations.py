@@ -10,19 +10,14 @@ from sqlalchemy.orm import Session
 from app.ai_gateway.ai_gateway import AiGateway
 from app.ai_gateway.ai_service_errors import AiServiceUnavailableError
 from app.core.authorization import get_current_user
-from app.core.ai_composition import get_ai_gateway
+from app.core.ai_composition import build_security_assessment_service, build_security_assistant, get_ai_gateway
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_current_claims, owner_id_from_claims
-from app.domain.user_timezone import timezone_from_browser_offset
 from app.models.chat_conversation import ChatConversation
 from app.models.chat_message import ChatMessage
-from app.repositories.alert_sqlalchemy_repository import SqlAlchemyAlertRepository
 from app.repositories.chat_conversation_sqlalchemy_repository import SqlAlchemyChatConversationRepository
 from app.repositories.chat_message_sqlalchemy_repository import SqlAlchemyChatMessageRepository
-from app.repositories.device_sqlalchemy_repository import SqlAlchemyDeviceRepository
-from app.repositories.network_metrics_sqlalchemy_repository import SqlAlchemyNetworkMetricsRepository
-from app.repositories.security_assessment_sqlalchemy_repository import SqlAlchemySecurityAssessmentRepository
 from app.schemas.chat_conversation import (
     ChatBriefingRead,
     ChatBriefingRequest,
@@ -38,10 +33,6 @@ from app.services.chat_conversation_service import (
     ChatConversationNotFoundError,
     ChatConversationService,
 )
-from app.services.network_security_score_service import default_network_security_score_service
-from app.services.security_assessment_service import SecurityAssessmentService
-from app.services.security_assistant_service import SecurityAssistantService
-from app.services.security_chat_context_service import SecurityChatContextBuilder
 
 logger = logging.getLogger(__name__)
 CHAT_ENGINE_UNAVAILABLE_DETAIL = "Chat engine unavailable"
@@ -83,24 +74,6 @@ def _ai_warming_up(error: AiServiceUnavailableError) -> HTTPException:
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail=AI_WARMING_UP_DETAIL,
         headers={"Retry-After": str(retry_after)},
-    )
-
-
-def _assessment_service(db: Session) -> SecurityAssessmentService:
-    return SecurityAssessmentService(SqlAlchemySecurityAssessmentRepository(db), default_network_security_score_service())
-
-
-def _build_assistant(gateway: AiGateway, db: Session, utc_offset_minutes: int) -> SecurityAssistantService:
-    return SecurityAssistantService(
-        gateway.security_chat(),
-        gateway.security_briefing(),
-        SecurityChatContextBuilder(
-            device_repository=SqlAlchemyDeviceRepository(db),
-            alert_repository=SqlAlchemyAlertRepository(db),
-            network_metrics_repository=SqlAlchemyNetworkMetricsRepository(db),
-            security_assessment_service=_assessment_service(db),
-            user_timezone=timezone_from_browser_offset(utc_offset_minutes),
-        )
     )
 
 
@@ -166,7 +139,7 @@ def send_message(
     db: Session = Depends(get_db),
     service: ChatConversationService = Depends(_get_service),
 ) -> ChatSendMessageResponse:
-    assistant = _build_assistant(gateway, db, payload.utc_offset_minutes)
+    assistant = build_security_assistant(gateway, db, payload.utc_offset_minutes)
     try:
         outcome = service.send_message(conversation_id, owner_id_from_claims(claims), payload.message, assistant)
     except ChatConversationNotFoundError as error:
@@ -190,14 +163,14 @@ def start_assessment_briefing(
 ) -> ChatBriefingRead:
     """Primer mensaje del asistente tras una evaluación; si se pide de nuevo devuelve el mismo sin llamar al modelo."""
     owner_id = owner_id_from_claims(claims)
-    latest = _assessment_service(db).get_latest_assessment(owner_id)
+    latest = build_security_assessment_service(db).get_latest_assessment(owner_id)
     try:
         briefing = service.start_assessment_briefing(
             owner_id,
             payload.assessment_id,
             latest.id if latest else None,
             payload.language,
-            _build_assistant(gateway, db, payload.utc_offset_minutes),
+            build_security_assistant(gateway, db, payload.utc_offset_minutes),
         )
     except AssessmentNotBriefableError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found") from error
