@@ -6,12 +6,20 @@ from typing import Any
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import jwt
-from jose.exceptions import JWTError
+import jwt
 
 from app.core.config import get_settings
 
 _bearer_scheme = HTTPBearer()
+
+# Supabase firma con ES256. Fijo aquí y no tomado del JWKS ni del token: así nadie elige el algoritmo.
+_ALGORITHMS = ["ES256"]
+_DECODE_OPTIONS = {
+    "require": ["exp", "aud"],
+    # PyJWT rechaza un iat en el futuro; python-jose no lo hacía. Con relojes un poco desfasados entre Supabase y
+    # Render, eso dejaría fuera a quien acaba de iniciar sesión. Sí se exige que sea un número (ver abajo).
+    "verify_iat": False,
+}
 
 _jwks_cache: dict[str, Any] = {"keys": [], "fetched_at": 0.0, "unknown_kid_refreshed_at": 0.0}
 
@@ -48,14 +56,18 @@ def decode_supabase_token(token: str) -> dict[str, Any]:
     try:
         unverified_header = jwt.get_unverified_header(token)
         signing_key = _get_signing_key(unverified_header.get("kid"))
-        return jwt.decode(
+        claims = jwt.decode(
             token,
-            signing_key,
-            algorithms=[signing_key.get("alg", "ES256")],
+            jwt.PyJWK(signing_key).key,
+            algorithms=_ALGORITHMS,
             audience=settings.supabase_jwt_audience,
+            options=_DECODE_OPTIONS,
         )
-    except JWTError as error:
+    except jwt.PyJWTError as error:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from error
+    if not isinstance(claims.get("iat", 0), (int, float)):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    return claims
 
 
 def get_current_claims(

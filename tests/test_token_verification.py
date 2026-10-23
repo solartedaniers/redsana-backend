@@ -5,12 +5,14 @@ import hashlib
 import hmac
 import json
 import time
+from datetime import datetime
 
+import jwt
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi import HTTPException
-from jose import jwk, jwt
+from jwt.algorithms import ECAlgorithm
 
 from app.core import security
 from app.core.config import get_settings
@@ -25,10 +27,7 @@ def _key_pair(kid: str) -> tuple[bytes, dict]:
     private_pem = private.private_bytes(
         serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
     )
-    public_pem = private.public_key().public_bytes(
-        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
-    )
-    return private_pem, {**jwk.construct(public_pem, "ES256").to_dict(), "kid": kid, "alg": "ES256"}
+    return private_pem, {**ECAlgorithm.to_jwk(private.public_key(), as_dict=True), "kid": kid, "alg": "ES256"}
 
 
 PRIVATE_PEM, PUBLIC_JWK = _key_pair(KID)
@@ -61,7 +60,12 @@ def jwks(monkeypatch):
     monkeypatch.setattr(security, "_fetch_jwks", fetch)
     monkeypatch.setattr(security.time, "time", lambda: state["now"])
     # Firmas y vencimiento se validan contra la hora simulada, igual que el caché.
-    monkeypatch.setattr("jose.jwt.timegm", lambda _: int(state["now"]))
+    class _SimulatedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime.fromtimestamp(state["now"], tz)
+
+    monkeypatch.setattr(jwt.api_jwt, "datetime", _SimulatedDatetime)
     monkeypatch.setattr(security, "_jwks_cache", {"keys": [], "fetched_at": 0.0, "unknown_kid_refreshed_at": 0.0})
     return state
 
@@ -85,8 +89,10 @@ def test_an_expired_token_is_rejected(jwks) -> None:
 
 
 def test_an_hs256_token_forged_with_the_public_key_is_rejected(jwks) -> None:
-    """El ataque de CVE-2026-85394: firmar con HMAC usando la clave pública como secreto. El algoritmo sale del JWKS."""
-    public_pem = jwk.construct(PUBLIC_JWK, "ES256").to_pem()
+    """El ataque de CVE-2026-85394: firmar con HMAC usando la clave pública como secreto. El algoritmo es ES256 fijo."""
+    public_pem = ECAlgorithm.from_jwk(PUBLIC_JWK).public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
     header = _b64(json.dumps({"alg": "HS256", "typ": "JWT", "kid": KID}).encode())
     payload = _b64(json.dumps(_claims()).encode())
     signature = _b64(hmac.new(public_pem, f"{header}.{payload}".encode(), hashlib.sha256).digest())
@@ -122,3 +128,43 @@ def test_a_rotated_key_is_still_picked_up_on_the_first_request(jwks) -> None:
 
     assert claims["sub"] == _claims()["sub"]
     assert jwks["fetches"] == 2
+
+
+def _token_without(claim: str) -> str:
+    claims = _claims()
+    del claims[claim]
+    return jwt.encode(claims, PRIVATE_PEM, algorithm="ES256", headers={"kid": KID})
+
+
+# Con python-jose estos tokens (todos firmados por la clave válida) se aceptaban o daban 500; con PyJWT no.
+def test_a_token_without_audience_is_rejected(jwks) -> None:
+    assert _rejected(_token_without("aud"))
+
+
+def test_a_token_without_expiration_is_rejected(jwks) -> None:
+    assert _rejected(_token_without("exp"))
+
+
+def test_a_token_expiring_this_very_second_is_rejected(jwks) -> None:
+    # python-jose comparaba contra segundos enteros y lo aceptaba hasta un segundo más.
+    assert _rejected(_token(exp=int(NOW)))
+
+
+def test_a_token_with_a_crit_header_is_rejected(jwks) -> None:
+    token = jwt.encode(_claims(), PRIVATE_PEM, algorithm="ES256", headers={"kid": KID, "crit": ["exp"]})
+
+    assert _rejected(token)
+
+
+def test_a_null_expiration_or_issued_at_is_401_not_a_server_error(jwks) -> None:
+    assert _rejected(_token(exp=None))
+    assert _rejected(_token(iat=None))
+
+
+def test_an_issued_at_that_is_not_a_number_is_rejected(jwks) -> None:
+    assert _rejected(_token(iat="ayer"))
+
+
+def test_an_issued_at_slightly_in_the_future_is_still_accepted(jwks) -> None:
+    """Igual que con python-jose: el reloj de Render puede ir detrás del de Supabase."""
+    assert security.decode_supabase_token(_token(iat=int(NOW) + 60))["sub"] == _claims()["sub"]

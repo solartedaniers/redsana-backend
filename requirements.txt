@@ -5,7 +5,8 @@ alembic==1.20.0
 psycopg2-binary==2.9.13
 pydantic==2.13.5
 pydantic-settings==2.15.0
-python-jose[cryptography]==3.5.0
+PyJWT[crypto]==2.15.1
+cryptography==50.0.2
 python-dotenv==1.2.3
 httpx2==2.13.0
 redsana-ai @ git+https://github.com/solartedaniers/redsana-ai.git@v0.1.0
