@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.core.authorization import require_admin
+from app.core.authorization import get_current_user, require_admin
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.main import app
@@ -37,6 +37,8 @@ def _client(test_alerts_enabled: bool):
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[require_admin] = lambda: SimpleNamespace(id=uuid.uuid4())
+    # Guarda de cuenta suspendida del router: aquí solo importa el interruptor de configuración.
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=uuid.uuid4(), is_active=True)
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace(enable_test_alerts_endpoint=test_alerts_enabled)
     return TestClient(app), engine
 

@@ -3,6 +3,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.core.authorization import get_current_user
 from app.core.database import get_db
 from app.core.security import get_current_claims
 from app.models.user import User
@@ -34,11 +35,8 @@ def _get_service(db: Session = Depends(get_db)) -> UserService:
 
 @router.get(CURRENT_USER_PATH, response_model=UserRead)
 @router.get(LEGACY_CURRENT_USER_PATH, response_model=UserRead, include_in_schema=False)
-def read_current_user(
-    claims: dict[str, Any] = Depends(get_current_claims),
-    service: UserService = Depends(_get_service),
-) -> UserRead:
-    user = service.get_or_create_current_user(claims)
+def read_current_user(user: User = Depends(get_current_user)) -> UserRead:
+    """Si la cuenta está suspendida responde 403: así lo detectan el login y la restauración de la sesión."""
     return _to_user_read(user)
 
 
@@ -48,6 +46,7 @@ def update_current_user(
     payload: UserUpdate,
     claims: dict[str, Any] = Depends(get_current_claims),
     service: UserService = Depends(_get_service),
+    _active_user: User = Depends(get_current_user),
 ) -> UserRead:
     user = service.update_current_user(claims, payload)
     return _to_user_read(user)

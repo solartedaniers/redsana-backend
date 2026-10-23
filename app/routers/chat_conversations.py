@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.ai_gateway.ai_gateway import AiGateway
 from app.ai_gateway.ai_service_errors import AiServiceUnavailableError
+from app.core.authorization import get_current_user
 from app.core.ai_composition import get_ai_gateway
 from app.core.config import get_settings
 from app.core.database import get_db
@@ -48,7 +49,8 @@ CHAT_ENGINE_UNAVAILABLE_DETAIL = "Chat engine unavailable"
 AI_WARMING_UP_DETAIL = "ai_warming_up"
 
 # Sin prefijo propio: main.py lo monta en el nombre nuevo y, oculto en /docs, en el anterior.
-router = APIRouter(tags=["chat-conversations"])
+# Cuenta suspendida: 403 en todo el router, no solo donde se usa el perfil (get_current_user lo comprueba).
+router = APIRouter(tags=["chat-conversations"], dependencies=[Depends(get_current_user)])
 
 CHAT_CONVERSATIONS_PREFIX = "/api/chat-conversations"
 # Nombre anterior: lo siguen usando el instalador 0.1.5 y la web ya desplegada.

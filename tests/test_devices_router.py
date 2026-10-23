@@ -12,6 +12,7 @@ from app.core.database import get_db
 from app.core.security import get_current_claims
 from app.main import app
 from app.models.base import Base
+from app.models.role import Role
 from app.repositories.device_sqlalchemy_repository import SqlAlchemyDeviceRepository
 
 OWNER_ID = uuid.uuid4()
@@ -24,6 +25,9 @@ def setup():
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     with session_factory() as db:
+        # El router pasa por get_current_user (cuenta suspendida), que crea el usuario con el rol por defecto.
+        db.add(Role(id=1, name="standard"))
+        db.commit()
         repository = SqlAlchemyDeviceRepository(db)
         # Los dos los vio el mismo escaneo: ambos en línea.
         ids = [

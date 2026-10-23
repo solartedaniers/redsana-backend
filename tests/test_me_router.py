@@ -3,25 +3,43 @@ import uuid
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
+from app.core.database import get_db
 from app.core.security import get_current_claims
 from app.main import app
-from app.routers import me
-from app.services.user_service import UserService
-from tests.test_user_service import FakeUserRepository
+from app.models.base import Base
+from app.models.role import Role
 
 CLAIMS = {"sub": str(uuid.uuid4()), "email": "owner@example.com"}
 
 
 @pytest.fixture()
 def client():
-    service = UserService(FakeUserRepository())
+    # SQLite en memoria con los roles: /api/users/me pasa por get_current_user, que crea el usuario en la base.
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    with session_factory() as db:
+        db.add_all([Role(id=1, name="standard"), Role(id=2, name="admin")])
+        db.commit()
+
+    def override_get_db():
+        db = session_factory()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_claims] = lambda: CLAIMS
-    app.dependency_overrides[me._get_service] = lambda: service
     try:
         yield TestClient(app)
     finally:
         app.dependency_overrides.clear()
+        Base.metadata.drop_all(engine)
 
 
 @pytest.mark.parametrize("path", ["/api/users/me", "/api/me"])

@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.core.authorization import require_admin
+from app.core.authorization import get_current_user, require_admin
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.security import get_current_claims, owner_id_from_claims
@@ -15,7 +15,8 @@ from app.repositories.alert_sqlalchemy_repository import SqlAlchemyAlertReposito
 from app.schemas.alert import AlertCreate, AlertRead
 from app.services.alert_service import AlertNotFoundError, AlertService
 
-router = APIRouter(prefix="/api/alerts", tags=["alerts"])
+# Cuenta suspendida: 403 en todo el router, no solo donde se usa el perfil (get_current_user lo comprueba).
+router = APIRouter(prefix="/api/alerts", tags=["alerts"], dependencies=[Depends(get_current_user)])
 
 RECENT_ALERTS_PATH = "/recent"
 # Nombre anterior ("new" parecía crear una alerta); lo siguen usando el instalador 0.1.5 y la web ya desplegada.

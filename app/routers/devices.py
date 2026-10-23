@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.authorization import get_current_user
 from app.core.database import get_db
 from app.core.security import get_current_claims, owner_id_from_claims
 from app.domain.device_presence import (
@@ -20,7 +21,8 @@ from app.schemas.device import DeviceCreate, DeviceRead, DeviceSyncRequest, Devi
 from app.services.device_service import DeviceNotFoundError, DeviceService
 from app.services.untrusted_device_alert_service import UntrustedDeviceAlertService
 
-router = APIRouter(prefix="/api/devices", tags=["devices"])
+# Cuenta suspendida: 403 en todo el router, no solo donde se usa el perfil (get_current_user lo comprueba).
+router = APIRouter(prefix="/api/devices", tags=["devices"], dependencies=[Depends(get_current_user)])
 
 
 def _to_device_read(
