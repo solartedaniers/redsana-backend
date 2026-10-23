@@ -117,4 +117,4 @@ Para probar cambios de la IA sin publicar un tag, instala tu copia local encima:
 
 ## Despliegue
 
-`render.yaml` describe el servicio de Render: build `pip install -r requirements.txt`, inicio con `uvicorn` y las variables secretas (`sync: false`) se cargan en el panel de Render. `AI_MODE` queda en `local`; para pasar al servicio de IA se cambia a `remote` en el panel junto con `AI_SERVICE_URL` y `AI_SERVICE_API_KEY`, y volver atrás es poner `local` otra vez.
+`render.yaml` describe el servicio de Render como corre en producción: build `pip install -r requirements.txt`, inicio con `uvicorn`, `AI_MODE=remote` con `AI_SERVICE_URL` del servicio de IA y un calentamiento de hasta 600 s. Los secretos (`DATABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NETWORK_ID_SECRET`, `AI_SERVICE_API_KEY`, `GROQ_API_KEY`) van con `sync: false`: su valor solo vive en el panel de Render. Para volver al modo local basta poner `AI_MODE=local` en el panel (exige `GROQ_API_KEY`).
