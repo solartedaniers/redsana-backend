@@ -11,7 +11,8 @@ from app.ai_gateway.ai_service_errors import AiServiceRejectedError, AiServiceUn
 from app.ai_gateway.interactive_usage_window import InteractiveUsageWindow
 from app.ai_gateway.local_ai_gateway import LocalAiGateway
 from app.ai_gateway.remote_ai_adapters import RemoteSecurityBriefing, RemoteSecurityChat
-from app.ai_gateway.remote_ai_gateway import RemoteAiGateway, WarmUpSchedule
+from app.ai_gateway.remote_ai_gateway import RemoteAiGateway
+from app.ai_gateway.warm_up_controller import WarmUpSchedule
 from app.ai_gateway.windowed_detectors import WindowedAnomalyDetector, WindowedOutageDetector
 from app.core.ai_composition import get_ai_gateway
 from app.core.security import get_current_claims
@@ -189,7 +190,7 @@ def test_warm_up_gives_up_at_its_deadline_as_timed_out_with_a_capped_backoff(cap
     window = InteractiveUsageWindow(600, clock=fake_time.clock)
     gateway = _gateway(status_client, fake_time, window)
 
-    with caplog.at_level("INFO", logger="app.ai_gateway.remote_ai_gateway"):
+    with caplog.at_level("INFO", logger="app.ai_gateway.warm_up_controller"):
         gateway.start_warm_up()
 
     assert 300 <= fake_time.now <= 301

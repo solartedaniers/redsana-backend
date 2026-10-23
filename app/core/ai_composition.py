@@ -9,7 +9,8 @@ from app.ai_gateway.ai_gateway import AiGateway
 from app.ai_gateway.ai_service_client import AiServiceClient
 from app.ai_gateway.interactive_usage_window import InteractiveUsageWindow
 from app.ai_gateway.local_ai_gateway import LocalAiGateway
-from app.ai_gateway.remote_ai_gateway import RemoteAiGateway, WarmUpSchedule
+from app.ai_gateway.remote_ai_gateway import RemoteAiGateway
+from app.ai_gateway.warm_up_controller import WarmUpSchedule
 from app.core.config import get_settings
 from app.domain.user_timezone import timezone_from_browser_offset
 from app.repositories.alert_sqlalchemy_repository import SqlAlchemyAlertRepository
