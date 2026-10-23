@@ -42,6 +42,10 @@ app.include_router(alerts.router)
 app.include_router(admin_households.router)
 app.include_router(admin_users.router)
 app.include_router(security_assessments.router)
-app.include_router(admin_metrics.router)
-app.include_router(chat_conversations.router)
+app.include_router(admin_metrics.router, prefix=admin_metrics.PLATFORM_METRICS_PREFIX)
+app.include_router(admin_metrics.router, prefix=admin_metrics.LEGACY_PLATFORM_METRICS_PREFIX, include_in_schema=False)
+app.include_router(chat_conversations.router, prefix=chat_conversations.CHAT_CONVERSATIONS_PREFIX)
+app.include_router(
+    chat_conversations.router, prefix=chat_conversations.LEGACY_CHAT_CONVERSATIONS_PREFIX, include_in_schema=False
+)
 app.include_router(ai.router)

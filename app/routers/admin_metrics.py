@@ -14,7 +14,12 @@ from app.services.admin_metrics_service import AdminMetricsService
 from app.services.network_security_score_service import default_network_security_score_service
 from app.services.network_supervision_service import NetworkSupervisionService
 
-router = APIRouter(prefix="/api/admin/metrics", tags=["admin"])
+# Sin prefijo propio: main.py lo monta en el nombre nuevo y, oculto en /docs, en el anterior.
+router = APIRouter(tags=["admin"])
+
+PLATFORM_METRICS_PREFIX = "/api/admin/platform-metrics"
+# Nombre anterior ("metrics" se confundía con las métricas de red); lo usa la web ya desplegada.
+LEGACY_PLATFORM_METRICS_PREFIX = "/api/admin/metrics"
 
 
 @router.get("", response_model=AdminPlatformMetricsRead)

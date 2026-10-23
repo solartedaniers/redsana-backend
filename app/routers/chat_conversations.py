@@ -47,7 +47,12 @@ CHAT_ENGINE_UNAVAILABLE_DETAIL = "Chat engine unavailable"
 # Lo lee el frontend para mostrar "IA encendiendo" en vez de un error.
 AI_WARMING_UP_DETAIL = "ai_warming_up"
 
-router = APIRouter(prefix="/api/conversations", tags=["conversations"])
+# Sin prefijo propio: main.py lo monta en el nombre nuevo y, oculto en /docs, en el anterior.
+router = APIRouter(tags=["chat-conversations"])
+
+CHAT_CONVERSATIONS_PREFIX = "/api/chat-conversations"
+# Nombre anterior: lo siguen usando el instalador 0.1.5 y la web ya desplegada.
+LEGACY_CHAT_CONVERSATIONS_PREFIX = "/api/conversations"
 
 
 def _to_conversation_read(conversation: ChatConversation) -> ChatConversationRead:

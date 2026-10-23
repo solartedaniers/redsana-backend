@@ -17,6 +17,10 @@ from app.services.alert_service import AlertNotFoundError, AlertService
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
+RECENT_ALERTS_PATH = "/recent"
+# Nombre anterior ("new" parecía crear una alerta); lo siguen usando el instalador 0.1.5 y la web ya desplegada.
+LEGACY_RECENT_ALERTS_PATH = "/new"
+
 
 def _to_alert_read(alert: Alert) -> AlertRead:
     return AlertRead(
@@ -49,8 +53,9 @@ def list_alerts(
     return [_to_alert_read(alert) for alert in alerts]
 
 
-@router.get("/new", response_model=list[AlertRead])
-def list_new_alerts(
+@router.get(RECENT_ALERTS_PATH, response_model=list[AlertRead])
+@router.get(LEGACY_RECENT_ALERTS_PATH, response_model=list[AlertRead], include_in_schema=False)
+def list_recent_alerts(
     since: datetime = Query(...),
     claims: dict[str, Any] = Depends(get_current_claims),
     service: AlertService = Depends(_get_service),

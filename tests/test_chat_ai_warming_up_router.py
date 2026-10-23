@@ -58,16 +58,16 @@ def _client_with(error: Exception):
 def test_a_sleeping_ai_service_makes_the_chat_answer_warming_up():
     client, engine = _client_with(AiServiceUnavailableError("asleep"))
     try:
-        conversation_id = client.post("/api/conversations", headers=AUTH).json()["id"]
+        conversation_id = client.post("/api/chat-conversations", headers=AUTH).json()["id"]
 
-        response = client.post(f"/api/conversations/{conversation_id}/messages", json={"message": "hola"}, headers=AUTH)
+        response = client.post(f"/api/chat-conversations/{conversation_id}/messages", json={"message": "hola"}, headers=AUTH)
 
         assert response.status_code == 503
         assert response.json() == {"detail": "ai_warming_up"}
         assert int(response.headers["Retry-After"]) >= 1
         # Nada quedó guardado: al reintentar cuando la IA esté lista la pregunta no aparece dos veces.
-        assert client.get(f"/api/conversations/{conversation_id}/messages", headers=AUTH).json() == []
-        assert client.get("/api/conversations", headers=AUTH).json()[0]["title"] is None
+        assert client.get(f"/api/chat-conversations/{conversation_id}/messages", headers=AUTH).json() == []
+        assert client.get("/api/chat-conversations", headers=AUTH).json()[0]["title"] is None
     finally:
         app.dependency_overrides.clear()
         Base.metadata.drop_all(engine)
@@ -79,12 +79,12 @@ def test_a_sleeping_ai_service_makes_the_briefing_answer_warming_up_and_leaves_n
         assessment = _submit_assessment(client)
 
         response = client.post(
-            "/api/conversations/briefings", json={"assessment_id": assessment["id"], "language": "es"}, headers=AUTH
+            "/api/chat-conversations/briefings", json={"assessment_id": assessment["id"], "language": "es"}, headers=AUTH
         )
 
         assert response.status_code == 503
         assert response.json() == {"detail": "ai_warming_up"}
-        assert client.get("/api/conversations", headers=AUTH).json() == []
+        assert client.get("/api/chat-conversations", headers=AUTH).json() == []
     finally:
         app.dependency_overrides.clear()
         Base.metadata.drop_all(engine)
@@ -93,9 +93,9 @@ def test_a_sleeping_ai_service_makes_the_briefing_answer_warming_up_and_leaves_n
 def test_a_chat_engine_failure_inside_the_service_is_still_a_502():
     client, engine = _client_with(AiServiceChatEngineError("groq down"))
     try:
-        conversation_id = client.post("/api/conversations", headers=AUTH).json()["id"]
+        conversation_id = client.post("/api/chat-conversations", headers=AUTH).json()["id"]
 
-        response = client.post(f"/api/conversations/{conversation_id}/messages", json={"message": "hola"}, headers=AUTH)
+        response = client.post(f"/api/chat-conversations/{conversation_id}/messages", json={"message": "hola"}, headers=AUTH)
 
         assert response.status_code == 502
         assert "groq down" not in response.text

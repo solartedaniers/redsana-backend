@@ -82,6 +82,19 @@ En modo remoto:
 
 Todas las variables están documentadas en `.env.example`.
 
+## Nombres de rutas
+
+Las rutas usan sustantivos en inglés, en plural y con guiones. Estas cambiaron de nombre; el anterior sigue respondiendo igual (misma autenticación, mismo CORS) como alias oculto en `/docs`, porque lo usan el instalador 0.1.5 y la web ya desplegada:
+
+| Nombre actual | Alias anterior |
+|---|---|
+| `GET, PATCH /api/users/me` | `/api/me` |
+| `/api/chat-conversations/...` (lista, creación, mensajes, resumen `briefings`) | `/api/conversations/...` |
+| `GET /api/alerts/recent?since=` | `/api/alerts/new` |
+| `GET /api/admin/platform-metrics` | `/api/admin/metrics` |
+
+`tests/test_route_aliases.py` comprueba que ambos nombres responden lo mismo. Los alias se pueden quitar cuando ya no quede ningún instalador 0.1.5 en uso.
+
 ## Versión de la IA
 
 `redsana-ai` se instala desde su repositorio de GitHub, fijado a un tag en `requirements.txt`:
