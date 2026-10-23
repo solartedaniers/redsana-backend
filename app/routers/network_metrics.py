@@ -14,7 +14,12 @@ from app.models.user import User
 from app.repositories.alert_sqlalchemy_repository import SqlAlchemyAlertRepository
 from app.repositories.network_metrics_sqlalchemy_repository import SqlAlchemyNetworkMetricsRepository
 from app.schemas.network_anomaly import AnomalyStatusRead
-from app.schemas.network_metrics import NetworkMetricSampleRead, NetworkMetricSnapshotCreate, NetworkMetricSnapshotRead
+from app.schemas.network_metrics import (
+    NetworkMetricSampleRead,
+    NetworkMetricSnapshotCreate,
+    NetworkMetricSnapshotRead,
+    NetworkStatusThresholdsRead,
+)
 from app.services.network_anomaly_service import AnomalyStatus, NetworkAnomalyService
 from app.services.network_metrics_service import NetworkMetricsService
 from app.services.outage_detection_service import OutageDetectionService
@@ -93,6 +98,18 @@ def get_history(
 ) -> list[NetworkMetricSampleRead]:
     snapshots = service.get_history(_resolve_target_owner_id(user, user_id), from_, to)
     return [NetworkMetricSampleRead(timestamp=s.recorded_at, latency_ms=s.latency_ms) for s in snapshots]
+
+
+@router.get("/thresholds", response_model=NetworkStatusThresholdsRead)
+def get_status_thresholds(_user: User = Depends(get_current_user)) -> NetworkStatusThresholdsRead:
+    """Solo lectura: los mismos umbrales con que se calcula el estado de cada medición nueva."""
+    thresholds = get_settings().network_status_thresholds
+    return NetworkStatusThresholdsRead(
+        latency_warning_ms=thresholds.latency_warning_ms,
+        latency_critical_ms=thresholds.latency_critical_ms,
+        packet_loss_warning_percent=thresholds.packet_loss_warning_percent,
+        packet_loss_critical_percent=thresholds.packet_loss_critical_percent,
+    )
 
 
 @router.get("/anomaly-status", response_model=AnomalyStatusRead)

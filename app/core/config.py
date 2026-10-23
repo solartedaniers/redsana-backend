@@ -4,6 +4,8 @@ from typing import Literal
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.domain.network_status import NetworkStatusThresholds
+
 
 class Settings(BaseSettings):
     """Configuración de la aplicación, cargada desde las variables de entorno (.env)."""
@@ -16,6 +18,12 @@ class Settings(BaseSettings):
     jwks_cache_ttl_seconds: int = 3600
     cors_origins: str = ""
     network_metrics_default_history_hours: int = 24
+    # Umbrales del estado de cada medición (advertencia / crítica). Cambiarlos solo afecta a las mediciones nuevas: el
+    # estado se guarda al registrar cada una y las viejas no se recalculan.
+    network_status_latency_warning_ms: float = 80
+    network_status_latency_critical_ms: float = 150
+    network_status_packet_loss_warning_percent: float = 1
+    network_status_packet_loss_critical_percent: float = 5
     supabase_service_role_key: str
     # Solo la exige el modo local (ver _require_ai_mode_settings); en modo remoto Groq vive en el servicio de IA.
     groq_api_key: str = ""
@@ -68,6 +76,27 @@ class Settings(BaseSettings):
         if self.ai_mode == "remote" and not (self.ai_service_url and self.ai_service_api_key):
             raise ValueError("AI_SERVICE_URL and AI_SERVICE_API_KEY are required when AI_MODE=remote")
         return self
+
+    @model_validator(mode="after")
+    def _require_ordered_network_status_thresholds(self) -> "Settings":
+        thresholds = self.network_status_thresholds
+        if not 0 < thresholds.latency_warning_ms <= thresholds.latency_critical_ms:
+            raise ValueError("NETWORK_STATUS_LATENCY_WARNING_MS must be > 0 and <= NETWORK_STATUS_LATENCY_CRITICAL_MS")
+        if not 0 < thresholds.packet_loss_warning_percent <= thresholds.packet_loss_critical_percent <= 100:
+            raise ValueError(
+                "NETWORK_STATUS_PACKET_LOSS_WARNING_PERCENT must be > 0 and <= "
+                "NETWORK_STATUS_PACKET_LOSS_CRITICAL_PERCENT, which must be <= 100"
+            )
+        return self
+
+    @property
+    def network_status_thresholds(self) -> NetworkStatusThresholds:
+        return NetworkStatusThresholds(
+            latency_warning_ms=self.network_status_latency_warning_ms,
+            latency_critical_ms=self.network_status_latency_critical_ms,
+            packet_loss_warning_percent=self.network_status_packet_loss_warning_percent,
+            packet_loss_critical_percent=self.network_status_packet_loss_critical_percent,
+        )
 
     @property
     def supabase_jwks_url(self) -> str:

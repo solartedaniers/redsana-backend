@@ -17,6 +17,15 @@ class NetworkMetricSnapshotRead(BaseModel):
     source: MeasurementSource | None = None
 
 
+class NetworkStatusThresholdsRead(BaseModel):
+    """Los umbrales con que el backend calcula el estado; el frontend los usa para colorear el historial."""
+
+    latency_warning_ms: float
+    latency_critical_ms: float
+    packet_loss_warning_percent: float
+    packet_loss_critical_percent: float
+
+
 class NetworkMetricSampleRead(BaseModel):
     timestamp: datetime
     latency_ms: float

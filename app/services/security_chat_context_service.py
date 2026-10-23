@@ -2,15 +2,10 @@ import uuid
 from collections import Counter
 from datetime import datetime, timezone, tzinfo
 
+from app.core.config import get_settings
 from app.domain.app_screens import USER_APP_SCREENS
 from app.domain.device_presence import connected_members, is_device_online, latest_seen_among
 from app.domain.measurement_source import MeasurementSource
-from app.domain.network_status import (
-    LATENCY_CRITICAL_MS,
-    LATENCY_WARNING_MS,
-    PACKET_LOSS_CRITICAL_PERCENT,
-    PACKET_LOSS_WARNING_PERCENT,
-)
 from app.domain.security_analyzers import RISKY_ROUTER_PORTS, ROUTER_PORT_SERVICE_NAMES
 from app.models.alert import Alert
 from app.models.device import Device
@@ -120,10 +115,13 @@ class SecurityChatContextBuilder:
         )
 
     def _thresholds_line(self) -> str:
+        thresholds = get_settings().network_status_thresholds
+        # :g escribe 80 y no 80.0, como el texto que ya conocía el asistente.
         return (
             "- Umbrales reales del estado de la red (fijos, no dependen del historial): alerta desde "
-            f"{LATENCY_WARNING_MS} ms de latencia o {PACKET_LOSS_WARNING_PERCENT}% de perdida; critica desde "
-            f"{LATENCY_CRITICAL_MS} ms o {PACKET_LOSS_CRITICAL_PERCENT}% de perdida. El jitter no cambia el estado."
+            f"{thresholds.latency_warning_ms:g} ms de latencia o {thresholds.packet_loss_warning_percent:g}% de perdida; "
+            f"critica desde {thresholds.latency_critical_ms:g} ms o {thresholds.packet_loss_critical_percent:g}% de "
+            "perdida. El jitter no cambia el estado."
         )
 
     def _screens_line(self) -> str:

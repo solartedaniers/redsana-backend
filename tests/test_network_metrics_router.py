@@ -7,6 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_current_claims
 from app.main import app
@@ -99,6 +100,42 @@ def test_standard_user_cannot_insert_snapshot_for_another_user(client: TestClien
     )
 
     assert response.status_code == 403
+
+
+def test_thresholds_endpoint_returns_the_configured_values(client: TestClient) -> None:
+    response = client.get("/api/network-metrics/thresholds")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "latency_warning_ms": 80,
+        "latency_critical_ms": 150,
+        "packet_loss_warning_percent": 1,
+        "packet_loss_critical_percent": 5,
+    }
+
+
+def test_thresholds_endpoint_follows_the_environment(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("NETWORK_STATUS_LATENCY_CRITICAL_MS", "300")
+    get_settings.cache_clear()
+    try:
+        response = client.get("/api/network-metrics/thresholds")
+    finally:
+        get_settings.cache_clear()
+
+    assert response.json()["latency_critical_ms"] == 300
+
+
+def test_thresholds_without_token_is_unauthorized(client_without_claims_override: TestClient) -> None:
+    response = client_without_claims_override.get("/api/network-metrics/thresholds")
+
+    assert response.status_code == 401
+
+
+def test_post_with_50_ms_and_3_percent_loss_is_a_warning(client: TestClient) -> None:
+    response = client.post("/api/network-metrics", json={"latency_ms": 50, "jitter_ms": 2, "packet_loss_percent": 3})
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "warning"
 
 
 def test_post_without_token_is_unauthorized(client_without_claims_override: TestClient) -> None:
