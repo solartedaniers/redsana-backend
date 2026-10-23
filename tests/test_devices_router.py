@@ -101,3 +101,23 @@ def test_manual_sync_marks_offline_what_did_not_answer_this_scan(setup) -> None:
     online = _sync(client, ["aa-aa-aa-aa-aa-01"], manual=True)
 
     assert online == {"aa-aa-aa-aa-aa-01": True, "aa-aa-aa-aa-aa-02": False}
+
+
+def test_a_manual_sync_of_450_devices_drops_exactly_the_six_that_left(setup) -> None:
+    import time
+
+    client, _ = setup
+    campus = [f"02-00-00-00-{index // 256:02x}-{index % 256:02x}" for index in range(450)]
+    _sync(client, campus, manual=True)
+    leaving = {campus[index] for index in (20, 90, 150, 222, 345, 444)}
+
+    started = time.perf_counter()
+    online = _sync(client, [mac for mac in campus if mac not in leaving], manual=True)
+    elapsed = time.perf_counter() - started
+
+    offline = {mac for mac, is_online in online.items() if not is_online}
+    # Los dos dispositivos del fixture tampoco se vieron en estos escaneos.
+    assert offline == leaving | {"aa-aa-aa-aa-aa-01", "aa-aa-aa-aa-aa-02"}
+    assert sum(online.values()) == 444
+    # Holgado: en SQLite tarda una fracción de segundo; sirve para detectar consultas por dispositivo.
+    assert elapsed < 5
