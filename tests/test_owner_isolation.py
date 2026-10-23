@@ -273,6 +273,38 @@ def test_reactivating_the_account_gives_access_back(world: World) -> None:
     assert world.as_user(USER_A).get("/api/users/me").status_code == 200
 
 
+# --- El admin sobre sí mismo -------------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("payload", [{"status": "suspended"}, {"role": "standard"}])
+def test_an_admin_gets_409_when_suspending_or_demoting_themself(world: World, payload: dict) -> None:
+    world.seed_user_a()
+    world.set_user(USER_A, role_id=2)
+    client = world.as_user(USER_A)
+
+    response = client.patch(f"/api/admin/users/{USER_A['sub']}", json=payload)
+
+    assert response.status_code == 409
+    assert client.get("/api/admin/users").status_code == 200
+
+
+def test_an_admin_gets_409_when_deleting_themself(world: World) -> None:
+    world.seed_user_a()
+    world.set_user(USER_A, role_id=2)
+
+    assert world.as_user(USER_A).delete(f"/api/admin/users/{USER_A['sub']}").status_code == 409
+    assert world.as_user(USER_A).get("/api/admin/users").status_code == 200
+
+
+def test_an_admin_can_still_suspend_another_user(world: World) -> None:
+    world.seed_user_a()
+    world.set_user(USER_A, role_id=2)
+
+    response = world.as_user(USER_A).patch(f"/api/admin/users/{USER_B['sub']}", json={"status": "suspended"})
+
+    assert (response.status_code, response.json()["status"]) == (200, "suspended")
+
+
 @pytest.mark.parametrize("value", [True, None])
 def test_only_an_explicit_false_suspends(value) -> None:
     user = SimpleNamespace(is_active=value)

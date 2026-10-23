@@ -10,7 +10,7 @@ from app.core.supabase_admin_client import SupabaseAdminClient
 from app.models.user import User
 from app.repositories.user_sqlalchemy_repository import SqlAlchemyUserRepository
 from app.schemas.admin import AdminUserCreate, AdminUserRead, AdminUserUpdate
-from app.services.admin_user_service import AdminUserService, UserNotFoundError
+from app.services.admin_user_service import AdminLockoutError, AdminUserService, UserNotFoundError
 
 router = APIRouter(prefix="/api/admin/users", tags=["admin"])
 
@@ -51,23 +51,27 @@ def create_user(
 def update_user(
     user_id: uuid.UUID,
     payload: AdminUserUpdate,
-    _admin: User = Depends(require_admin),
+    admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> AdminUserRead:
     try:
-        user = _build_service(db).update_user(user_id, payload)
+        user = _build_service(db).update_user(user_id, payload, acting_admin_id=admin.id)
     except UserNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found") from error
+    except AdminLockoutError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     return _to_user_read(user)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(
     user_id: uuid.UUID,
-    _admin: User = Depends(require_admin),
+    admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> None:
     try:
-        _build_service(db).delete_user(user_id)
+        _build_service(db).delete_user(user_id, acting_admin_id=admin.id)
     except UserNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found") from error
+    except AdminLockoutError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
