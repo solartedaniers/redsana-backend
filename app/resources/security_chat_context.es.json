@@ -1,0 +1,26 @@
+{
+  "devices": "- Dispositivos conectados en el ultimo escaneo: {connected} (incluye este equipo, sin contar el router). De los demas: {trusted} marcados de confianza, {blocked} marcados como inseguros y {unknown} sin revisar. RedSana no puede bloquear equipos en el router; el usuario solo los marca.",
+  "alerts_none": "- Alertas activas sin reconocer: ninguna.",
+  "alerts": "- Alertas activas sin reconocer ({count}): {summaries}",
+  "snapshot_none": "- Ultimo snapshot de red: aun no hay ninguno registrado.",
+  "snapshot": "- Ultimo snapshot de red: latencia {latency_ms:.1f} ms, jitter {jitter_ms:.1f} ms, perdida de paquetes {packet_loss_percent:.1f}%, estado '{status}'. Medido el {local_time:%Y-%m-%d %H:%M} (hora local, hace {minutes_ago} min) desde {origin}.",
+  "measurement_origins": {
+    "native": "la app de escritorio (ping ICMP a internet)",
+    "web": "la web (latencia al servidor: peticiones HTTPS al servidor de RedSana, incluye el viaje hasta el servidor; no es un ping a la red local)"
+  },
+  "thresholds": "- Umbrales reales del estado de la red (fijos, no dependen del historial): alerta desde {latency_warning_ms:g} ms de latencia o {packet_loss_warning_percent:g}% de perdida; critica desde {latency_critical_ms:g} ms o {packet_loss_critical_percent:g}% de perdida. El jitter no cambia el estado.",
+  "screens": "- Pantallas reales de la app: {screens}.",
+  "assessment_none": "- Evaluacion de seguridad: el usuario aun no ha respondido el cuestionario.",
+  "score_partial": "{score}/100, PARCIAL: solo cuestionario ({questionnaire_score}/100). No hay analisis tecnico: nunca se midio la red desde la app de escritorio (la web no puede medir el cifrado WiFi ni los puertos del router).",
+  "origin_reused": "reutilizado de una medicion hecha desde la app de escritorio el {measured_on:%Y-%m-%d}",
+  "origin_measured": "medido desde la app de escritorio el {measured_on:%Y-%m-%d}",
+  "score_full": "{score}/100 = cuestionario {questionnaire_score}/100 (pesa {questionnaire_weight}%) + analisis tecnico {technical_score}/100 (pesa {technical_weight}%, {origin}).",
+  "score": "- Puntaje de seguridad: {breakdown}",
+  "wifi": "- Cifrado WiFi detectado: {encryption}.",
+  "risky_ports": "- Puertos de riesgo abiertos en el router: {ports}.",
+  "risky_ports_none": "ninguno",
+  "weak_answers": "- Respuestas debiles del cuestionario: {answers}.",
+  "recommendations": "- Recomendaciones priorizadas (de mas a menos urgente): {recommendations}.",
+  "none": "ninguna",
+  "only_context_facts_rule": "- Regla: para umbrales, fechas, origen de la medicion y nombres de pantallas o secciones usa solo los de este contexto; no inventes otros valores, menus ni rutas."
+}

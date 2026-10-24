@@ -1,6 +1,8 @@
+import json
 import uuid
 from collections import Counter
 from datetime import datetime, timezone, tzinfo
+from pathlib import Path
 
 from app.core.config import get_settings
 from app.domain.app_screens import USER_APP_SCREENS
@@ -22,19 +24,12 @@ MAX_ALERTS_IN_CONTEXT = 10
 
 _WEAK_ANSWERS = ("no", "unknown")
 
-# La IA inventaba umbrales ("> 200 ms") y menús ("Dashboard → Estado de la Red"); le doy los reales y se lo prohíbo.
-_ONLY_CONTEXT_FACTS_RULE = (
-    "- Regla: para umbrales, fechas, origen de la medicion y nombres de pantallas o secciones usa solo los de este "
-    "contexto; no inventes otros valores, menus ni rutas."
+# Textos del contexto. La regla final existe porque la IA inventaba umbrales ("> 200 ms") y menús
+# ("Dashboard → Estado de la Red"); le doy los reales y se lo prohíbo.
+_TEXT = json.loads(
+    (Path(__file__).parent.parent / "resources" / "security_chat_context.es.json").read_text(encoding="utf-8")
 )
-
-_MEASUREMENT_ORIGINS: dict[MeasurementSource, str] = {
-    "native": "la app de escritorio (ping ICMP a internet)",
-    "web": (
-        "la web (latencia al servidor: peticiones HTTPS al servidor de RedSana, incluye el viaje hasta el servidor; "
-        "no es un ping a la red local)"
-    ),
-}
+_MEASUREMENT_ORIGINS: dict[MeasurementSource, str] = _TEXT["measurement_origins"]
 
 
 class SecurityChatContextBuilder:
@@ -71,7 +66,7 @@ class SecurityChatContextBuilder:
             self._thresholds_line(),
             self._screens_line(),
             *self._assessment_lines(assessment),
-            _ONLY_CONTEXT_FACTS_RULE,
+            _TEXT["only_context_facts_rule"],
         ]
         return "\n".join(lines)
 
@@ -83,47 +78,49 @@ class SecurityChatContextBuilder:
         )
         members = connected_members(devices)
         trust_counts = Counter(device.trust for device in members)
-        return (
-            f"- Dispositivos conectados en el ultimo escaneo: {len(members) + int(this_device_online)} "
-            f"(incluye este equipo, sin contar el router). De los demas: {trust_counts['trusted']} marcados de "
-            f"confianza, {trust_counts['blocked']} marcados como inseguros y {trust_counts['unknown']} sin revisar. "
-            "RedSana no puede bloquear equipos en el router; el usuario solo los marca."
+        return _TEXT["devices"].format(
+            connected=len(members) + int(this_device_online),
+            trusted=trust_counts["trusted"],
+            blocked=trust_counts["blocked"],
+            unknown=trust_counts["unknown"],
         )
 
     def _alerts_line(self, unacknowledged: list[Alert]) -> str:
         if not unacknowledged:
-            return "- Alertas activas sin reconocer: ninguna."
+            return _TEXT["alerts_none"]
         summaries = [
             f"[{alert.severity}/{alert.type}] {alert.message_key} {alert.message_params or ''}".strip()
             for alert in unacknowledged[:MAX_ALERTS_IN_CONTEXT]
         ]
-        return f"- Alertas activas sin reconocer ({len(unacknowledged)}): " + "; ".join(summaries)
+        return _TEXT["alerts"].format(count=len(unacknowledged), summaries="; ".join(summaries))
 
     def _snapshot_line(self, snapshot: NetworkMetricSnapshot | None) -> str:
         if snapshot is None:
-            return "- Ultimo snapshot de red: aun no hay ninguno registrado."
+            return _TEXT["snapshot_none"]
         # SQLite devuelve la fecha sin zona; la guardo siempre en UTC.
         recorded_at = (
             snapshot.recorded_at if snapshot.recorded_at.tzinfo else snapshot.recorded_at.replace(tzinfo=timezone.utc)
         )
         minutes_ago = max(0, int((datetime.now(timezone.utc) - recorded_at).total_seconds() // 60))
         local_time = recorded_at.astimezone(self._user_timezone)
-        return (
-            "- Ultimo snapshot de red: "
-            f"latencia {snapshot.latency_ms:.1f} ms, jitter {snapshot.jitter_ms:.1f} ms, "
-            f"perdida de paquetes {snapshot.packet_loss_percent:.1f}%, estado '{snapshot.status}'. "
-            f"Medido el {local_time:%Y-%m-%d %H:%M} (hora local, hace {minutes_ago} min) "
-            f"desde {_MEASUREMENT_ORIGINS[snapshot.source]}."
+        return _TEXT["snapshot"].format(
+            latency_ms=snapshot.latency_ms,
+            jitter_ms=snapshot.jitter_ms,
+            packet_loss_percent=snapshot.packet_loss_percent,
+            status=snapshot.status,
+            local_time=local_time,
+            minutes_ago=minutes_ago,
+            origin=_MEASUREMENT_ORIGINS[snapshot.source],
         )
 
     def _thresholds_line(self) -> str:
         thresholds = get_settings().network_status_thresholds
-        # :g escribe 80 y no 80.0, como el texto que ya conocía el asistente.
-        return (
-            "- Umbrales reales del estado de la red (fijos, no dependen del historial): alerta desde "
-            f"{thresholds.latency_warning_ms:g} ms de latencia o {thresholds.packet_loss_warning_percent:g}% de perdida; "
-            f"critica desde {thresholds.latency_critical_ms:g} ms o {thresholds.packet_loss_critical_percent:g}% de "
-            "perdida. El jitter no cambia el estado."
+        # :g (en el recurso) escribe 80 y no 80.0, como el texto que ya conocía el asistente.
+        return _TEXT["thresholds"].format(
+            latency_warning_ms=thresholds.latency_warning_ms,
+            packet_loss_warning_percent=thresholds.packet_loss_warning_percent,
+            latency_critical_ms=thresholds.latency_critical_ms,
+            packet_loss_critical_percent=thresholds.packet_loss_critical_percent,
         )
 
     def _screens_line(self) -> str:
@@ -133,43 +130,38 @@ class SecurityChatContextBuilder:
             else screen.title.text
             for screen in USER_APP_SCREENS
         )
-        return f"- Pantallas reales de la app: {screens}."
+        return _TEXT["screens"].format(screens=screens)
 
     def _assessment_lines(self, assessment: SecurityAssessmentResult | None) -> list[str]:
         if assessment is None:
-            return ["- Evaluacion de seguridad: el usuario aun no ha respondido el cuestionario."]
+            return [_TEXT["assessment_none"]]
 
         score = assessment.security_score
         evidence = assessment.technical_evidence
         if score.is_partial:
-            breakdown = (
-                f"{score.score}/100, PARCIAL: solo cuestionario ({score.questionnaire_score}/100). "
-                "No hay analisis tecnico: nunca se midio la red desde la app de escritorio "
-                "(la web no puede medir el cifrado WiFi ni los puertos del router)."
-            )
+            breakdown = _TEXT["score_partial"].format(score=score.score, questionnaire_score=score.questionnaire_score)
         else:
             measured_on = assessment.technical_measured_at.astimezone(self._user_timezone)
-            origin = (
-                f"reutilizado de una medicion hecha desde la app de escritorio el {measured_on:%Y-%m-%d}"
-                if assessment.technical_evidence_reused
-                else f"medido desde la app de escritorio el {measured_on:%Y-%m-%d}"
-            )
+            origin_key = "origin_reused" if assessment.technical_evidence_reused else "origin_measured"
             weights = get_settings().security_score_config
-            breakdown = (
-                f"{score.score}/100 = cuestionario {score.questionnaire_score}/100 "
-                f"(pesa {weights.questionnaire_weight_percent}%) + analisis tecnico {score.technical_score}/100 "
-                f"(pesa {weights.technical_weight_percent}%, {origin})."
+            breakdown = _TEXT["score_full"].format(
+                score=score.score,
+                questionnaire_score=score.questionnaire_score,
+                questionnaire_weight=weights.questionnaire_weight_percent,
+                technical_score=score.technical_score,
+                technical_weight=weights.technical_weight_percent,
+                origin=_TEXT[origin_key].format(measured_on=measured_on),
             )
 
-        lines = [f"- Puntaje de seguridad: {breakdown}"]
+        lines = [_TEXT["score"].format(breakdown=breakdown)]
         if evidence.wifi_encryption_raw is not None:
-            lines.append(f"- Cifrado WiFi detectado: {evidence.wifi_encryption_raw}.")
+            lines.append(_TEXT["wifi"].format(encryption=evidence.wifi_encryption_raw))
         if evidence.router_open_ports is not None:
             risky = [port for port in evidence.router_open_ports if port in RISKY_ROUTER_PORTS]
-            names = ", ".join(f"{port} ({ROUTER_PORT_SERVICE_NAMES[port]})" for port in risky) or "ninguno"
-            lines.append(f"- Puertos de riesgo abiertos en el router: {names}.")
+            names = ", ".join(f"{port} ({ROUTER_PORT_SERVICE_NAMES[port]})" for port in risky)
+            lines.append(_TEXT["risky_ports"].format(ports=names or _TEXT["risky_ports_none"]))
         weak = [f"{question}: {answer}" for question, answer in assessment.answers.items() if answer in _WEAK_ANSWERS]
-        lines.append(f"- Respuestas debiles del cuestionario: {', '.join(weak) or 'ninguna'}.")
-        recommendations = ", ".join(r.id for r in score.recommendations) or "ninguna"
-        lines.append(f"- Recomendaciones priorizadas (de mas a menos urgente): {recommendations}.")
+        lines.append(_TEXT["weak_answers"].format(answers=", ".join(weak) or _TEXT["none"]))
+        recommendations = ", ".join(r.id for r in score.recommendations) or _TEXT["none"]
+        lines.append(_TEXT["recommendations"].format(recommendations=recommendations))
         return lines
