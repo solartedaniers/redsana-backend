@@ -66,6 +66,8 @@ Cada medición se guarda con su estado (`good`, `warning` o `critical`), calcula
 
 Las mediciones de la web (`source: web`) miden la latencia hasta el servidor, así que usan su propia escala de latencia: `NETWORK_STATUS_WEB_LATENCY_*` (por defecto 400 / 800 ms; la pérdida de paquetes usa los mismos umbrales). `GET /api/network-metrics/thresholds?source=web` los publica; sin `source` responde los del escritorio, como antes. Las mediciones sin `source` (instalador 0.1.5) se evalúan como escritorio.
 
+Un aviso de degradación no se repite durante `PREDICTION_ALERT_COOLDOWN_MINUTES` (por defecto 60) desde el anterior, esté marcado como visto o no.
+
 El puntaje de seguridad usa los rangos y pesos `SECURITY_SCORE_*` (por defecto: bueno desde 80, regular desde 50; cuestionario 30 % y análisis técnico 70 %). `GET /api/security-assessments/score-config` los publica para que el frontend coloree y divida el puntaje igual que el backend.
 
 ## Modo de la IA (`AI_MODE`)

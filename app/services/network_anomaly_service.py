@@ -1,9 +1,11 @@
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from redsana_ai import ANOMALY_WINDOW_SIZE, AnomalyDetector, NetworkMetricVector
 
+from app.core.config import get_settings
 from app.domain.measurement_source import DEFAULT_MEASUREMENT_SOURCE
 from app.domain.network_anomaly_policy import ANOMALY_MESSAGE_KEYS, MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE
 from app.domain.network_baseline import baseline_scope
@@ -25,11 +27,16 @@ class NetworkAnomalyService:
     """Une el detector con los repositorios de métricas y alertas; NetworkMetricsService no sabe que esto existe."""
 
     def __init__(
-        self, metrics_repository: NetworkMetricsRepository, alert_repository: AlertRepository, detector: AnomalyDetector
+        self,
+        metrics_repository: NetworkMetricsRepository,
+        alert_repository: AlertRepository,
+        detector: AnomalyDetector,
+        alert_cooldown: timedelta | None = None,
     ) -> None:
         self._metrics_repository = metrics_repository
         self._alert_repository = alert_repository
         self._detector = detector
+        self._alert_cooldown = alert_cooldown or timedelta(minutes=get_settings().prediction_alert_cooldown_minutes)
 
     def get_status(self, owner_id: uuid.UUID) -> AnomalyStatus:
         # La calibración es por fuente: informo la de la fuente con la que el usuario mide ahora.
@@ -68,8 +75,7 @@ class NetworkAnomalyService:
         if classification is None:
             return
 
-        # Si ya hay una alerta de este tipo sin reconocer no creo otra, o habría una por minuto mientras siga el problema.
-        if self._alert_repository.get_latest_unacknowledged(owner_id, PREDICTION_ALERT_TYPE) is not None:
+        if self._is_within_cooldown(owner_id):
             return
 
         self._alert_repository.create(
@@ -80,6 +86,14 @@ class NetworkAnomalyService:
             message_params={"current": classification.current, "typical": classification.typical},
             created_at=None,
         )
+
+    def _is_within_cooldown(self, owner_id: uuid.UUID) -> bool:
+        previous = self._alert_repository.get_latest_by_type(owner_id, PREDICTION_ALERT_TYPE)
+        if previous is None:
+            return False
+        # SQLite devuelve la fecha sin zona; se guarda siempre en UTC.
+        created_at = previous.created_at if previous.created_at.tzinfo else previous.created_at.replace(tzinfo=UTC)
+        return datetime.now(UTC) - created_at < self._alert_cooldown
 
 
 def _to_vector(snapshot: NetworkMetricSnapshot) -> NetworkMetricVector:

@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # escala de latencia. La pérdida de paquetes usa los mismos umbrales en las dos fuentes.
     network_status_web_latency_warning_ms: float = 400
     network_status_web_latency_critical_ms: float = 800
+    # Tras un aviso de degradación no se crea otro igual durante este tiempo, aunque el primero ya se haya marcado
+    # como visto: si no, saldría uno por minuto mientras dure el problema.
+    prediction_alert_cooldown_minutes: int = 60
     # Puntaje de seguridad: desde dónde es bueno o regular, y cuánto pesa cada parte (suman 100).
     security_score_good_min: int = 80
     security_score_warning_min: int = 50

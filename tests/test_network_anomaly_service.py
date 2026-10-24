@@ -1,7 +1,7 @@
 """Sin base ni red: calibración, detección y deduplicación con los repositorios falsos de siempre."""
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 from redsana_ai import ANOMALY_WINDOW_SIZE, IsolationForestAnomalyDetector
 
@@ -114,18 +114,25 @@ def test_evaluate_latest_creates_a_prediction_alert_for_an_anomalous_sample() ->
     assert alerts[0].message_key == "user.alertsCenter.messages.latencyDegraded"
 
 
-def test_evaluate_latest_does_not_duplicate_an_already_open_alert() -> None:
+COOLDOWN = timedelta(minutes=60)
+
+
+def _anomalous_setup(previous_alert_age: timedelta | None, acknowledged: bool = False):
+    """Historial normal más una medición anómala; opcionalmente, un aviso anterior creado hace previous_alert_age."""
     metrics_repository = FakeNetworkMetricsRepository()
     alert_repository = FakeAlertRepository()
     owner_id = uuid.uuid4()
-    alert_repository.create(
-        owner_id=owner_id,
-        type_="prediction",
-        severity="critical",
-        message_key="user.alertsCenter.messages.latencyDegraded",
-        message_params=None,
-        created_at=None,
-    )
+    if previous_alert_age is not None:
+        previous = alert_repository.create(
+            owner_id=owner_id,
+            type_="prediction",
+            severity="critical",
+            message_key="user.alertsCenter.messages.latencyDegraded",
+            message_params=None,
+            created_at=datetime.now(UTC) - previous_alert_age,
+        )
+        if acknowledged:
+            alert_repository.acknowledge(previous.id, owner_id)
     _seed_normal_history(metrics_repository, owner_id, ANOMALY_WINDOW_SIZE - 1)
     metrics_repository.create(
         owner_id=owner_id,
@@ -137,12 +144,60 @@ def test_evaluate_latest_does_not_duplicate_an_already_open_alert() -> None:
         network_id=HOME_NETWORK,
         recorded_at=None,
     )
-    service = NetworkAnomalyService(metrics_repository, alert_repository, IsolationForestAnomalyDetector())
+    service = NetworkAnomalyService(
+        metrics_repository, alert_repository, IsolationForestAnomalyDetector(), alert_cooldown=COOLDOWN
+    )
+    return service, alert_repository, owner_id
+
+
+def test_evaluate_latest_does_not_repeat_an_alert_within_the_window() -> None:
+    service, alert_repository, owner_id = _anomalous_setup(previous_alert_age=timedelta(minutes=10))
 
     service.evaluate_latest(owner_id)
 
-    # Sigue solo la alerta original: la nueva evaluación no agregó otra.
     assert len(alert_repository.list_all(owner_id)) == 1
+
+
+def test_an_alert_marked_as_seen_still_blocks_a_repeat_within_the_window() -> None:
+    service, alert_repository, owner_id = _anomalous_setup(timedelta(minutes=10), acknowledged=True)
+
+    service.evaluate_latest(owner_id)
+
+    assert len(alert_repository.list_all(owner_id)) == 1
+
+
+def test_evaluate_latest_repeats_the_alert_once_the_window_has_passed() -> None:
+    service, alert_repository, owner_id = _anomalous_setup(previous_alert_age=COOLDOWN + timedelta(minutes=1))
+
+    service.evaluate_latest(owner_id)
+
+    alerts = alert_repository.list_all(owner_id)
+    assert len(alerts) == 2
+    assert alerts[0].acknowledged is False
+
+
+def test_an_unseen_alert_older_than_the_window_no_longer_blocks_a_new_one() -> None:
+    # Antes, un aviso sin marcar como visto bloqueaba todos los siguientes para siempre.
+    service, alert_repository, owner_id = _anomalous_setup(previous_alert_age=timedelta(days=2))
+
+    service.evaluate_latest(owner_id)
+
+    assert len(alert_repository.list_all(owner_id)) == 2
+
+
+def test_the_window_comes_from_the_environment(monkeypatch) -> None:
+    from app.core.config import get_settings
+
+    monkeypatch.setenv("PREDICTION_ALERT_COOLDOWN_MINUTES", "5")
+    get_settings.cache_clear()
+    try:
+        service = NetworkAnomalyService(
+            FakeNetworkMetricsRepository(), FakeAlertRepository(), IsolationForestAnomalyDetector()
+        )
+    finally:
+        get_settings.cache_clear()
+
+    assert service._alert_cooldown == timedelta(minutes=5)
 
 
 def test_evaluate_latest_ignores_history_from_another_source() -> None:
@@ -288,7 +343,10 @@ if __name__ == "__main__":
     test_evaluate_latest_does_nothing_while_calibrating()
     test_evaluate_latest_does_nothing_for_a_normal_sample()
     test_evaluate_latest_creates_a_prediction_alert_for_an_anomalous_sample()
-    test_evaluate_latest_does_not_duplicate_an_already_open_alert()
+    test_evaluate_latest_does_not_repeat_an_alert_within_the_window()
+    test_an_alert_marked_as_seen_still_blocks_a_repeat_within_the_window()
+    test_evaluate_latest_repeats_the_alert_once_the_window_has_passed()
+    test_an_unseen_alert_older_than_the_window_no_longer_blocks_a_new_one()
     test_evaluate_latest_ignores_history_from_another_source()
     test_web_source_calibrates_with_half_a_day_while_desktop_still_needs_the_full_day()
     test_web_source_detects_anomalies_once_calibrated_with_720_samples()
