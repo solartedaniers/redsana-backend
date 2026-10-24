@@ -14,6 +14,13 @@ class MeasurementTimingPolicy:
     max_age: timedelta
     max_future: timedelta
     late_after: timedelta
+    # Margen para reconocer un reenvío: la hora corregida varía un poco entre envíos (lo que tarda cada petición).
+    replay_tolerance: timedelta
+
+    def to_server_clock(self, recorded_at: datetime, sent_at: datetime, now: datetime) -> datetime:
+        """Lleva la hora del cliente al reloj del servidor. Solo cuenta cuánto antes del envío se midió: las dos horas
+        salen del mismo reloj, así que un reloj adelantado o atrasado se cancela."""
+        return now - (sent_at - recorded_at)
 
     def rejection_reason(self, recorded_at: datetime, now: datetime) -> str | None:
         if recorded_at - now > self.max_future:

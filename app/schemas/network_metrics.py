@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, model_validator
 
 from app.core.config import get_settings
 from app.domain.measurement_source import DEFAULT_MEASUREMENT_SOURCE, MeasurementSource
@@ -46,16 +46,23 @@ class NetworkMetricSnapshotCreate(BaseModel):
     # Hora original de la medición (la cola del cliente reenvía tarde). Sin ella se usa la del servidor, como antes.
     # Con ella, reenviar la misma medición no la duplica.
     recorded_at: datetime | None = None
+    # Hora del reloj del cliente al enviar. Con ella se corrige recorded_at al reloj del servidor, así un PC con la hora
+    # mal puesta no pierde mediciones ni las hace parecer atrasadas.
+    sent_at: datetime | None = None
     # SHA-256 de la MAC del router calculado en el escritorio: la MAC cruda nunca llega aquí. None desde la web.
     network_fingerprint: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
-    @field_validator("recorded_at")
-    @classmethod
-    def _recorded_at_within_accepted_window(cls, value: datetime | None) -> datetime | None:
-        if value is None:
-            return None
-        recorded_at = as_utc(value)
-        reason = get_settings().measurement_timing_policy.rejection_reason(recorded_at, datetime.now(UTC))
+    @model_validator(mode="after")
+    def _recorded_at_on_server_clock(self) -> "NetworkMetricSnapshotCreate":
+        if self.recorded_at is None:
+            return self
+        policy = get_settings().measurement_timing_policy
+        now = datetime.now(UTC)
+        recorded_at = as_utc(self.recorded_at)
+        if self.sent_at is not None:
+            recorded_at = policy.to_server_clock(recorded_at, as_utc(self.sent_at), now)
+        reason = policy.rejection_reason(recorded_at, now)
         if reason is not None:
             raise ValueError(reason)
-        return recorded_at
+        self.recorded_at = recorded_at
+        return self

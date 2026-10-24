@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     measurement_max_future_seconds: int = 300
     # Una medición que llega con más de este retraso ya pasó: registra cortes, pero no dispara avisos de degradación.
     measurement_late_after_seconds: int = 180
+    # Dos mediciones de la misma fuente a menos de esto son la misma (un reenvío). Mucho menor que el intervalo de 60 s.
+    measurement_replay_tolerance_seconds: int = 10
     # Puntaje de seguridad: desde dónde es bueno o regular, y cuánto pesa cada parte (suman 100).
     security_score_good_min: int = 80
     security_score_warning_min: int = 50
@@ -159,6 +161,7 @@ class Settings(BaseSettings):
             max_age=timedelta(hours=self.measurement_max_age_hours),
             max_future=timedelta(seconds=self.measurement_max_future_seconds),
             late_after=timedelta(seconds=self.measurement_late_after_seconds),
+            replay_tolerance=timedelta(seconds=self.measurement_replay_tolerance_seconds),
         )
 
     @property

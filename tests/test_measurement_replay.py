@@ -218,3 +218,100 @@ def test_the_same_degraded_measurement_in_real_time_does_raise_it(env) -> None:
     client.post("/api/network-metrics", json={**NORMAL, "latency_ms": 3000, "recorded_at": _at(0)})
 
     assert len(_alerts(session_factory, "prediction")) == 1
+
+
+# Reloj del PC mal puesto: el cliente manda sent_at (su hora al enviar) y el backend corrige recorded_at.
+SKEWED_CLOCKS = [pytest.param(10, id="adelantado-10-min"), pytest.param(-10, id="atrasado-10-min")]
+
+
+class _SkewedClient:
+    """Cliente cuyo reloj va `skew_minutes` adelantado (o atrasado): su cola guarda la hora de su propio reloj y pone
+    sent_at al enviar, como la cola del escritorio."""
+
+    def __init__(self, client: TestClient, skew_minutes: int) -> None:
+        self._client = client
+        self._skew = timedelta(minutes=skew_minutes)
+
+    def _clock(self) -> datetime:
+        return datetime.now(UTC) + self._skew
+
+    def measure(self, payload: dict, minutes_ago: float) -> dict:
+        return {**payload, "recorded_at": (self._clock() - timedelta(minutes=minutes_ago)).isoformat()}
+
+    def send(self, item: dict):
+        return self._client.post("/api/network-metrics", json={**item, "sent_at": self._clock().isoformat()})
+
+
+@pytest.mark.parametrize("skew_minutes", SKEWED_CLOCKS)
+def test_a_wrong_pc_clock_loses_and_duplicates_nothing_and_records_the_outage(env, skew_minutes: int) -> None:
+    client, session_factory = env
+    pc = _SkewedClient(client, skew_minutes)
+    queue = [
+        pc.measure(NORMAL, 21),
+        *(pc.measure(CUT, m) for m in (20, 19, 18, 17, 16, 15, 14, 13)),
+        pc.measure(NORMAL, 12),
+    ]
+
+    for _ in range(2):  # el segundo reenvío completo no duplica nada
+        for item in queue:
+            assert pc.send(item).status_code == 201
+
+    assert _count(session_factory, NetworkMetricSnapshot) == len(queue)
+    outages = _alerts(session_factory, "outage")
+    assert len(outages) == 1
+    assert outages[0].message_params == {"minutes": 8}
+
+
+@pytest.mark.parametrize("skew_minutes", SKEWED_CLOCKS)
+def test_a_wrong_pc_clock_is_stored_at_the_real_time(env, skew_minutes: int) -> None:
+    client, _ = env
+    pc = _SkewedClient(client, skew_minutes)
+    real_time = datetime.now(UTC) - timedelta(minutes=30)
+
+    response = pc.send(pc.measure(NORMAL, 30))
+
+    stored = datetime.fromisoformat(response.json()["updated_at"]).replace(tzinfo=UTC)
+    assert abs(stored - real_time) < timedelta(seconds=5)
+
+
+@pytest.mark.parametrize("skew_minutes", SKEWED_CLOCKS)
+def test_a_wrong_pc_clock_still_raises_degradation_in_real_time(env, skew_minutes: int) -> None:
+    client, session_factory = env
+    _first_post_creates_the_owner(client)
+    _seed_calibrated_web_history(session_factory)
+    pc = _SkewedClient(client, skew_minutes)
+
+    pc.send(pc.measure({**NORMAL, "latency_ms": 3000}, 0))
+
+    assert len(_alerts(session_factory, "prediction")) == 1
+
+
+@pytest.mark.parametrize("skew_minutes", SKEWED_CLOCKS)
+def test_a_wrong_pc_clock_still_marks_a_late_degradation_as_late(env, skew_minutes: int) -> None:
+    client, session_factory = env
+    _first_post_creates_the_owner(client)
+    _seed_calibrated_web_history(session_factory)
+    pc = _SkewedClient(client, skew_minutes)
+
+    pc.send(pc.measure({**NORMAL, "latency_ms": 3000}, 10))
+
+    assert _alerts(session_factory, "prediction") == []
+
+
+def test_a_measurement_taken_after_it_was_sent_is_rejected(env) -> None:
+    client, _ = env
+    now = datetime.now(UTC)
+
+    response = client.post(
+        "/api/network-metrics",
+        json={**NORMAL, "recorded_at": (now + timedelta(minutes=10)).isoformat(), "sent_at": now.isoformat()},
+    )
+
+    assert response.status_code == 422
+
+
+def test_a_measurement_older_than_the_limit_is_rejected_even_with_sent_at(env) -> None:
+    client, _ = env
+    pc = _SkewedClient(client, -10)
+
+    assert pc.send(pc.measure(NORMAL, 60 * 25)).status_code == 422

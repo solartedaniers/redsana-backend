@@ -31,7 +31,8 @@ class NetworkMetricsService:
         """Sin hora del cliente no hay forma de reconocer un reenvío: cada POST es una medición nueva, como antes."""
         if payload.recorded_at is None:
             return None
-        return self._repository.find_by_recorded_at(owner_id, payload.source, payload.recorded_at)
+        tolerance = get_settings().measurement_timing_policy.replay_tolerance
+        return self._repository.find_recorded_near(owner_id, payload.source, payload.recorded_at, tolerance)
 
     def record_snapshot(self, owner_id: uuid.UUID, payload: NetworkMetricSnapshotCreate) -> NetworkMetricSnapshot:
         status = compute_network_status(

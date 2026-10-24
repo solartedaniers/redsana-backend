@@ -1,6 +1,6 @@
 import uuid
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.domain.measurement_source import MeasurementSource
 from app.domain.network_baseline import BaselineScope
@@ -27,10 +27,10 @@ class NetworkMetricsRepository(ABC):
         ...
 
     @abstractmethod
-    def find_by_recorded_at(
-        self, owner_id: uuid.UUID, source: MeasurementSource, recorded_at: datetime
+    def find_recorded_near(
+        self, owner_id: uuid.UUID, source: MeasurementSource, recorded_at: datetime, tolerance: timedelta
     ) -> NetworkMetricSnapshot | None:
-        """La medición ya guardada con esa hora exacta: así un reenvío de la cola del cliente no la duplica."""
+        """La medición ya guardada a menos de `tolerance` de esa hora: así un reenvío de la cola no la duplica."""
         ...
 
     @abstractmethod

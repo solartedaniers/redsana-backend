@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, aliased
@@ -60,14 +60,14 @@ class SqlAlchemyNetworkMetricsRepository(NetworkMetricsRepository):
         )
         return list(self._db.scalars(stmt).all())
 
-    def find_by_recorded_at(
-        self, owner_id: uuid.UUID, source: MeasurementSource, recorded_at: datetime
+    def find_recorded_near(
+        self, owner_id: uuid.UUID, source: MeasurementSource, recorded_at: datetime, tolerance: timedelta
     ) -> NetworkMetricSnapshot | None:
         # Usa el índice (owner_id, source, recorded_at) que ya existe.
         stmt = select(NetworkMetricSnapshot).where(
             NetworkMetricSnapshot.owner_id == owner_id,
             NetworkMetricSnapshot.source == source,
-            NetworkMetricSnapshot.recorded_at == recorded_at,
+            NetworkMetricSnapshot.recorded_at.between(recorded_at - tolerance, recorded_at + tolerance),
         )
         return self._db.scalars(stmt).first()
 
