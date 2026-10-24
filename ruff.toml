@@ -1,0 +1,7 @@
+# Lint y formato: ruff check . / ruff format .
+line-length = 120
+target-version = "py311"
+
+[lint]
+# Depends()/Query() en los valores por defecto es como se declara en FastAPI.
+ignore = ["B008"]
