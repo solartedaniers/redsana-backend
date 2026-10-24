@@ -14,6 +14,7 @@ from app.core.database import SessionLocal, get_db
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
 from app.models.user import User
 from app.repositories.alert_sqlalchemy_repository import SqlAlchemyAlertRepository
+from app.repositories.device_sqlalchemy_repository import SqlAlchemyDeviceRepository
 from app.repositories.network_metrics_sqlalchemy_repository import SqlAlchemyNetworkMetricsRepository
 from app.schemas.network_anomaly import AnomalyStatusRead
 from app.schemas.network_metrics import (
@@ -23,6 +24,7 @@ from app.schemas.network_metrics import (
     NetworkStatusThresholdsRead,
 )
 from app.services.network_anomaly_service import AnomalyStatus, NetworkAnomalyService
+from app.services.network_diagnosis_service import NetworkDiagnosisResult, NetworkDiagnosisService
 from app.services.network_metrics_service import NetworkMetricsService
 from app.services.outage_detection_service import OutageDetectionService
 
@@ -42,7 +44,9 @@ def _resolve_target_owner_id(user: User, requested_user_id: uuid.UUID | None) ->
     return requested_user_id
 
 
-def _to_snapshot_read(snapshot: NetworkMetricSnapshot) -> NetworkMetricSnapshotRead:
+def _to_snapshot_read(
+    snapshot: NetworkMetricSnapshot, diagnosis: NetworkDiagnosisResult | None = None
+) -> NetworkMetricSnapshotRead:
     return NetworkMetricSnapshotRead(
         status=snapshot.status,
         latency_ms=snapshot.latency_ms,
@@ -50,6 +54,9 @@ def _to_snapshot_read(snapshot: NetworkMetricSnapshot) -> NetworkMetricSnapshotR
         packet_loss_percent=snapshot.packet_loss_percent,
         updated_at=snapshot.recorded_at,
         source=snapshot.source,
+        gateway_latency_ms=snapshot.gateway_latency_ms,
+        diagnosis=diagnosis.diagnosis if diagnosis else None,
+        possible_busy_device=diagnosis.possible_busy_device if diagnosis else None,
     )
 
 
@@ -74,6 +81,10 @@ def _get_metrics_service(db: Session = Depends(get_db)) -> NetworkMetricsService
     return NetworkMetricsService(SqlAlchemyNetworkMetricsRepository(db), _network_identifier())
 
 
+def _get_diagnosis_service(db: Session = Depends(get_db)) -> NetworkDiagnosisService:
+    return NetworkDiagnosisService(SqlAlchemyDeviceRepository(db), get_settings().network_diagnosis_policy)
+
+
 def _get_anomaly_service(db: Session = Depends(get_db)) -> NetworkAnomalyService:
     return NetworkAnomalyService(
         SqlAlchemyNetworkMetricsRepository(db), SqlAlchemyAlertRepository(db), build_anomaly_detector()
@@ -85,9 +96,13 @@ def get_latest_snapshot(
     user_id: uuid.UUID | None = Query(None),
     user: User = Depends(get_current_user),
     service: NetworkMetricsService = Depends(_get_metrics_service),
+    diagnosis_service: NetworkDiagnosisService = Depends(_get_diagnosis_service),
 ) -> NetworkMetricSnapshotRead:
-    snapshot = service.get_latest_snapshot(_resolve_target_owner_id(user, user_id))
-    return _to_snapshot_read(snapshot) if snapshot is not None else _default_snapshot_read()
+    owner_id = _resolve_target_owner_id(user, user_id)
+    snapshot = service.get_latest_snapshot(owner_id)
+    if snapshot is None:
+        return _default_snapshot_read()
+    return _to_snapshot_read(snapshot, diagnosis_service.describe(owner_id, snapshot))
 
 
 @router.get("/history", response_model=list[NetworkMetricSampleRead])

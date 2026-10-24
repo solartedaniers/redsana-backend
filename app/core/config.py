@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.domain.measurement_source import MeasurementSource
 from app.domain.measurement_timing import MeasurementTimingPolicy
+from app.domain.network_diagnosis import NetworkDiagnosisPolicy
 from app.domain.network_status import NetworkStatusThresholds
 from app.domain.security_score_config import SecurityScoreConfig
 
@@ -46,6 +47,10 @@ class Settings(BaseSettings):
     measurement_late_after_seconds: int = 180
     # Dos mediciones de la misma fuente a menos de esto son la misma (un reenvío). Mucho menor que el intervalo de 60 s.
     measurement_replay_tolerance_seconds: int = 10
+    # Diagnóstico router / proveedor: desde esta latencia al router el problema es el WiFi o el router. Con eso y al
+    # menos tantos dispositivos conectados se sugiere, como posibilidad, que uno está usando mucha red.
+    network_gateway_latency_bad_ms: float = 100
+    network_busy_device_min_count: int = 8
     # Puntaje de seguridad: desde dónde es bueno o regular, y cuánto pesa cada parte (suman 100).
     security_score_good_min: int = 80
     security_score_warning_min: int = 50
@@ -153,6 +158,13 @@ class Settings(BaseSettings):
             latency_critical_ms=self.network_status_web_latency_critical_ms,
             packet_loss_warning_percent=self.network_status_packet_loss_warning_percent,
             packet_loss_critical_percent=self.network_status_packet_loss_critical_percent,
+        )
+
+    @property
+    def network_diagnosis_policy(self) -> NetworkDiagnosisPolicy:
+        return NetworkDiagnosisPolicy(
+            gateway_latency_bad_ms=self.network_gateway_latency_bad_ms,
+            busy_device_min_count=self.network_busy_device_min_count,
         )
 
     @property

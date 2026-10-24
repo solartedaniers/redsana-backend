@@ -85,6 +85,7 @@ class SqlAlchemyNetworkMetricsRepository(NetworkMetricsRepository):
         source: MeasurementSource,
         recorded_at: datetime | None,
         network_id: str | None = None,
+        gateway_latency_ms: float | None = None,
     ) -> NetworkMetricSnapshot:
         snapshot = NetworkMetricSnapshot(
             owner_id=owner_id,
@@ -94,6 +95,7 @@ class SqlAlchemyNetworkMetricsRepository(NetworkMetricsRepository):
             status=status,
             source=source,
             network_id=network_id,
+            gateway_latency_ms=gateway_latency_ms,
         )
         if recorded_at is not None:
             snapshot.recorded_at = recorded_at

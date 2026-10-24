@@ -49,4 +49,5 @@ class NetworkMetricsService:
             source=payload.source,
             recorded_at=payload.recorded_at,
             network_id=self._network_identifier.network_id(owner_id, payload.network_fingerprint),
+            gateway_latency_ms=payload.gateway_latency_ms,
         )

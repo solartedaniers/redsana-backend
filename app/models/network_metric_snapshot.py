@@ -44,3 +44,5 @@ class NetworkMetricSnapshot(Base):
     )
     # Red donde se midió (HMAC de la huella del router). None es red desconocida.
     network_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Latencia al router (solo escritorio desde 0.1.6). None: la web, el 0.1.5, sin router o el router no respondió.
+    gateway_latency_ms: Mapped[float | None] = mapped_column(Float, nullable=True)

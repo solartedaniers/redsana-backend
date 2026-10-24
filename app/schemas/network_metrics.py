@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, model_validator
 from app.core.config import get_settings
 from app.domain.measurement_source import DEFAULT_MEASUREMENT_SOURCE, MeasurementSource
 from app.domain.measurement_timing import as_utc
+from app.domain.network_diagnosis import NetworkDiagnosis
 from app.domain.network_status import NetworkStatus
 
 
@@ -17,6 +18,10 @@ class NetworkMetricSnapshotRead(BaseModel):
     updated_at: datetime
     # El frontend rotula la web como "latencia al servidor"; None mientras no haya mediciones.
     source: MeasurementSource | None = None
+    # Campos agregados (opcionales, los clientes anteriores los ignoran). Solo GET /latest trae el diagnóstico.
+    gateway_latency_ms: float | None = None
+    diagnosis: NetworkDiagnosis | None = None
+    possible_busy_device: bool | None = None
 
 
 class NetworkStatusThresholdsRead(BaseModel):
@@ -49,6 +54,8 @@ class NetworkMetricSnapshotCreate(BaseModel):
     # Hora del reloj del cliente al enviar. Con ella se corrige recorded_at al reloj del servidor, así un PC con la hora
     # mal puesta no pierde mediciones ni las hace parecer atrasadas.
     sent_at: datetime | None = None
+    # Latencia al router medida por el escritorio desde 0.1.6. Sin ella no hay diagnóstico router / proveedor.
+    gateway_latency_ms: float | None = Field(default=None, ge=0)
     # SHA-256 de la MAC del router calculado en el escritorio: la MAC cruda nunca llega aquí. None desde la web.
     network_fingerprint: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 

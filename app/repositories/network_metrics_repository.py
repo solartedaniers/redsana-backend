@@ -47,4 +47,5 @@ class NetworkMetricsRepository(ABC):
         source: MeasurementSource,
         recorded_at: datetime | None,
         network_id: str | None = None,
+        gateway_latency_ms: float | None = None,
     ) -> NetworkMetricSnapshot: ...

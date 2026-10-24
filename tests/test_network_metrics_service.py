@@ -64,6 +64,7 @@ class FakeNetworkMetricsRepository(NetworkMetricsRepository):
         source: MeasurementSource,
         recorded_at: datetime | None,
         network_id: str | None = None,
+        gateway_latency_ms: float | None = None,
     ) -> NetworkMetricSnapshot:
         snapshot = NetworkMetricSnapshot(
             owner_id=owner_id,
@@ -73,6 +74,7 @@ class FakeNetworkMetricsRepository(NetworkMetricsRepository):
             status=status,
             source=source,
             network_id=network_id,
+            gateway_latency_ms=gateway_latency_ms,
             recorded_at=recorded_at or datetime.now(timezone.utc),
         )
         self.snapshots.append(snapshot)
