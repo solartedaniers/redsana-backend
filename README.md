@@ -78,6 +78,15 @@ Si el cliente no puede enviar una medición, la guarda y la reenvía después co
 - Una medición que llega con más de `MEASUREMENT_LATE_AFTER_SECONDS` (180 s) de retraso registra el corte con su duración real, pero no dispara un aviso de degradación por algo que ya pasó.
 - Los detectores solo evalúan cuando la medición que llega es la más nueva; una que llega fuera de orden no repite alertas.
 
+## Diagnóstico router / proveedor
+
+El escritorio (desde 0.1.6) manda también `gateway_latency_ms`, la latencia al router (opcional; la web y el instalador 0.1.5 no la mandan). `GET /api/network-metrics/latest` agrega, con esa medición:
+
+- `diagnosis`: `router` si la latencia al router llega a `NETWORK_GATEWAY_LATENCY_BAD_MS` (100 ms; problema del WiFi o del router); `provider` si el router responde bien pero el estado de internet es `warning` o `critical`; `ok` si todo está bien; `null` sin dato del router (no diagnostica).
+- `possible_busy_device`: `true` si la latencia al router llega a ese umbral y hay al menos `NETWORK_BUSY_DEVICE_MIN_COUNT` (8) dispositivos conectados en el último escaneo (el mismo conteo de la pantalla Dispositivos). Es solo una posibilidad, nunca un hecho.
+
+La columna `gateway_latency_ms` (nullable, sin default) llega con la migración `c4f7a2d9e1b8`. El código que la usa necesita la columna: primero se migra y después se despliega.
+
 El puntaje de seguridad usa los rangos y pesos `SECURITY_SCORE_*` (por defecto: bueno desde 80, regular desde 50; cuestionario 30 % y análisis técnico 70 %). `GET /api/security-assessments/score-config` los publica para que el frontend coloree y divida el puntaje igual que el backend.
 
 ## Modo de la IA (`AI_MODE`)
