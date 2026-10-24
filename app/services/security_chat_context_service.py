@@ -103,7 +103,9 @@ class SecurityChatContextBuilder:
         if snapshot is None:
             return "- Ultimo snapshot de red: aun no hay ninguno registrado."
         # SQLite devuelve la fecha sin zona; la guardo siempre en UTC.
-        recorded_at = snapshot.recorded_at if snapshot.recorded_at.tzinfo else snapshot.recorded_at.replace(tzinfo=timezone.utc)
+        recorded_at = (
+            snapshot.recorded_at if snapshot.recorded_at.tzinfo else snapshot.recorded_at.replace(tzinfo=timezone.utc)
+        )
         minutes_ago = max(0, int((datetime.now(timezone.utc) - recorded_at).total_seconds() // 60))
         local_time = recorded_at.astimezone(self._user_timezone)
         return (
@@ -126,7 +128,8 @@ class SecurityChatContextBuilder:
 
     def _screens_line(self) -> str:
         screens = "; ".join(
-            f"{screen.title.text} ({', '.join(section.text for section in screen.sections)})" if screen.sections
+            f"{screen.title.text} ({', '.join(section.text for section in screen.sections)})"
+            if screen.sections
             else screen.title.text
             for screen in USER_APP_SCREENS
         )

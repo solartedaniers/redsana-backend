@@ -1,4 +1,5 @@
 """Sin base ni red: la ventana se abre con un uso interactivo y se cierra sola al pasar su duración."""
+
 from app.ai_gateway.interactive_usage_window import InteractiveUsageWindow
 
 

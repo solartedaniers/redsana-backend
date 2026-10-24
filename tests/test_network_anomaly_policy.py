@@ -1,4 +1,5 @@
 """Sin base: cada métrica que señala el detector de redsana_ai tiene su texto del Centro de alertas."""
+
 from app.domain.network_anomaly_policy import ANOMALY_MESSAGE_KEYS
 
 

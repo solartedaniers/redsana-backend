@@ -1,4 +1,5 @@
 """Cambiar la confianza solo cambia `trust`: antes el onupdate de last_seen desconectaba a todos los demás."""
+
 import uuid
 from datetime import datetime, timedelta, timezone
 

@@ -1,4 +1,5 @@
 """Sin base ni red: solo hogares estándar, el puntaje aproximado y que el del cuestionario tenga prioridad."""
+
 import uuid
 
 from app.services.network_security_score_service import default_network_security_score_service
@@ -13,7 +14,11 @@ from tests.test_user_service import FakeUserRepository
 
 
 def _build_service(
-    user_repository=None, device_repository=None, alert_repository=None, metrics_repository=None, assessment_repository=None
+    user_repository=None,
+    device_repository=None,
+    alert_repository=None,
+    metrics_repository=None,
+    assessment_repository=None,
 ) -> NetworkSupervisionService:
     return NetworkSupervisionService(
         user_repository or FakeUserRepository(),
@@ -103,7 +108,6 @@ def test_real_assessment_score_takes_priority_over_the_proxy() -> None:
     assert household.security_score_source == "real"
 
 
-
 def test_household_score_uses_the_desktop_evidence_reused_by_a_web_submission() -> None:
     user_repository = FakeUserRepository()
     owner = user_repository.create(uuid.uuid4(), "owner@redsana.dev", "Owner", "standard")
@@ -160,6 +164,7 @@ def test_estimated_score_is_not_labelled_partial() -> None:
 
     assert household.security_score_source == "estimated"
     assert not household.security_score_is_partial
+
 
 if __name__ == "__main__":
     test_list_households_excludes_admin_users()

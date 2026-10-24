@@ -1,4 +1,5 @@
 """Umbrales del estado de la red: los valores por defecto dan los mismos estados de siempre y se cambian por entorno."""
+
 from collections.abc import Iterator
 
 import pytest

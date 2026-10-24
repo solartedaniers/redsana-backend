@@ -1,5 +1,6 @@
 """A nivel de router y con SQLite: el usuario B no ve ni cambia nada del usuario A, un usuario estándar no entra a ninguna
 ruta de admin y una cuenta suspendida recibe 403 en todo lo que lleva sus datos."""
+
 import uuid
 from types import SimpleNamespace
 
@@ -65,7 +66,9 @@ class World:
 
     def seed_user_a(self) -> SimpleNamespace:
         client = self.as_user(USER_A)
-        device = client.post("/api/devices", json={"name": "Portátil", "mac_address": "aa-bb-cc-dd-ee-01", "ip_address": "192.168.1.20"})
+        device = client.post(
+            "/api/devices", json={"name": "Portátil", "mac_address": "aa-bb-cc-dd-ee-01", "ip_address": "192.168.1.20"}
+        )
         conversation = client.post("/api/chat-conversations", json={})
         assessment = client.post("/api/security-assessments", json=ANSWERS_PAYLOAD)
         assert (device.status_code, conversation.status_code, assessment.status_code) == (201, 201, 201)
@@ -240,7 +243,9 @@ def test_a_suspended_account_cannot_write_either(world: World) -> None:
 
     assert client.patch("/api/users/me", json={"full_name": "otro"}).status_code == 403
     assert client.patch(f"/api/devices/{a.device}", json={"trust": "trusted"}).status_code == 403
-    assert client.post(f"/api/chat-conversations/{a.conversation}/messages", json={"message": "hola"}).status_code == 403
+    assert (
+        client.post(f"/api/chat-conversations/{a.conversation}/messages", json={"message": "hola"}).status_code == 403
+    )
     assert world.model.calls == []
 
 

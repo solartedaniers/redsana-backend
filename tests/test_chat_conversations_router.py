@@ -1,4 +1,5 @@
 """De punta a punta en el router, con un GroqClient falso y SQLite en memoria."""
+
 import time
 import uuid
 
@@ -77,7 +78,9 @@ def test_create_list_and_rename_conversation():
         assert [c["id"] for c in listed.json()] == [conversation_id]
 
         renamed = client.patch(
-            f"/api/chat-conversations/{conversation_id}", json={"title": "Mi red"}, headers={"Authorization": "Bearer fake"}
+            f"/api/chat-conversations/{conversation_id}",
+            json={"title": "Mi red"},
+            headers={"Authorization": "Bearer fake"},
         )
         assert renamed.status_code == 200
         assert renamed.json()["title"] == "Mi red"
@@ -121,7 +124,9 @@ def test_cannot_access_another_owners_conversation():
         conversation_id = client.post("/api/chat-conversations", headers={"Authorization": "Bearer fake"}).json()["id"]
 
         app.dependency_overrides[get_current_claims] = _override_other_claims
-        response = client.get(f"/api/chat-conversations/{conversation_id}/messages", headers={"Authorization": "Bearer fake"})
+        response = client.get(
+            f"/api/chat-conversations/{conversation_id}/messages", headers={"Authorization": "Bearer fake"}
+        )
         assert response.status_code == 404
     finally:
         app.dependency_overrides.clear()
@@ -165,8 +170,14 @@ def test_the_model_receives_the_recent_conversation_history():
     client, engine = _make_client(stub)
     try:
         conversation_id = client.post("/api/chat-conversations", headers=AUTH).json()["id"]
-        client.post(f"/api/chat-conversations/{conversation_id}/messages", json={"message": "tengo Telnet abierto"}, headers=AUTH)
-        client.post(f"/api/chat-conversations/{conversation_id}/messages", json={"message": "como cierro eso?"}, headers=AUTH)
+        client.post(
+            f"/api/chat-conversations/{conversation_id}/messages",
+            json={"message": "tengo Telnet abierto"},
+            headers=AUTH,
+        )
+        client.post(
+            f"/api/chat-conversations/{conversation_id}/messages", json={"message": "como cierro eso?"}, headers=AUTH
+        )
 
         _, turns = stub.calls[-1]
         assert [(t.role, t.content) for t in turns] == [
@@ -191,7 +202,11 @@ def test_a_message_with_a_password_is_never_stored_nor_sent_to_the_model():
             headers=AUTH,
         )
 
-        assert sent.json() == {"reply": None, "notice_key": "user.securityAssistant.chat.passwordWarning", "notice_params": None}
+        assert sent.json() == {
+            "reply": None,
+            "notice_key": "user.securityAssistant.chat.passwordWarning",
+            "notice_params": None,
+        }
         assert stub.calls == []
         assert client.get(f"/api/chat-conversations/{conversation_id}/messages", headers=AUTH).json() == []
         # Tampoco queda como título de la conversación.
@@ -207,14 +222,24 @@ def test_briefing_is_written_once_per_assessment_with_the_real_score_in_context(
     try:
         assessment = _submit_assessment(client, wifi_encryption_raw="WPA2-Personal", router_open_ports=[23])
 
-        first = client.post("/api/chat-conversations/briefings", json={"assessment_id": assessment["id"], "language": "es"}, headers=AUTH)
-        again = client.post("/api/chat-conversations/briefings", json={"assessment_id": assessment["id"], "language": "es"}, headers=AUTH)
+        first = client.post(
+            "/api/chat-conversations/briefings",
+            json={"assessment_id": assessment["id"], "language": "es"},
+            headers=AUTH,
+        )
+        again = client.post(
+            "/api/chat-conversations/briefings",
+            json={"assessment_id": assessment["id"], "language": "es"},
+            headers=AUTH,
+        )
 
         assert first.status_code == again.status_code == 200
         assert first.json() == again.json()
         assert len(stub.calls) == 1  # la segunda vez no vuelve a llamar al modelo
         assert first.json()["conversation"]["topic"] == "assessment_briefing"
-        assert [(m["role"], m["content"]) for m in first.json()["messages"]] == [("assistant", "Tu puntaje es 68. Cierra Telnet.")]
+        assert [(m["role"], m["content"]) for m in first.json()["messages"]] == [
+            ("assistant", "Tu puntaje es 68. Cierra Telnet.")
+        ]
         system_prompt, _ = stub.calls[0]
         assert f"{assessment['score']}/100" in system_prompt
         assert "23 (Telnet)" in system_prompt
@@ -229,7 +254,11 @@ def test_web_briefing_context_says_honestly_that_there_is_no_technical_analysis(
     client, engine = _make_client(stub)
     try:
         assessment = _submit_assessment(client)
-        client.post("/api/chat-conversations/briefings", json={"assessment_id": assessment["id"], "language": "en"}, headers=AUTH)
+        client.post(
+            "/api/chat-conversations/briefings",
+            json={"assessment_id": assessment["id"], "language": "en"},
+            headers=AUTH,
+        )
 
         system_prompt, turns = stub.calls[0]
         assert "PARCIAL: solo cuestionario" in system_prompt
@@ -247,8 +276,12 @@ def test_only_the_latest_own_assessment_can_be_briefed_and_a_model_failure_leave
         time.sleep(1.1)
         latest = _submit_assessment(client)
 
-        stale = client.post("/api/chat-conversations/briefings", json={"assessment_id": old["id"], "language": "es"}, headers=AUTH)
-        failed = client.post("/api/chat-conversations/briefings", json={"assessment_id": latest["id"], "language": "es"}, headers=AUTH)
+        stale = client.post(
+            "/api/chat-conversations/briefings", json={"assessment_id": old["id"], "language": "es"}, headers=AUTH
+        )
+        failed = client.post(
+            "/api/chat-conversations/briefings", json={"assessment_id": latest["id"], "language": "es"}, headers=AUTH
+        )
 
         assert stale.status_code == 404
         assert failed.status_code == 502
@@ -266,7 +299,9 @@ def test_family_mode_conversation_carries_the_family_dns_guide_in_context():
     try:
         created = client.post("/api/chat-conversations", json={"topic": "family_mode"}, headers=AUTH)
         conversation_id = created.json()["id"]
-        client.post(f"/api/chat-conversations/{conversation_id}/messages", json={"message": "no encuentro el DNS"}, headers=AUTH)
+        client.post(
+            f"/api/chat-conversations/{conversation_id}/messages", json={"message": "no encuentro el DNS"}, headers=AUTH
+        )
 
         system_prompt, _ = stub.calls[0]
         assert created.json()["topic"] == "family_mode"
@@ -292,9 +327,13 @@ def test_a_wrong_dns_in_a_family_mode_reply_comes_with_the_exact_values_from_the
     stub = _StubGroqClient(reply="DNS primario: 1.1.1.3 / DNS secundario: **0.0.0.3**")
     client, engine = _make_client(stub)
     try:
-        conversation_id = client.post("/api/chat-conversations", json={"topic": "family_mode"}, headers=AUTH).json()["id"]
+        conversation_id = client.post("/api/chat-conversations", json={"topic": "family_mode"}, headers=AUTH).json()[
+            "id"
+        ]
 
-        sent = client.post(f"/api/chat-conversations/{conversation_id}/messages", json={"message": "que pongo?"}, headers=AUTH).json()
+        sent = client.post(
+            f"/api/chat-conversations/{conversation_id}/messages", json={"message": "que pongo?"}, headers=AUTH
+        ).json()
 
         assert sent["reply"] == "DNS primario: 1.1.1.3 / DNS secundario: 0.0.0.3"  # sin Markdown
         assert sent["notice_key"] == "user.securityAssistant.chat.familyDnsCheck"
@@ -308,9 +347,13 @@ def test_correct_family_dns_replies_have_no_notice():
     stub = _StubGroqClient(reply="Entra a 192.168.0.1 y escribe 1.1.1.3 y 1.0.0.3.")
     client, engine = _make_client(stub)
     try:
-        conversation_id = client.post("/api/chat-conversations", json={"topic": "family_mode"}, headers=AUTH).json()["id"]
+        conversation_id = client.post("/api/chat-conversations", json={"topic": "family_mode"}, headers=AUTH).json()[
+            "id"
+        ]
 
-        sent = client.post(f"/api/chat-conversations/{conversation_id}/messages", json={"message": "que pongo?"}, headers=AUTH).json()
+        sent = client.post(
+            f"/api/chat-conversations/{conversation_id}/messages", json={"message": "que pongo?"}, headers=AUTH
+        ).json()
 
         assert sent["notice_key"] is None
     finally:

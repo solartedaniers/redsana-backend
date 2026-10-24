@@ -5,6 +5,7 @@ Revises: 2912dcec10e7
 Create Date: 2026-09-18 08:54:41.609847
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -12,31 +13,40 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '9515a06b3720'
-down_revision: Union[str, Sequence[str], None] = '2912dcec10e7'
+revision: str = "9515a06b3720"
+down_revision: Union[str, Sequence[str], None] = "2912dcec10e7"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.create_table('devices',
-    sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('owner_id', sa.UUID(), nullable=False),
-    sa.Column('name', sa.String(length=255), nullable=False),
-    sa.Column('mac_address', sa.String(length=17), nullable=False),
-    sa.Column('ip_address', sa.String(length=45), nullable=False),
-    sa.Column('trust', sa.Enum('trusted', 'unknown', 'blocked', name='device_trust'), server_default='unknown', nullable=False),
-    sa.Column('first_seen', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-    sa.Column('last_seen', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('owner_id', 'mac_address')
+    op.create_table(
+        "devices",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("owner_id", sa.UUID(), nullable=False),
+        sa.Column("name", sa.String(length=255), nullable=False),
+        sa.Column("mac_address", sa.String(length=17), nullable=False),
+        sa.Column("ip_address", sa.String(length=45), nullable=False),
+        sa.Column(
+            "trust",
+            sa.Enum("trusted", "unknown", "blocked", name="device_trust"),
+            server_default="unknown",
+            nullable=False,
+        ),
+        sa.Column("first_seen", sa.DateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column("last_seen", sa.DateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["owner_id"],
+            ["users.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("owner_id", "mac_address"),
     )
-    op.create_index(op.f('ix_devices_owner_id'), 'devices', ['owner_id'], unique=False)
+    op.create_index(op.f("ix_devices_owner_id"), "devices", ["owner_id"], unique=False)
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_index(op.f('ix_devices_owner_id'), table_name='devices')
-    op.drop_table('devices')
+    op.drop_index(op.f("ix_devices_owner_id"), table_name="devices")
+    op.drop_table("devices")

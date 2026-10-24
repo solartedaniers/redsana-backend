@@ -1,4 +1,5 @@
 """La guarda de tests/conftest.py: la app de las pruebas usa SQLite y un intento de usar la base real falla."""
+
 import uuid
 
 import pytest

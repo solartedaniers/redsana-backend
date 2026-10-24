@@ -1,5 +1,6 @@
 """Sin red: un servicio falso que responde con el propio paquete (con el contrato JSON de redsana_ai_service) prueba
- que los adaptadores remotos serializan y leen de modo que el resultado es el mismo que en modo local."""
+que los adaptadores remotos serializan y leen de modo que el resultado es el mismo que en modo local."""
+
 import io
 import json
 from dataclasses import asdict
@@ -80,7 +81,13 @@ class _PackageBackedService:
             episode = StreakOutageDetector().detect(window)
             if episode is None:
                 return {"episode": None}
-            return {"episode": {**asdict(episode), "started_at": _iso(episode.started_at), "recovered_at": _iso(episode.recovered_at)}}
+            return {
+                "episode": {
+                    **asdict(episode),
+                    "started_at": _iso(episode.started_at),
+                    "recovered_at": _iso(episode.recovered_at),
+                }
+            }
         raise AssertionError(f"unexpected path {path}")
 
 

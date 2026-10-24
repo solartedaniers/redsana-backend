@@ -1,4 +1,5 @@
 """Sin base ni red: auto-provisioning contra un repositorio en memoria."""
+
 import uuid
 from datetime import datetime, timezone
 
@@ -99,6 +100,7 @@ def test_update_current_user_ignores_email_changes() -> None:
     updated = service.update_current_user(claims, UserUpdate.model_validate({"email": "hijack@redsana.dev"}))
 
     assert updated.email == "existing@redsana.dev"
+
 
 if __name__ == "__main__":
     test_first_login_auto_provisions_user_with_default_role()

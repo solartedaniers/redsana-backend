@@ -24,6 +24,6 @@ def get_ai_status(gateway: AiGateway = Depends(get_ai_gateway)) -> AiStatusRead:
 @router.post("/warm-up", response_model=AiStatusRead, status_code=status.HTTP_202_ACCEPTED)
 def warm_up_ai(gateway: AiGateway = Depends(get_ai_gateway)) -> AiStatusRead:
     """Despierta la IA tras iniciar sesión, al reintentar o al abrir el chat. El calentamiento corre en su propio hilo,
-     así que sigue aunque el cliente se desconecte; si ya hay uno en curso no lanza otro."""
+    así que sigue aunque el cliente se desconecte; si ya hay uno en curso no lanza otro."""
     gateway.start_warm_up()
     return _status_read(gateway)

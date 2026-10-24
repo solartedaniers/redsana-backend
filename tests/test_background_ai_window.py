@@ -1,5 +1,6 @@
 """De punta a punta con SQLite y AI_MODE=remote: cada medición evalúa en segundo plano, pero solo llama al servicio
- de IA dentro de la ventana de uso interactivo. Fuera de ella no hay ninguna petición que lo despierte."""
+de IA dentro de la ventana de uso interactivo. Fuera de ella no hay ninguna petición que lo despierte."""
+
 import urllib.error
 import urllib.request
 

@@ -5,6 +5,7 @@ Revises: 9515a06b3720
 Create Date: 2026-09-18 09:23:02.839314
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -12,29 +13,38 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'd1d6e36f56f0'
-down_revision: Union[str, Sequence[str], None] = '9515a06b3720'
+revision: str = "d1d6e36f56f0"
+down_revision: Union[str, Sequence[str], None] = "9515a06b3720"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.create_table('network_metric_snapshots',
-    sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('owner_id', sa.UUID(), nullable=False),
-    sa.Column('recorded_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-    sa.Column('latency_ms', sa.Float(), nullable=False),
-    sa.Column('jitter_ms', sa.Float(), nullable=False),
-    sa.Column('packet_loss_percent', sa.Float(), nullable=False),
-    sa.Column('status', sa.Enum('good', 'warning', 'critical', 'unknown', name='network_status'), nullable=False),
-    sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    op.create_table(
+        "network_metric_snapshots",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("owner_id", sa.UUID(), nullable=False),
+        sa.Column("recorded_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column("latency_ms", sa.Float(), nullable=False),
+        sa.Column("jitter_ms", sa.Float(), nullable=False),
+        sa.Column("packet_loss_percent", sa.Float(), nullable=False),
+        sa.Column("status", sa.Enum("good", "warning", "critical", "unknown", name="network_status"), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["owner_id"],
+            ["users.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index('ix_network_metric_snapshots_owner_recorded', 'network_metric_snapshots', ['owner_id', 'recorded_at'], unique=False)
+    op.create_index(
+        "ix_network_metric_snapshots_owner_recorded",
+        "network_metric_snapshots",
+        ["owner_id", "recorded_at"],
+        unique=False,
+    )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_index('ix_network_metric_snapshots_owner_recorded', table_name='network_metric_snapshots')
-    op.drop_table('network_metric_snapshots')
+    op.drop_index("ix_network_metric_snapshots_owner_recorded", table_name="network_metric_snapshots")
+    op.drop_table("network_metric_snapshots")

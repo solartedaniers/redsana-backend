@@ -153,5 +153,7 @@ def _http_error(error: urllib.error.HTTPError) -> Exception:
             _is_render_rate_limited(error),
         )
     if 400 <= error.code < 500:
-        return AiServiceRejectedError(f"AI service rejected the request: {error.code} {code} {_diagnostics(error, raw)}")
+        return AiServiceRejectedError(
+            f"AI service rejected the request: {error.code} {code} {_diagnostics(error, raw)}"
+        )
     return AiServiceResponseError(f"AI service failed: {error.code} {code} {_diagnostics(error, raw)}")

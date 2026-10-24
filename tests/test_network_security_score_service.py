@@ -1,4 +1,5 @@
 """Ponderación 30 % cuestionario y 70 % técnico, y extensibilidad por analizadores."""
+
 from app.domain.security_analyzers import (
     AnalyzerResult,
     RouterOpenPortsAnalyzer,
@@ -6,7 +7,10 @@ from app.domain.security_analyzers import (
     TechnicalSecurityAnalyzer,
     WifiEncryptionAnalyzer,
 )
-from app.services.network_security_score_service import NetworkSecurityScoreService, default_network_security_score_service
+from app.services.network_security_score_service import (
+    NetworkSecurityScoreService,
+    default_network_security_score_service,
+)
 
 ALL_YES = {"default-password": "yes", "firmware-updated": "yes", "guest-network": "yes", "remote-management-off": "yes"}
 ALL_NO = {question: "no" for question in ALL_YES}

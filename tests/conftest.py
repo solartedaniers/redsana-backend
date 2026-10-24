@@ -1,4 +1,5 @@
 """Se carga antes que cualquier módulo de pruebas: fija la base en SQLite antes de importar la app y aborta si no lo es."""
+
 import os
 
 from tests.database_guard import (

@@ -48,7 +48,7 @@ class NetworkAnomalyService:
 
     def evaluate_latest(self, owner_id: uuid.UUID) -> None:
         """Se llama tras guardar un snapshot. Solo entrena con la misma fuente: la latencia web es mayor que el ping
-         nativo y mezclarlas haría parecer anómala cada medición web."""
+        nativo y mezclarlas haría parecer anómala cada medición web."""
         latest = self._metrics_repository.get_latest(owner_id)
         if latest is None:
             return

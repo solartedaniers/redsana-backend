@@ -1,5 +1,6 @@
 """De punta a punta en el router con SQLite en memoria: si el servicio de IA duerme, el chat y el resumen
- responden "encendiendo" (503 con Retry-After) en vez de un error, y un fallo real de Groq sigue siendo 502."""
+responden "encendiendo" (503 con Retry-After) en vez de un error, y un fallo real de Groq sigue siendo 502."""
+
 from redsana_ai import AnomalyDetector, OutageDetector, SecurityBriefing, SecurityChat
 from test_chat_conversations_router import AUTH, _make_client, _submit_assessment
 
@@ -60,7 +61,9 @@ def test_a_sleeping_ai_service_makes_the_chat_answer_warming_up():
     try:
         conversation_id = client.post("/api/chat-conversations", headers=AUTH).json()["id"]
 
-        response = client.post(f"/api/chat-conversations/{conversation_id}/messages", json={"message": "hola"}, headers=AUTH)
+        response = client.post(
+            f"/api/chat-conversations/{conversation_id}/messages", json={"message": "hola"}, headers=AUTH
+        )
 
         assert response.status_code == 503
         assert response.json() == {"detail": "ai_warming_up"}
@@ -79,7 +82,9 @@ def test_a_sleeping_ai_service_makes_the_briefing_answer_warming_up_and_leaves_n
         assessment = _submit_assessment(client)
 
         response = client.post(
-            "/api/chat-conversations/briefings", json={"assessment_id": assessment["id"], "language": "es"}, headers=AUTH
+            "/api/chat-conversations/briefings",
+            json={"assessment_id": assessment["id"], "language": "es"},
+            headers=AUTH,
         )
 
         assert response.status_code == 503
@@ -95,7 +100,9 @@ def test_a_chat_engine_failure_inside_the_service_is_still_a_502():
     try:
         conversation_id = client.post("/api/chat-conversations", headers=AUTH).json()["id"]
 
-        response = client.post(f"/api/chat-conversations/{conversation_id}/messages", json={"message": "hola"}, headers=AUTH)
+        response = client.post(
+            f"/api/chat-conversations/{conversation_id}/messages", json={"message": "hola"}, headers=AUTH
+        )
 
         assert response.status_code == 502
         assert "groq down" not in response.text

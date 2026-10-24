@@ -1,4 +1,5 @@
 """Sin base ni red: filtrado por dueño y sincronización de un escaneo real."""
+
 import uuid
 from datetime import datetime, timezone
 
@@ -80,9 +81,7 @@ def test_list_devices_only_returns_those_of_the_owner() -> None:
 def test_update_device_of_another_owner_raises_not_found() -> None:
     repository = FakeDeviceRepository()
     service = DeviceService(repository)
-    device = service.create_device(
-        uuid.uuid4(), DeviceCreate(name="a", mac_address="AA", ip_address="1.1.1.1")
-    )
+    device = service.create_device(uuid.uuid4(), DeviceCreate(name="a", mac_address="AA", ip_address="1.1.1.1"))
 
     try:
         service.update_device(device.id, uuid.uuid4(), DeviceUpdate(trust="blocked"))
@@ -168,12 +167,14 @@ def test_sync_stores_each_device_role_and_refreshes_it_on_the_next_scan() -> Non
     assert {d.mac_address: d.network_role for d in repository.list_by_owner(owner_id)}["3c-6a-d2-c8-5a-ec"] == "other"
 
 
-
 def test_sync_saves_a_whole_campus_scan_in_a_single_write() -> None:
     repository = FakeDeviceRepository()
     service = DeviceService(repository)
     owner_id = uuid.uuid4()
-    scan = [DeviceSyncItem(mac_address=f"aa-bb-cc-dd-{i // 256:02x}-{i % 256:02x}", ip_address=f"10.0.{i // 256}.{i % 256}") for i in range(900)]
+    scan = [
+        DeviceSyncItem(mac_address=f"aa-bb-cc-dd-{i // 256:02x}-{i % 256:02x}", ip_address=f"10.0.{i // 256}.{i % 256}")
+        for i in range(900)
+    ]
 
     devices = service.sync_discovered_devices(owner_id, scan)
 

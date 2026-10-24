@@ -1,5 +1,6 @@
 """decode_supabase_token con claves ES256 generadas aquí y un JWKS simulado (sin red): qué tokens acepta y cuántas veces
 consulta el JWKS cuando llega un kid que no conoce."""
+
 import base64
 import hashlib
 import hmac
@@ -35,8 +36,12 @@ ROTATED_PRIVATE_PEM, ROTATED_PUBLIC_JWK = _key_pair(NEW_KID)
 
 
 def _claims(**overrides) -> dict:
-    return {"sub": "00000000-0000-4000-8000-000000000001", "aud": get_settings().supabase_jwt_audience,
-            "exp": int(NOW) + 3600, **overrides}
+    return {
+        "sub": "00000000-0000-4000-8000-000000000001",
+        "aud": get_settings().supabase_jwt_audience,
+        "exp": int(NOW) + 3600,
+        **overrides,
+    }
 
 
 def _token(private_pem: bytes = PRIVATE_PEM, kid: str | None = KID, **claims) -> str:
@@ -59,6 +64,7 @@ def jwks(monkeypatch):
 
     monkeypatch.setattr(security, "_fetch_jwks", fetch)
     monkeypatch.setattr(security.time, "time", lambda: state["now"])
+
     # Firmas y vencimiento se validan contra la hora simulada, igual que el caché.
     class _SimulatedDatetime(datetime):
         @classmethod

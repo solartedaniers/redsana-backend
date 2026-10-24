@@ -1,4 +1,5 @@
 """Sin red: los detectores en segundo plano usan el servicio solo dentro de la ventana y nunca la renuevan."""
+
 from datetime import datetime, timezone
 
 import pytest
@@ -26,7 +27,9 @@ class _AnomalyDetector(AnomalyDetector):
         self.calls = 0
         self._fails = fails
 
-    def evaluate(self, history: list[NetworkMetricVector], latest: NetworkMetricVector) -> DeviationClassification | None:
+    def evaluate(
+        self, history: list[NetworkMetricVector], latest: NetworkMetricVector
+    ) -> DeviationClassification | None:
         self.calls += 1
         if self._fails:
             raise AiServiceUnavailableError("asleep")

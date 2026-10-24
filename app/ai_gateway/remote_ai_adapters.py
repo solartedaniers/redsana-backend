@@ -1,4 +1,5 @@
 """Implementaciones de las interfaces de redsana_ai que llaman al servicio de IA: quien las usa no nota la diferencia."""
+
 from datetime import datetime
 from typing import Any
 
@@ -25,7 +26,9 @@ class RemoteSecurityChat(SecurityChat):
         self._client = client
         self._usage_window = usage_window
 
-    def ask(self, user_context: str, history: list[ChatTurn], user_message: str, topic_context: str | None = None) -> str:
+    def ask(
+        self, user_context: str, history: list[ChatTurn], user_message: str, topic_context: str | None = None
+    ) -> str:
         # Un chat es uso interactivo: mantiene abierta la ventana de los detectores aunque la llamada falle.
         self._usage_window.record_use()
         payload = self._client.post(
@@ -55,7 +58,9 @@ class RemoteAnomalyDetector(AnomalyDetector):
     def __init__(self, client: AiServiceClient) -> None:
         self._client = client
 
-    def evaluate(self, history: list[NetworkMetricVector], latest: NetworkMetricVector) -> DeviationClassification | None:
+    def evaluate(
+        self, history: list[NetworkMetricVector], latest: NetworkMetricVector
+    ) -> DeviationClassification | None:
         payload = self._client.post(
             "/v1/anomaly/evaluate", {"history": [list(sample) for sample in history], "latest": list(latest)}
         )

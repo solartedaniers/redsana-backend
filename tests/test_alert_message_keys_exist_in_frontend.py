@@ -1,5 +1,6 @@
 """Cada clave de alerta del backend debe existir en el frontend, o el Centro de alertas muestra la clave cruda.
- Los diccionarios viven en el repo del frontend: FRONTEND_I18N_DIR (entorno o .env) dice dónde están."""
+Los diccionarios viven en el repo del frontend: FRONTEND_I18N_DIR (entorno o .env) dice dónde están."""
+
 import json
 import os
 from pathlib import Path
@@ -35,7 +36,9 @@ def _i18n_dir() -> Path | None:
 def test_every_backend_alert_key_has_a_frontend_text(language: str) -> None:
     i18n_dir = _i18n_dir()
     if i18n_dir is None:
-        pytest.skip(f"{I18N_DIR_VARIABLE} no está definida: clona el repo del frontend y apúntala a su public/assets/i18n")
+        pytest.skip(
+            f"{I18N_DIR_VARIABLE} no está definida: clona el repo del frontend y apúntala a su public/assets/i18n"
+        )
     dictionary = json.loads((i18n_dir / f"{language}.json").read_text(encoding="utf-8"))
     missing = [key for key in BACKEND_ALERT_KEYS if not isinstance(_resolve(dictionary, key), str)]
     assert missing == []

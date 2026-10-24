@@ -7,7 +7,6 @@ from app.models.device import Device
 
 
 class DeviceRepository(ABC):
-
     @abstractmethod
     def list_by_owner(self, owner_id: uuid.UUID) -> list[Device]: ...
 

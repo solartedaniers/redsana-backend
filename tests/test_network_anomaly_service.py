@@ -1,4 +1,5 @@
 """Sin base ni red: calibración, detección y deduplicación con los repositorios falsos de siempre."""
+
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -93,7 +94,14 @@ def test_evaluate_latest_creates_a_prediction_alert_for_an_anomalous_sample() ->
     owner_id = uuid.uuid4()
     _seed_normal_history(metrics_repository, owner_id, ANOMALY_WINDOW_SIZE - 1)
     metrics_repository.create(
-        owner_id=owner_id, latency_ms=400.0, jitter_ms=2.0, packet_loss_percent=0.0, status="critical", source="native", network_id=HOME_NETWORK, recorded_at=None
+        owner_id=owner_id,
+        latency_ms=400.0,
+        jitter_ms=2.0,
+        packet_loss_percent=0.0,
+        status="critical",
+        source="native",
+        network_id=HOME_NETWORK,
+        recorded_at=None,
     )
     service = NetworkAnomalyService(metrics_repository, alert_repository, IsolationForestAnomalyDetector())
 
@@ -120,7 +128,14 @@ def test_evaluate_latest_does_not_duplicate_an_already_open_alert() -> None:
     )
     _seed_normal_history(metrics_repository, owner_id, ANOMALY_WINDOW_SIZE - 1)
     metrics_repository.create(
-        owner_id=owner_id, latency_ms=400.0, jitter_ms=2.0, packet_loss_percent=0.0, status="critical", source="native", network_id=HOME_NETWORK, recorded_at=None
+        owner_id=owner_id,
+        latency_ms=400.0,
+        jitter_ms=2.0,
+        packet_loss_percent=0.0,
+        status="critical",
+        source="native",
+        network_id=HOME_NETWORK,
+        recorded_at=None,
     )
     service = NetworkAnomalyService(metrics_repository, alert_repository, IsolationForestAnomalyDetector())
 
@@ -137,7 +152,13 @@ def test_evaluate_latest_ignores_history_from_another_source() -> None:
     _seed_normal_history(metrics_repository, owner_id, ANOMALY_WINDOW_SIZE, source="native")
     # Latencia web normal (~2x el ping): contra el historial nativo se vería anómala.
     metrics_repository.create(
-        owner_id=owner_id, latency_ms=45.0, jitter_ms=2.0, packet_loss_percent=0.0, status="good", source="web", recorded_at=None
+        owner_id=owner_id,
+        latency_ms=45.0,
+        jitter_ms=2.0,
+        packet_loss_percent=0.0,
+        status="good",
+        source="web",
+        recorded_at=None,
     )
     service = NetworkAnomalyService(metrics_repository, alert_repository, IsolationForestAnomalyDetector())
 
@@ -146,7 +167,6 @@ def test_evaluate_latest_ignores_history_from_another_source() -> None:
     # La fuente web aún está calibrando: no se evalúa contra el historial nativo.
     assert alert_repository.list_all(owner_id) == []
     assert service.get_status(owner_id).status == "calibrating"
-
 
 
 def test_web_source_calibrates_with_half_a_day_while_desktop_still_needs_the_full_day() -> None:
@@ -171,18 +191,32 @@ def test_web_source_detects_anomalies_once_calibrated_with_720_samples() -> None
     owner_id = uuid.uuid4()
     _seed_normal_history(metrics_repository, owner_id, MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE["web"], source="web")
     metrics_repository.create(
-        owner_id=owner_id, latency_ms=400.0, jitter_ms=2.0, packet_loss_percent=0.0, status="critical", source="web", recorded_at=None
+        owner_id=owner_id,
+        latency_ms=400.0,
+        jitter_ms=2.0,
+        packet_loss_percent=0.0,
+        status="critical",
+        source="web",
+        recorded_at=None,
     )
 
-    NetworkAnomalyService(metrics_repository, alert_repository, IsolationForestAnomalyDetector()).evaluate_latest(owner_id)
+    NetworkAnomalyService(metrics_repository, alert_repository, IsolationForestAnomalyDetector()).evaluate_latest(
+        owner_id
+    )
 
     assert [alert.type for alert in alert_repository.list_all(owner_id)] == ["prediction"]
 
 
 def _anomalous_sample(repository: FakeNetworkMetricsRepository, owner_id: uuid.UUID, network_id: str | None) -> None:
     repository.create(
-        owner_id=owner_id, latency_ms=400.0, jitter_ms=2.0, packet_loss_percent=0.0, status="critical",
-        source="native", network_id=network_id, recorded_at=None,
+        owner_id=owner_id,
+        latency_ms=400.0,
+        jitter_ms=2.0,
+        packet_loss_percent=0.0,
+        status="critical",
+        source="native",
+        network_id=network_id,
+        recorded_at=None,
     )
 
 
@@ -241,7 +275,9 @@ def test_measurements_without_network_never_count_toward_a_calibration() -> None
     _seed_normal_history(metrics_repository, owner_id, MIN_NATIVE_SAMPLES, network_id=None, minutes_ago=50)
     _seed_normal_history(metrics_repository, owner_id, 10, network_id=HOME_NETWORK)
 
-    status = NetworkAnomalyService(metrics_repository, FakeAlertRepository(), IsolationForestAnomalyDetector()).get_status(owner_id)
+    status = NetworkAnomalyService(
+        metrics_repository, FakeAlertRepository(), IsolationForestAnomalyDetector()
+    ).get_status(owner_id)
 
     assert (status.status, status.samples_collected) == ("calibrating", 10)
 

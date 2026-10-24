@@ -1,4 +1,5 @@
 """Las llamadas a Supabase corren en el pool de hilos: sin timeout, un Supabase colgado lo agota."""
+
 import io
 import json
 import urllib.error

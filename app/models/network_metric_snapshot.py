@@ -18,7 +18,11 @@ class NetworkMetricSnapshot(Base):
         Index("ix_network_metric_snapshots_owner_recorded", "owner_id", "recorded_at"),
         Index("ix_network_metric_snapshots_owner_source_recorded", "owner_id", "source", "recorded_at"),
         Index(
-            "ix_network_metric_snapshots_owner_source_network_recorded", "owner_id", "source", "network_id", "recorded_at"
+            "ix_network_metric_snapshots_owner_source_network_recorded",
+            "owner_id",
+            "source",
+            "network_id",
+            "recorded_at",
         ),
     )
 

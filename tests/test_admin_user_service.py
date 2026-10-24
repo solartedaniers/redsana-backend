@@ -1,4 +1,5 @@
 """Sin base ni red: CRUD de admin sobre un repositorio de usuarios en memoria."""
+
 import uuid
 
 import pytest
@@ -132,7 +133,9 @@ def test_removing_the_last_active_admin_is_refused(operation: str) -> None:
         if operation == "delete":
             service.delete_user(last, acting_admin_id=acting)
         else:
-            payload = AdminUserUpdate(status="suspended") if operation == "suspend" else AdminUserUpdate(role="standard")
+            payload = (
+                AdminUserUpdate(status="suspended") if operation == "suspend" else AdminUserUpdate(role="standard")
+            )
             service.update_user(last, payload, acting_admin_id=acting)
 
     assert (user_repository.get_by_id(last).role.name, user_repository.get_by_id(last).is_active) == ("admin", True)

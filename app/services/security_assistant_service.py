@@ -14,7 +14,9 @@ _TOPIC_CONTEXTS: dict[ChatTopic, str] = {
 class SecurityAssistantService:
     """Traduce dueño y tema del backend a lo que pide el asistente de redsana_ai (datos reales ya armados)."""
 
-    def __init__(self, chat: SecurityChat, briefing: SecurityBriefing, context_builder: SecurityChatContextBuilder) -> None:
+    def __init__(
+        self, chat: SecurityChat, briefing: SecurityBriefing, context_builder: SecurityChatContextBuilder
+    ) -> None:
         self._chat = chat
         self._briefing = briefing
         self._context_builder = context_builder

@@ -5,6 +5,7 @@ Revises: 8a25c8b4fe89
 Create Date: 2026-09-18 20:10:57.517721
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -12,27 +13,28 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'c3256ab4ce02'
-down_revision: Union[str, Sequence[str], None] = '8a25c8b4fe89'
+revision: str = "c3256ab4ce02"
+down_revision: Union[str, Sequence[str], None] = "8a25c8b4fe89"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.create_table('security_assessments',
-    sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('owner_id', sa.UUID(), nullable=False),
-    sa.Column('answers', sa.JSON(), nullable=False),
-    sa.Column('wifi_encryption_raw', sa.String(length=64), nullable=True),
-    sa.Column('submitted_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    op.create_table(
+        "security_assessments",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("owner_id", sa.UUID(), nullable=False),
+        sa.Column("answers", sa.JSON(), nullable=False),
+        sa.Column("wifi_encryption_raw", sa.String(length=64), nullable=True),
+        sa.Column("submitted_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.ForeignKeyConstraint(["owner_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f('ix_security_assessments_owner_id'), 'security_assessments', ['owner_id'], unique=False)
+    op.create_index(op.f("ix_security_assessments_owner_id"), "security_assessments", ["owner_id"], unique=False)
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_index(op.f('ix_security_assessments_owner_id'), table_name='security_assessments')
-    op.drop_table('security_assessments')
+    op.drop_index(op.f("ix_security_assessments_owner_id"), table_name="security_assessments")
+    op.drop_table("security_assessments")

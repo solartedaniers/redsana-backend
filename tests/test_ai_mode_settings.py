@@ -1,4 +1,5 @@
 """Sin base: AI_MODE es local por defecto y cada modo exige solo lo que usa."""
+
 import pytest
 from pydantic import ValidationError
 

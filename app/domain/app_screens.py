@@ -1,5 +1,6 @@
 """Pantallas reales del usuario en la app, para que el asistente no invente menús ni rutas.
- Cada texto es el del es.json del frontend en esa clave; una prueba los compara para que no se desincronicen."""
+Cada texto es el del es.json del frontend en esa clave; una prueba los compara para que no se desincronicen."""
+
 from dataclasses import dataclass
 
 

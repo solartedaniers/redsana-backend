@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 class InteractiveUsageWindow:
     """Recuerda el último uso interactivo de la IA (calentamiento, chat o resumen) y dice si sigue abierta la ventana
-     en que el servicio remoto probablemente está despierto. Solo los usos interactivos la renuevan."""
+    en que el servicio remoto probablemente está despierto. Solo los usos interactivos la renuevan."""
 
     def __init__(self, duration_seconds: float, clock: Callable[[], float] = time.monotonic) -> None:
         self._duration_seconds = duration_seconds

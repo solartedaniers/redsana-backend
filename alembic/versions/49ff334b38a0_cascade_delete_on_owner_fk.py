@@ -5,6 +5,7 @@ Revises: e37c17011ad3
 Create Date: 2026-09-18 11:18:54.957538
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -12,27 +13,29 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '49ff334b38a0'
-down_revision: Union[str, Sequence[str], None] = 'e37c17011ad3'
+revision: str = "49ff334b38a0"
+down_revision: Union[str, Sequence[str], None] = "e37c17011ad3"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.drop_constraint(op.f('alerts_owner_id_fkey'), 'alerts', type_='foreignkey')
-    op.create_foreign_key(None, 'alerts', 'users', ['owner_id'], ['id'], ondelete='CASCADE')
-    op.drop_constraint(op.f('devices_owner_id_fkey'), 'devices', type_='foreignkey')
-    op.create_foreign_key(None, 'devices', 'users', ['owner_id'], ['id'], ondelete='CASCADE')
-    op.drop_constraint(op.f('network_metric_snapshots_owner_id_fkey'), 'network_metric_snapshots', type_='foreignkey')
-    op.create_foreign_key(None, 'network_metric_snapshots', 'users', ['owner_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint(op.f("alerts_owner_id_fkey"), "alerts", type_="foreignkey")
+    op.create_foreign_key(None, "alerts", "users", ["owner_id"], ["id"], ondelete="CASCADE")
+    op.drop_constraint(op.f("devices_owner_id_fkey"), "devices", type_="foreignkey")
+    op.create_foreign_key(None, "devices", "users", ["owner_id"], ["id"], ondelete="CASCADE")
+    op.drop_constraint(op.f("network_metric_snapshots_owner_id_fkey"), "network_metric_snapshots", type_="foreignkey")
+    op.create_foreign_key(None, "network_metric_snapshots", "users", ["owner_id"], ["id"], ondelete="CASCADE")
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_constraint(op.f('network_metric_snapshots_owner_id_fkey'), 'network_metric_snapshots', type_='foreignkey')
-    op.create_foreign_key(op.f('network_metric_snapshots_owner_id_fkey'), 'network_metric_snapshots', 'users', ['owner_id'], ['id'])
-    op.drop_constraint(op.f('devices_owner_id_fkey'), 'devices', type_='foreignkey')
-    op.create_foreign_key(op.f('devices_owner_id_fkey'), 'devices', 'users', ['owner_id'], ['id'])
-    op.drop_constraint(op.f('alerts_owner_id_fkey'), 'alerts', type_='foreignkey')
-    op.create_foreign_key(op.f('alerts_owner_id_fkey'), 'alerts', 'users', ['owner_id'], ['id'])
+    op.drop_constraint(op.f("network_metric_snapshots_owner_id_fkey"), "network_metric_snapshots", type_="foreignkey")
+    op.create_foreign_key(
+        op.f("network_metric_snapshots_owner_id_fkey"), "network_metric_snapshots", "users", ["owner_id"], ["id"]
+    )
+    op.drop_constraint(op.f("devices_owner_id_fkey"), "devices", type_="foreignkey")
+    op.create_foreign_key(op.f("devices_owner_id_fkey"), "devices", "users", ["owner_id"], ["id"])
+    op.drop_constraint(op.f("alerts_owner_id_fkey"), "alerts", type_="foreignkey")
+    op.create_foreign_key(op.f("alerts_owner_id_fkey"), "alerts", "users", ["owner_id"], ["id"])

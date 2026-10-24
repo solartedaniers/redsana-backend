@@ -1,4 +1,5 @@
 """Permisos del POST con la app real y SQLite, con el token ya decodificado porque la firma de Supabase no se verifica offline."""
+
 import uuid
 
 import pytest
@@ -80,14 +81,10 @@ SNAPSHOT_PAYLOAD = {"latency_ms": 20, "jitter_ms": 2, "packet_loss_percent": 0}
 
 
 def test_standard_user_can_insert_own_snapshot(client: TestClient) -> None:
-    response = client.post(
-        "/api/network-metrics", json=SNAPSHOT_PAYLOAD, headers={"Authorization": "Bearer fake"}
-    )
+    response = client.post("/api/network-metrics", json=SNAPSHOT_PAYLOAD, headers={"Authorization": "Bearer fake"})
 
     assert response.status_code == 201
-    latest = client.get(
-        "/api/network-metrics/latest", headers={"Authorization": "Bearer fake"}
-    )
+    latest = client.get("/api/network-metrics/latest", headers={"Authorization": "Bearer fake"})
     assert latest.status_code == 200
     assert latest.json()["latency_ms"] == SNAPSHOT_PAYLOAD["latency_ms"]
 
@@ -167,7 +164,6 @@ def test_anomaly_status_is_calibrating_with_little_history(client: TestClient) -
     assert body["samples_required"] > 1
 
 
-
 def test_desktop_measurement_without_network_reports_unknown_network(client: TestClient) -> None:
     client.post("/api/network-metrics", json=SNAPSHOT_PAYLOAD, headers={"Authorization": "Bearer fake"})
 
@@ -188,7 +184,9 @@ if __name__ == "__main__":
 
 
 def test_latest_says_which_source_measured_it(client: TestClient) -> None:
-    client.post("/api/network-metrics", json={**SNAPSHOT_PAYLOAD, "source": "web"}, headers={"Authorization": "Bearer fake"})
+    client.post(
+        "/api/network-metrics", json={**SNAPSHOT_PAYLOAD, "source": "web"}, headers={"Authorization": "Bearer fake"}
+    )
 
     latest = client.get("/api/network-metrics/latest", headers={"Authorization": "Bearer fake"})
 

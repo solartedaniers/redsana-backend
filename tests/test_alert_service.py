@@ -1,4 +1,5 @@
 """Sin base ni red: filtrado por dueño, "nuevas desde X" y reconocer."""
+
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -72,7 +73,9 @@ def test_list_new_alerts_only_returns_alerts_after_since_for_that_owner() -> Non
     owner_id = uuid.uuid4()
     now = datetime.now(timezone.utc)
     old_alert = service.create_alert(
-        AlertCreate(owner_id=owner_id, type="outage", severity="warning", message_key="a", created_at=now - timedelta(hours=2))
+        AlertCreate(
+            owner_id=owner_id, type="outage", severity="warning", message_key="a", created_at=now - timedelta(hours=2)
+        )
     )
     new_alert = service.create_alert(
         AlertCreate(owner_id=owner_id, type="prediction", severity="info", message_key="b", created_at=now)
@@ -91,9 +94,7 @@ def test_acknowledge_alert_marks_it_and_persists() -> None:
     repository = FakeAlertRepository()
     service = AlertService(repository)
     owner_id = uuid.uuid4()
-    alert = service.create_alert(
-        AlertCreate(owner_id=owner_id, type="outage", severity="critical", message_key="x")
-    )
+    alert = service.create_alert(AlertCreate(owner_id=owner_id, type="outage", severity="critical", message_key="x"))
 
     updated = service.acknowledge_alert(alert.id, owner_id)
 
@@ -103,9 +104,7 @@ def test_acknowledge_alert_marks_it_and_persists() -> None:
 def test_acknowledge_alert_of_another_owner_raises_not_found() -> None:
     repository = FakeAlertRepository()
     service = AlertService(repository)
-    alert = service.create_alert(
-        AlertCreate(owner_id=uuid.uuid4(), type="outage", severity="info", message_key="x")
-    )
+    alert = service.create_alert(AlertCreate(owner_id=uuid.uuid4(), type="outage", severity="info", message_key="x"))
 
     try:
         service.acknowledge_alert(alert.id, uuid.uuid4())

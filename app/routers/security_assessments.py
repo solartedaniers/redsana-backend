@@ -23,7 +23,9 @@ def _to_read(result: SecurityAssessmentResult) -> SecurityAssessmentRead:
         technical_measured_at=result.technical_measured_at,
         technical_evidence_reused=result.technical_evidence_reused,
         recommendations=[
-            SecurityRecommendationRead(id=r.id, title_key=r.title_key, description_key=r.description_key, priority=r.priority)
+            SecurityRecommendationRead(
+                id=r.id, title_key=r.title_key, description_key=r.description_key, priority=r.priority
+            )
             for r in security_score.recommendations
         ],
         submitted_at=result.submitted_at,

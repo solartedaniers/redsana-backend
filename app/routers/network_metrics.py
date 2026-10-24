@@ -98,7 +98,9 @@ def get_history(
 ) -> list[NetworkMetricSampleRead]:
     snapshots = service.get_history(_resolve_target_owner_id(user, user_id), from_, to)
     return [
-        NetworkMetricSampleRead(timestamp=s.recorded_at, latency_ms=s.latency_ms, packet_loss_percent=s.packet_loss_percent)
+        NetworkMetricSampleRead(
+            timestamp=s.recorded_at, latency_ms=s.latency_ms, packet_loss_percent=s.packet_loss_percent
+        )
         for s in snapshots
     ]
 
@@ -127,7 +129,7 @@ def get_anomaly_status(
 
 def _evaluate_anomalies_in_background(owner_id: uuid.UUID) -> None:
     """Corre después de responder, con su propia sesión (la del request ya se cerró). Entrenar el modelo
-     tarda ~200 ms y haría lento un POST que hoy responde en ~160 ms."""
+    tarda ~200 ms y haría lento un POST que hoy responde en ~160 ms."""
     db = SessionLocal()
     try:
         service = NetworkAnomalyService(

@@ -13,9 +13,7 @@ class SqlAlchemyAlertRepository(AlertRepository):
         self._db = db
 
     def list_all(self, owner_id: uuid.UUID) -> list[Alert]:
-        stmt = (
-            select(Alert).where(Alert.owner_id == owner_id).order_by(Alert.created_at.desc())
-        )
+        stmt = select(Alert).where(Alert.owner_id == owner_id).order_by(Alert.created_at.desc())
         return list(self._db.scalars(stmt).all())
 
     def list_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[Alert]]:
@@ -33,9 +31,7 @@ class SqlAlchemyAlertRepository(AlertRepository):
 
     def list_new_since(self, owner_id: uuid.UUID, since: datetime) -> list[Alert]:
         stmt = (
-            select(Alert)
-            .where(Alert.owner_id == owner_id, Alert.created_at > since)
-            .order_by(Alert.created_at.asc())
+            select(Alert).where(Alert.owner_id == owner_id, Alert.created_at > since).order_by(Alert.created_at.asc())
         )
         return list(self._db.scalars(stmt).all())
 

@@ -1,4 +1,5 @@
 """Sin base ni red: las métricas de admin combinan los dominios existentes sin recalcular nada."""
+
 import uuid
 
 from app.services.network_security_score_service import default_network_security_score_service
@@ -14,7 +15,13 @@ from app.services.security_assessment_service import SecurityAssessmentService
 from tests.test_security_assessment_service import ALL_YES_ANSWERS
 
 
-def _build_service(user_repository, alert_repository, device_repository=None, network_metrics_repository=None, assessment_repository=None):
+def _build_service(
+    user_repository,
+    alert_repository,
+    device_repository=None,
+    network_metrics_repository=None,
+    assessment_repository=None,
+):
     supervision = NetworkSupervisionService(
         user_repository,
         device_repository or FakeDeviceRepository(),
@@ -79,8 +86,15 @@ def test_average_uses_only_real_scores() -> None:
     _answer(assessments, owner_a.id, ALL_YES_ANSWERS)
     _answer(assessments, owner_b.id, {}, wifi="WEP")
 
-    metrics = _build_service(user_repository, FakeAlertRepository(), assessment_repository=assessments).get_platform_metrics()
-    households = {h.id: h.security_score for h in _build_service(user_repository, FakeAlertRepository(), assessment_repository=assessments)._network_supervision_service.list_households()}
+    metrics = _build_service(
+        user_repository, FakeAlertRepository(), assessment_repository=assessments
+    ).get_platform_metrics()
+    households = {
+        h.id: h.security_score
+        for h in _build_service(
+            user_repository, FakeAlertRepository(), assessment_repository=assessments
+        )._network_supervision_service.list_households()
+    }
 
     assert metrics.real_scored_households == 2
     assert metrics.unevaluated_households == 0
@@ -94,7 +108,9 @@ def test_mix_of_real_and_unevaluated_averages_only_the_real_ones() -> None:
     assessments = FakeSecurityAssessmentRepository()
     _answer(assessments, answered.id, ALL_YES_ANSWERS)
 
-    metrics = _build_service(user_repository, FakeAlertRepository(), assessment_repository=assessments).get_platform_metrics()
+    metrics = _build_service(
+        user_repository, FakeAlertRepository(), assessment_repository=assessments
+    ).get_platform_metrics()
 
     assert metrics.real_scored_households == 1
     assert metrics.unevaluated_households == 1

@@ -1,4 +1,5 @@
 """/api/users/me y su alias /api/me (instalador 0.1.5) responden lo mismo; solo la ruta nueva se documenta."""
+
 import uuid
 
 import pytest

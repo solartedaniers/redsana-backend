@@ -5,7 +5,7 @@ import uuid
 
 class NetworkIdentifier:
     """Convierte el SHA-256 de la MAC del router en un HMAC con secreto y dueño. Un SHA-256 de una MAC se revierte
-     por fuerza bruta en segundos; el HMAC lo impide y además no deja cruzar el mismo router entre usuarios."""
+    por fuerza bruta en segundos; el HMAC lo impide y además no deja cruzar el mismo router entre usuarios."""
 
     def __init__(self, secret: str) -> None:
         self._secret = secret.encode("utf-8")

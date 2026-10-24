@@ -37,7 +37,13 @@ class RemoteAiGateway(AiGateway):
         self._local_fallback = local_fallback
         self._usage_window = usage_window
         self._warm_up = WarmUpController(
-            status_client, usage_window, status_timeout_seconds, status_cache_seconds, warm_up_schedule, clock, sleep,
+            status_client,
+            usage_window,
+            status_timeout_seconds,
+            status_cache_seconds,
+            warm_up_schedule,
+            clock,
+            sleep,
             start_thread,
         )
 

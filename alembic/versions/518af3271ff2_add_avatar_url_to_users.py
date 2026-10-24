@@ -5,6 +5,7 @@ Revises: c3256ab4ce02
 Create Date: 2026-09-19 08:19:00.947595
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -12,17 +13,17 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '518af3271ff2'
-down_revision: Union[str, Sequence[str], None] = 'c3256ab4ce02'
+revision: str = "518af3271ff2"
+down_revision: Union[str, Sequence[str], None] = "c3256ab4ce02"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.add_column('users', sa.Column('avatar_url', sa.String(length=2048), nullable=True))
+    op.add_column("users", sa.Column("avatar_url", sa.String(length=2048), nullable=True))
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_column('users', 'avatar_url')
+    op.drop_column("users", "avatar_url")

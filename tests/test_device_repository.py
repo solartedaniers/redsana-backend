@@ -1,4 +1,5 @@
 """Repositorio real en SQLite: last_seen solo se mueve cuando un escaneo ve el dispositivo."""
+
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -24,8 +25,12 @@ def test_changing_trust_does_not_touch_last_seen() -> None:
         owner_id = uuid.uuid4()
         scanned_at = datetime.now(timezone.utc) - timedelta(days=10)
         device = repository.create(
-            owner_id=owner_id, name="", mac_address="aa-bb-cc-dd-ee-ff", ip_address="192.168.1.5",
-            trust="unknown", last_seen=scanned_at,
+            owner_id=owner_id,
+            name="",
+            mac_address="aa-bb-cc-dd-ee-ff",
+            ip_address="192.168.1.5",
+            trust="unknown",
+            last_seen=scanned_at,
         )
 
         updated = repository.update(device.id, owner_id, {"trust": "trusted"})
@@ -39,12 +44,22 @@ def test_save_scan_is_all_or_nothing() -> None:
         owner_id = uuid.uuid4()
         old_scan = datetime.now(timezone.utc) - timedelta(days=1)
         known = repository.create(
-            owner_id=owner_id, name="", mac_address="aa-aa-aa-aa-aa-aa", ip_address="10.0.0.2",
-            trust="unknown", last_seen=old_scan,
+            owner_id=owner_id,
+            name="",
+            mac_address="aa-aa-aa-aa-aa-aa",
+            ip_address="10.0.0.2",
+            trust="unknown",
+            last_seen=old_scan,
         )
         new_scan = datetime.now(timezone.utc)
-        valid = {"mac_address": "bb-bb-bb-bb-bb-bb", "ip_address": "10.0.0.3", "name": "", "trust": "unknown",
-                 "last_seen": new_scan, "first_seen": new_scan}
+        valid = {
+            "mac_address": "bb-bb-bb-bb-bb-bb",
+            "ip_address": "10.0.0.3",
+            "name": "",
+            "trust": "unknown",
+            "last_seen": new_scan,
+            "first_seen": new_scan,
+        }
         clashing = {**valid, "mac_address": known.mac_address}  # rompe la MAC única a mitad del escaneo
 
         with pytest.raises(IntegrityError):
@@ -61,7 +76,11 @@ def test_save_scan_ignores_updates_for_devices_of_another_owner() -> None:
         repository = SqlAlchemyDeviceRepository(db)
         victim_owner = uuid.uuid4()
         victim = repository.create(
-            owner_id=victim_owner, name="", mac_address="aa-aa-aa-aa-aa-aa", ip_address="10.0.0.2", trust="unknown",
+            owner_id=victim_owner,
+            name="",
+            mac_address="aa-aa-aa-aa-aa-aa",
+            ip_address="10.0.0.2",
+            trust="unknown",
         )
 
         repository.save_scan(uuid.uuid4(), [], {victim.id: {"ip_address": "6.6.6.6"}})

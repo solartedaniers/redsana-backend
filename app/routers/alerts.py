@@ -78,7 +78,12 @@ def acknowledge_alert(
     return _to_alert_read(alert)
 
 
-@router.post("", response_model=AlertRead, status_code=status.HTTP_201_CREATED, dependencies=[Depends(_require_test_alerts_enabled)])
+@router.post(
+    "",
+    response_model=AlertRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(_require_test_alerts_enabled)],
+)
 def create_alert(
     payload: AlertCreate,
     _admin: User = Depends(require_admin),

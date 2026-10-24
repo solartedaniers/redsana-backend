@@ -1,4 +1,5 @@
 """Sin base: el gateway local entrega las mismas piezas del paquete que se usaban antes y siempre está listo."""
+
 from redsana_ai import (
     ChatEngine,
     ChatTurn,

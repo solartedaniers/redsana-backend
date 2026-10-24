@@ -1,4 +1,5 @@
 """La IA recibe el mismo conteo que ve el usuario en Dispositivos, no el total histórico."""
+
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -7,8 +8,17 @@ from app.services.security_chat_context_service import SecurityChatContextBuilde
 
 
 def _device(trust: str, role: str, seen: datetime) -> Device:
-    return Device(id=uuid.uuid4(), owner_id=uuid.uuid4(), name="", mac_address=uuid.uuid4().hex[:12],
-                  ip_address="10.0.0.1", trust=trust, network_role=role, first_seen=seen, last_seen=seen)
+    return Device(
+        id=uuid.uuid4(),
+        owner_id=uuid.uuid4(),
+        name="",
+        mac_address=uuid.uuid4().hex[:12],
+        ip_address="10.0.0.1",
+        trust=trust,
+        network_role=role,
+        first_seen=seen,
+        last_seen=seen,
+    )
 
 
 def test_devices_line_counts_like_the_devices_screen_and_breaks_down_marks() -> None:

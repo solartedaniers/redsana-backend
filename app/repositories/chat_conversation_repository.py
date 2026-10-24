@@ -6,7 +6,6 @@ from app.models.chat_conversation import ChatConversation
 
 
 class ChatConversationRepository(ABC):
-
     @abstractmethod
     def list_by_owner(self, owner_id: uuid.UUID) -> list[ChatConversation]:
         """Ordenadas por actividad reciente (updated_at desc), para el historial."""

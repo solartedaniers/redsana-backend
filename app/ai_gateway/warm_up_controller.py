@@ -114,10 +114,17 @@ class WarmUpController:
             while True:
                 attempt += 1
                 # Una petición larga y paciente, como la del navegador: Render la retiene mientras despierta el servicio.
-                timeout = min(schedule.probe_timeout_seconds, max(deadline - self._clock(), self._status_timeout_seconds))
+                timeout = min(
+                    schedule.probe_timeout_seconds, max(deadline - self._clock(), self._status_timeout_seconds)
+                )
                 probe = self._probe(timeout)
-                logger.info("AI warm-up probe %d: %s (timeout %.0fs, %.1fs since start)",
-                            attempt, probe.availability, timeout, self._clock() - started)
+                logger.info(
+                    "AI warm-up probe %d: %s (timeout %.0fs, %.1fs since start)",
+                    attempt,
+                    probe.availability,
+                    timeout,
+                    self._clock() - started,
+                )
                 if probe.availability != "warming_up":
                     result = probe
                     break
@@ -136,8 +143,13 @@ class WarmUpController:
         if result.availability == "ready":
             # La IA está despierta: desde ahora los detectores pueden usarla durante la ventana de uso interactivo.
             self._usage_window.record_use()
-        logger.info("AI warm-up finished: %s (%s) after %d probes and %.1fs",
-                    result.availability, result.reason, attempt, self._clock() - started)
+        logger.info(
+            "AI warm-up finished: %s (%s) after %d probes and %.1fs",
+            result.availability,
+            result.reason,
+            attempt,
+            self._clock() - started,
+        )
 
     def _remember(self, probe: _Probe) -> None:
         self._availability, self._reason, self._checked_at = probe.availability, probe.reason, self._clock()

@@ -84,9 +84,7 @@ _RECOMMENDATIONS: dict[str, dict[Literal["no", "unknown"], SecurityRecommendatio
 def compute_questionnaire_score(answers: dict[str, AnswerValue]) -> tuple[int, list[SecurityRecommendation]]:
     """Las preguntas sin responder cuentan como "unknown" (0 puntos), igual que "no"."""
     total_weight = sum(QUESTION_WEIGHTS.values())
-    earned_weight = sum(
-        weight for question_id, weight in QUESTION_WEIGHTS.items() if answers.get(question_id) == "yes"
-    )
+    earned_weight = sum(weight for question_id, weight in QUESTION_WEIGHTS.items() if answers.get(question_id) == "yes")
     score = round((earned_weight / total_weight) * 100)
 
     recommendations = [

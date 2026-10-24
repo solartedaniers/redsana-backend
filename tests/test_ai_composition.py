@@ -1,4 +1,5 @@
 """Sin base ni red: AI_MODE elige el gateway en el único punto de composición, que también arma el asistente del chat."""
+
 from datetime import timedelta, timezone
 
 import pytest
@@ -83,5 +84,9 @@ def test_the_chat_assistant_is_built_here_with_the_gateway_ai_and_the_browser_ti
         assert context._user_timezone == timezone(timedelta(hours=-5))
         assert all(
             repository._db is db
-            for repository in (context._device_repository, context._alert_repository, context._network_metrics_repository)
+            for repository in (
+                context._device_repository,
+                context._alert_repository,
+                context._network_metrics_repository,
+            )
         )

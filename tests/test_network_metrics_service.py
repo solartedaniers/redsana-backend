@@ -1,4 +1,5 @@
 """Sin base ni red: cálculo del estado y rango por defecto del historial."""
+
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -26,11 +27,7 @@ class FakeNetworkMetricsRepository(NetworkMetricsRepository):
         return max(owned, key=lambda s: s.recorded_at) if owned else None
 
     def get_latest_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, NetworkMetricSnapshot]:
-        return {
-            owner_id: latest
-            for owner_id in owner_ids
-            if (latest := self.get_latest(owner_id)) is not None
-        }
+        return {owner_id: latest for owner_id in owner_ids if (latest := self.get_latest(owner_id)) is not None}
 
     def list_in_range(self, owner_id: uuid.UUID, start: datetime, end: datetime) -> list[NetworkMetricSnapshot]:
         self.last_range = (start, end)
@@ -117,7 +114,8 @@ def test_record_snapshot_stores_a_keyed_network_id_never_the_raw_fingerprint() -
     owner_id = uuid.uuid4()
 
     snapshot = service.record_snapshot(
-        owner_id, NetworkMetricSnapshotCreate(latency_ms=20, jitter_ms=2, packet_loss_percent=0, network_fingerprint=FINGERPRINT)
+        owner_id,
+        NetworkMetricSnapshotCreate(latency_ms=20, jitter_ms=2, packet_loss_percent=0, network_fingerprint=FINGERPRINT),
     )
 
     assert snapshot.network_id is not None and len(snapshot.network_id) == 64

@@ -44,7 +44,9 @@ class TechnicalEvidenceResolver:
         self, latest_by_owner: dict[uuid.UUID, SecurityAssessment]
     ) -> dict[uuid.UUID, ResolvedTechnicalEvidence]:
         """Versión en bloque para el admin: una consulta para todos los hogares sin evidencia propia."""
-        missing = [owner_id for owner_id, assessment in latest_by_owner.items() if not has_technical_evidence(assessment)]
+        missing = [
+            owner_id for owner_id, assessment in latest_by_owner.items() if not has_technical_evidence(assessment)
+        ]
         previous_by_owner = self._repository.get_latest_with_evidence_by_owners(missing)
         return {
             owner_id: (

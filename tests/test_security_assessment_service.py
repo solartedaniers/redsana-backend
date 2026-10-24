@@ -1,4 +1,5 @@
 """Sin base: recálculo de puntaje y recomendaciones, y que "no sé" puntúe igual que "no"."""
+
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -30,11 +31,7 @@ class FakeSecurityAssessmentRepository(SecurityAssessmentRepository):
         return max(owned, key=lambda a: a.submitted_at) if owned else None
 
     def get_latest_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, SecurityAssessment]:
-        return {
-            owner_id: latest
-            for owner_id in owner_ids
-            if (latest := self.get_latest(owner_id)) is not None
-        }
+        return {owner_id: latest for owner_id in owner_ids if (latest := self.get_latest(owner_id)) is not None}
 
     def get_latest_with_evidence(self, owner_id: uuid.UUID) -> SecurityAssessment | None:
         owned = [a for a in self.assessments if a.owner_id == owner_id and has_technical_evidence(a)]
@@ -180,7 +177,8 @@ def test_a_new_desktop_measurement_always_prevails_over_older_evidence() -> None
 def test_evidence_is_never_borrowed_from_another_user() -> None:
     service = _service(FakeSecurityAssessmentRepository())
     service.submit_assessment(
-        uuid.uuid4(), SecurityAssessmentCreate(answers=ALL_YES_ANSWERS, wifi_encryption_raw="WPA3", router_open_ports=[])
+        uuid.uuid4(),
+        SecurityAssessmentCreate(answers=ALL_YES_ANSWERS, wifi_encryption_raw="WPA3", router_open_ports=[]),
     )
 
     assert service.submit_assessment(uuid.uuid4(), WEB_SUBMISSION).security_score.is_partial

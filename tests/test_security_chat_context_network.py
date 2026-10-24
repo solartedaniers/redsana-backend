@@ -1,4 +1,5 @@
 """La IA recibe cuándo y desde dónde se midió la red, los umbrales reales y las pantallas reales, para no inventarlos."""
+
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -9,8 +10,16 @@ BOGOTA = timezone(timedelta(hours=-5))
 
 
 def _snapshot(source: str, recorded_at: datetime) -> NetworkMetricSnapshot:
-    return NetworkMetricSnapshot(id=uuid.uuid4(), owner_id=uuid.uuid4(), latency_ms=263.1, jitter_ms=116.4,
-                                 packet_loss_percent=0.0, status="critical", source=source, recorded_at=recorded_at)
+    return NetworkMetricSnapshot(
+        id=uuid.uuid4(),
+        owner_id=uuid.uuid4(),
+        latency_ms=263.1,
+        jitter_ms=116.4,
+        packet_loss_percent=0.0,
+        status="critical",
+        source=source,
+        recorded_at=recorded_at,
+    )
 
 
 def test_snapshot_line_says_when_in_local_time_and_that_web_is_latency_to_the_server() -> None:

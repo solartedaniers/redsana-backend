@@ -1,4 +1,5 @@
 """Único lugar donde el backend construye la IA; AI_MODE decide si corre aquí (paquete) o en el servicio aparte."""
+
 from functools import lru_cache
 
 from fastapi import Depends
@@ -90,7 +91,9 @@ def build_outage_detector() -> OutageDetector:
 
 
 def build_security_assessment_service(db: Session) -> SecurityAssessmentService:
-    return SecurityAssessmentService(SqlAlchemySecurityAssessmentRepository(db), default_network_security_score_service())
+    return SecurityAssessmentService(
+        SqlAlchemySecurityAssessmentRepository(db), default_network_security_score_service()
+    )
 
 
 def build_security_assistant(gateway: AiGateway, db: Session, utc_offset_minutes: int) -> SecurityAssistantService:
@@ -104,5 +107,5 @@ def build_security_assistant(gateway: AiGateway, db: Session, utc_offset_minutes
             network_metrics_repository=SqlAlchemyNetworkMetricsRepository(db),
             security_assessment_service=build_security_assessment_service(db),
             user_timezone=timezone_from_browser_offset(utc_offset_minutes),
-        )
+        ),
     )

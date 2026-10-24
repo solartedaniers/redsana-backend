@@ -1,4 +1,5 @@
 """Sin base: la presencia sale de last_seen relativo al grupo, nunca del tiempo transcurrido."""
+
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -8,8 +9,14 @@ from app.models.device import Device
 
 def _device(last_seen: datetime) -> Device:
     return Device(
-        id=uuid.uuid4(), owner_id=uuid.uuid4(), name="x", mac_address="AA", ip_address="1.1.1.1",
-        trust="unknown", first_seen=last_seen, last_seen=last_seen,
+        id=uuid.uuid4(),
+        owner_id=uuid.uuid4(),
+        name="x",
+        mac_address="AA",
+        ip_address="1.1.1.1",
+        trust="unknown",
+        first_seen=last_seen,
+        last_seen=last_seen,
     )
 
 

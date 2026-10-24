@@ -1,4 +1,5 @@
 """Sin base ni red: genera la alerta correcta y, a diferencia de prediction, vuelve a alertar en un segundo corte."""
+
 import uuid
 from datetime import datetime, timedelta, timezone
 

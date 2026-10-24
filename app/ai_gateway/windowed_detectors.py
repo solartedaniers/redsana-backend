@@ -17,14 +17,16 @@ logger = logging.getLogger(__name__)
 
 class WindowedAnomalyDetector(AnomalyDetector):
     """Las evaluaciones corren con cada medición: si llamaran siempre al servicio lo mantendrían despierto. Solo lo uso
-     dentro de la ventana de uso interactivo; fuera de ella, o si falla, uso el paquete local (mismo resultado)."""
+    dentro de la ventana de uso interactivo; fuera de ella, o si falla, uso el paquete local (mismo resultado)."""
 
     def __init__(self, remote: AnomalyDetector, local: AnomalyDetector, usage_window: InteractiveUsageWindow) -> None:
         self._remote = remote
         self._local = local
         self._usage_window = usage_window
 
-    def evaluate(self, history: list[NetworkMetricVector], latest: NetworkMetricVector) -> DeviationClassification | None:
+    def evaluate(
+        self, history: list[NetworkMetricVector], latest: NetworkMetricVector
+    ) -> DeviationClassification | None:
         if self._usage_window.is_open():
             try:
                 return self._remote.evaluate(history, latest)

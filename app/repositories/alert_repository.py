@@ -6,7 +6,6 @@ from app.models.alert import Alert
 
 
 class AlertRepository(ABC):
-
     @abstractmethod
     def list_all(self, owner_id: uuid.UUID) -> list[Alert]: ...
 

@@ -1,4 +1,5 @@
 """Sin override de admin: cada usuario solo ve y escribe la suya. SQLite en memoria y token ya decodificado."""
+
 import uuid
 
 import pytest
@@ -69,9 +70,7 @@ def test_latest_is_null_before_any_submission(client: TestClient) -> None:
 
 
 def test_submit_then_latest_returns_computed_score(client: TestClient) -> None:
-    submit = client.post(
-        "/api/security-assessments", json=ANSWERS_PAYLOAD, headers={"Authorization": "Bearer fake"}
-    )
+    submit = client.post("/api/security-assessments", json=ANSWERS_PAYLOAD, headers={"Authorization": "Bearer fake"})
     assert submit.status_code == 201
     # Cuestionario: (25 + 20) / 80 = 56; técnico: solo WPA2 = 85. Total: 56 * 30% + 85 * 70% = 76.
     assert submit.json()["score"] == 76
@@ -127,4 +126,3 @@ def test_web_submission_reuses_desktop_evidence_through_the_real_repository(clie
     assert web["technical_evidence_reused"] is True
     assert web["technical_measured_at"] == desktop["submitted_at"]
     assert web["score"] == desktop["score"]
-

@@ -105,7 +105,9 @@ class RouterOpenPortsAnalyzer(TechnicalSecurityAnalyzer):
     def analyze(self, evidence: TechnicalEvidence) -> AnalyzerResult | None:
         if evidence.router_open_ports is None:
             return None
-        risky = [RISKY_ROUTER_PORTS[port] for port in sorted(set(evidence.router_open_ports)) if port in RISKY_ROUTER_PORTS]
+        risky = [
+            RISKY_ROUTER_PORTS[port] for port in sorted(set(evidence.router_open_ports)) if port in RISKY_ROUTER_PORTS
+        ]
         penalty = sum(points for points, _ in risky)
         # dict.fromkeys: 139 y 445 comparten recomendación y la muestro una sola vez.
         recommendations = list(dict.fromkeys(recommendation for _, recommendation in risky))

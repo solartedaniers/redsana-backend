@@ -5,7 +5,6 @@ from app.models.security_assessment import SecurityAssessment
 
 
 class SecurityAssessmentRepository(ABC):
-
     @abstractmethod
     def get_latest(self, owner_id: uuid.UUID) -> SecurityAssessment | None: ...
 

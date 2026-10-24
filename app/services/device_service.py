@@ -32,8 +32,10 @@ class DeviceService:
 
     def update_device(self, device_id: uuid.UUID, owner_id: uuid.UUID, payload: DeviceUpdate) -> Device:
         updates = payload.model_dump(exclude_unset=True)
-        device = self._repository.update(device_id, owner_id, updates) if updates else self._repository.get_by_id(
-            device_id, owner_id
+        device = (
+            self._repository.update(device_id, owner_id, updates)
+            if updates
+            else self._repository.get_by_id(device_id, owner_id)
         )
         if device is None:
             raise DeviceNotFoundError(f"Device '{device_id}' does not exist")

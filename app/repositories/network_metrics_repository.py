@@ -8,7 +8,6 @@ from app.models.network_metric_snapshot import NetworkMetricSnapshot
 
 
 class NetworkMetricsRepository(ABC):
-
     @abstractmethod
     def get_latest(self, owner_id: uuid.UUID) -> NetworkMetricSnapshot | None: ...
 

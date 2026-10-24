@@ -1,5 +1,6 @@
 """Rutas renombradas: el nombre nuevo y el anterior (alias oculto para el instalador 0.1.5 y la web desplegada)
 responden lo mismo, piden la misma autenticación y aceptan el preflight CORS; solo el nuevo sale en /docs."""
+
 import uuid
 import pytest
 from fastapi.testclient import TestClient
@@ -129,7 +130,11 @@ def test_cors_preflight_works_on_both_names(method: str, new: str, old: str) -> 
     if not origins:
         pytest.skip("CORS_ORIGINS vacío en este entorno")
     client = TestClient(app)
-    headers = {"Origin": origins[0], "Access-Control-Request-Method": method, "Access-Control-Request-Headers": "authorization"}
+    headers = {
+        "Origin": origins[0],
+        "Access-Control-Request-Method": method,
+        "Access-Control-Request-Headers": "authorization",
+    }
 
     for path in (new, old):
         response = client.options(path.format(conversation_id=uuid.uuid4()), headers=headers)

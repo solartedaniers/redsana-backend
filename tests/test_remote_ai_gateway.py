@@ -1,5 +1,6 @@
 """Sin red: el gateway remoto traduce el /health del servicio a lista/encendiendo/no disponible, mantiene ese estado en
- memoria con un único calentamiento en segundo plano y los detectores respetan la ventana de uso interactivo."""
+memoria con un único calentamiento en segundo plano y los detectores respetan la ventana de uso interactivo."""
+
 from collections.abc import Callable
 from dataclasses import replace
 

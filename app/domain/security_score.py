@@ -20,14 +20,12 @@ def compute_security_score(
     network_status: NetworkStatus,
 ) -> int:
     """Puntaje aproximado por hogar para el admin, con señales reales; no es el del cuestionario del usuario.
-     Queda pendiente decidir si el admin debería leer security_assessment_repository en su lugar."""
+    Queda pendiente decidir si el admin debería leer security_assessment_repository en su lugar."""
     device_points = (
         MAX_DEVICE_TRUST_POINTS
         if trusted_device_ratio is None
         else round(trusted_device_ratio * MAX_DEVICE_TRUST_POINTS)
     )
-    alert_points = max(
-        0, MAX_ALERT_POINTS - unacknowledged_alert_count * POINTS_LOST_PER_UNACKNOWLEDGED_ALERT
-    )
+    alert_points = max(0, MAX_ALERT_POINTS - unacknowledged_alert_count * POINTS_LOST_PER_UNACKNOWLEDGED_ALERT)
     network_points = NETWORK_STATUS_POINTS[network_status]
     return device_points + alert_points + network_points

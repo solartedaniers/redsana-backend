@@ -1,5 +1,6 @@
 """Sin base ni red: /api/ai/status y /api/ai/warm-up piden sesión, no tocan la base y nunca devuelven un error
- por una IA dormida."""
+por una IA dormida."""
+
 from fastapi.testclient import TestClient
 from redsana_ai import AnomalyDetector, OutageDetector, SecurityBriefing, SecurityChat
 

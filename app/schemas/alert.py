@@ -19,7 +19,6 @@ class AlertRead(BaseModel):
 
 
 class AlertCreate(BaseModel):
-
     owner_id: uuid.UUID
     type: AlertType
     severity: AlertSeverity

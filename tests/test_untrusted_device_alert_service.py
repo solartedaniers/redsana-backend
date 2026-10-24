@@ -9,8 +9,17 @@ NOW = datetime(2026, 10, 7, 12, 0, tzinfo=timezone.utc)
 
 
 def _device(trust: str, role: str = "other", seen: datetime = NOW, ip: str = "10.0.0.5") -> Device:
-    return Device(id=uuid.uuid4(), owner_id=uuid.uuid4(), name="", mac_address=uuid.uuid4().hex[:12],
-                  ip_address=ip, trust=trust, network_role=role, first_seen=seen, last_seen=seen)
+    return Device(
+        id=uuid.uuid4(),
+        owner_id=uuid.uuid4(),
+        name="",
+        mac_address=uuid.uuid4().hex[:12],
+        ip_address=ip,
+        trust=trust,
+        network_role=role,
+        first_seen=seen,
+        last_seen=seen,
+    )
 
 
 def _alerts(repository: FakeAlertRepository, owner_id: uuid.UUID):
@@ -22,7 +31,9 @@ def test_an_unsafe_device_seen_in_the_scan_raises_one_alert_with_its_ip() -> Non
     owner_id = uuid.uuid4()
     unsafe = _device("blocked", ip="10.0.0.66")
 
-    UntrustedDeviceAlertService(repository).alert_for_scan(owner_id, [unsafe, _device("trusted"), _device("unknown")], NOW)
+    UntrustedDeviceAlertService(repository).alert_for_scan(
+        owner_id, [unsafe, _device("trusted"), _device("unknown")], NOW
+    )
 
     alerts = _alerts(repository, owner_id)
     assert len(alerts) == 1

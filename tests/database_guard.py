@@ -1,4 +1,5 @@
 """Guarda de las pruebas: ninguna corrida de pytest puede usar la base real (el .env apunta a Supabase de producción)."""
+
 import pytest
 from sqlalchemy import URL, make_url
 

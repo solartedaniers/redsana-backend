@@ -1,4 +1,5 @@
 """El endpoint de alertas de prueba solo responde si la configuración lo habilita."""
+
 import uuid
 from types import SimpleNamespace
 

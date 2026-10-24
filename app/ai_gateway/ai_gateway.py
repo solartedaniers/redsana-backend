@@ -11,7 +11,7 @@ AiUnavailableReason = Literal["timed_out", "service_error"]
 
 class AiGateway(ABC):
     """Única puerta del backend a la IA: quien la usa pide piezas de redsana_ai sin saber si corren aquí o en el
-     servicio aparte."""
+    servicio aparte."""
 
     @abstractmethod
     def security_chat(self) -> SecurityChat: ...

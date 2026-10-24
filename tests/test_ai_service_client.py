@@ -1,4 +1,5 @@
 """Sin red: urlopen falso para comprobar timeout, reintentos limitados y errores tipados del cliente."""
+
 import io
 import json
 import urllib.error
@@ -31,7 +32,9 @@ def _json(payload: object) -> _Response:
     return _Response(json.dumps(payload).encode())
 
 
-def _http_error(status: int, body: object | None = None, headers: dict[str, str] | None = None) -> urllib.error.HTTPError:
+def _http_error(
+    status: int, body: object | None = None, headers: dict[str, str] | None = None
+) -> urllib.error.HTTPError:
     raw = json.dumps(body).encode() if body is not None else b"<html>Service Unavailable</html>"
     return urllib.error.HTTPError(_BASE_URL, status, "error", headers or {}, io.BytesIO(raw))
 
