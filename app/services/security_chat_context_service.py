@@ -154,9 +154,11 @@ class SecurityChatContextBuilder:
                 if assessment.technical_evidence_reused
                 else f"medido desde la app de escritorio el {measured_on:%Y-%m-%d}"
             )
+            weights = get_settings().security_score_config
             breakdown = (
-                f"{score.score}/100 = cuestionario {score.questionnaire_score}/100 (pesa 30%) "
-                f"+ analisis tecnico {score.technical_score}/100 (pesa 70%, {origin})."
+                f"{score.score}/100 = cuestionario {score.questionnaire_score}/100 "
+                f"(pesa {weights.questionnaire_weight_percent}%) + analisis tecnico {score.technical_score}/100 "
+                f"(pesa {weights.technical_weight_percent}%, {origin})."
             )
 
         lines = [f"- Puntaje de seguridad: {breakdown}"]

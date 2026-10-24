@@ -5,6 +5,7 @@ from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.domain.network_status import NetworkStatusThresholds
+from app.domain.security_score_config import SecurityScoreConfig
 
 
 class Settings(BaseSettings):
@@ -27,6 +28,11 @@ class Settings(BaseSettings):
     network_status_latency_critical_ms: float = 150
     network_status_packet_loss_warning_percent: float = 1
     network_status_packet_loss_critical_percent: float = 5
+    # Puntaje de seguridad: desde dónde es bueno o regular, y cuánto pesa cada parte (suman 100).
+    security_score_good_min: int = 80
+    security_score_warning_min: int = 50
+    security_score_questionnaire_weight_percent: int = 30
+    security_score_technical_weight_percent: int = 70
     supabase_service_role_key: str
     # Solo la exige el modo local (ver _require_ai_mode_settings); en modo remoto Groq vive en el servicio de IA.
     groq_api_key: str = ""
@@ -92,6 +98,21 @@ class Settings(BaseSettings):
             )
         return self
 
+    @model_validator(mode="after")
+    def _require_coherent_security_score_config(self) -> "Settings":
+        config = self.security_score_config
+        if not 0 < config.warning_min <= config.good_min <= 100:
+            raise ValueError(
+                "SECURITY_SCORE_WARNING_MIN must be > 0 and <= SECURITY_SCORE_GOOD_MIN, which must be <= 100"
+            )
+        weights = (config.questionnaire_weight_percent, config.technical_weight_percent)
+        if min(weights) < 0 or sum(weights) != 100:
+            raise ValueError(
+                "SECURITY_SCORE_QUESTIONNAIRE_WEIGHT_PERCENT and SECURITY_SCORE_TECHNICAL_WEIGHT_PERCENT must be >= 0 "
+                "and add up to 100"
+            )
+        return self
+
     @property
     def network_status_thresholds(self) -> NetworkStatusThresholds:
         return NetworkStatusThresholds(
@@ -99,6 +120,15 @@ class Settings(BaseSettings):
             latency_critical_ms=self.network_status_latency_critical_ms,
             packet_loss_warning_percent=self.network_status_packet_loss_warning_percent,
             packet_loss_critical_percent=self.network_status_packet_loss_critical_percent,
+        )
+
+    @property
+    def security_score_config(self) -> SecurityScoreConfig:
+        return SecurityScoreConfig(
+            good_min=self.security_score_good_min,
+            warning_min=self.security_score_warning_min,
+            questionnaire_weight_percent=self.security_score_questionnaire_weight_percent,
+            technical_weight_percent=self.security_score_technical_weight_percent,
         )
 
     @property

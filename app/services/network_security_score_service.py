@@ -1,11 +1,10 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from app.core.config import get_settings
 from app.domain.security_analyzers import TechnicalEvidence, TechnicalSecurityAnalyzer, default_technical_analyzers
 from app.domain.security_assessment import AnswerValue, SecurityRecommendation, compute_questionnaire_score
-
-QUESTIONNAIRE_WEIGHT_PERCENT = 30
-TECHNICAL_WEIGHT_PERCENT = 70
+from app.domain.security_score_config import SecurityScoreConfig
 
 
 @dataclass(frozen=True)
@@ -22,10 +21,13 @@ class NetworkSecurityScore:
 
 
 class NetworkSecurityScoreService:
-    """Combina cuestionario (30 %) y análisis técnico (70 %), promediando por peso los analizadores que pudieron medir."""
+    """Combina cuestionario y análisis técnico según sus pesos, promediando por peso los analizadores que midieron."""
 
-    def __init__(self, analyzers: Sequence[TechnicalSecurityAnalyzer]) -> None:
+    def __init__(
+        self, analyzers: Sequence[TechnicalSecurityAnalyzer], config: SecurityScoreConfig | None = None
+    ) -> None:
         self._analyzers = analyzers
+        self._config = config or get_settings().security_score_config
 
     def evaluate(self, answers: dict[str, AnswerValue], evidence: TechnicalEvidence) -> NetworkSecurityScore:
         questionnaire_score, recommendations = compute_questionnaire_score(answers)
@@ -37,7 +39,11 @@ class NetworkSecurityScoreService:
             total_weight = sum(result.weight for result in results)
             technical_score = round(sum(result.score * result.weight for result in results) / total_weight)
             score = round(
-                (questionnaire_score * QUESTIONNAIRE_WEIGHT_PERCENT + technical_score * TECHNICAL_WEIGHT_PERCENT) / 100
+                (
+                    questionnaire_score * self._config.questionnaire_weight_percent
+                    + technical_score * self._config.technical_weight_percent
+                )
+                / 100
             )
             recommendations = recommendations + [r for result in results for r in result.recommendations]
 

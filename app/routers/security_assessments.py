@@ -2,10 +2,16 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.authorization import get_current_user
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.user import User
 from app.repositories.security_assessment_sqlalchemy_repository import SqlAlchemySecurityAssessmentRepository
-from app.schemas.security_assessment import SecurityAssessmentCreate, SecurityAssessmentRead, SecurityRecommendationRead
+from app.schemas.security_assessment import (
+    SecurityAssessmentCreate,
+    SecurityAssessmentRead,
+    SecurityRecommendationRead,
+    SecurityScoreConfigRead,
+)
 from app.services.network_security_score_service import default_network_security_score_service
 from app.services.security_assessment_service import SecurityAssessmentResult, SecurityAssessmentService
 
@@ -29,6 +35,18 @@ def _to_read(result: SecurityAssessmentResult) -> SecurityAssessmentRead:
             for r in security_score.recommendations
         ],
         submitted_at=result.submitted_at,
+    )
+
+
+@router.get("/score-config", response_model=SecurityScoreConfigRead)
+def get_score_config(_user: User = Depends(get_current_user)) -> SecurityScoreConfigRead:
+    """Solo lectura: los mismos rangos y pesos con que el backend calcula y describe el puntaje."""
+    config = get_settings().security_score_config
+    return SecurityScoreConfigRead(
+        good_min=config.good_min,
+        warning_min=config.warning_min,
+        questionnaire_weight_percent=config.questionnaire_weight_percent,
+        technical_weight_percent=config.technical_weight_percent,
     )
 
 

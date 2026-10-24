@@ -14,6 +14,15 @@ class SecurityAssessmentCreate(BaseModel):
     router_open_ports: list[int] | None = None
 
 
+class SecurityScoreConfigRead(BaseModel):
+    """Rangos y pesos del puntaje de seguridad; el frontend los usa para colorear el puntaje y dividir el dial."""
+
+    good_min: int
+    warning_min: int
+    questionnaire_weight_percent: int
+    technical_weight_percent: int
+
+
 class SecurityRecommendationRead(BaseModel):
     id: str
     title_key: str

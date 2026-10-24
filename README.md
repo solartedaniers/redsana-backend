@@ -64,6 +64,8 @@ pytest
 
 Cada medición se guarda con su estado (`good`, `warning` o `critical`), calculado por latencia **o** pérdida de paquetes con los umbrales `NETWORK_STATUS_*` (por defecto 80 / 150 ms y 1 / 5 %; ver `.env.example`). `GET /api/network-metrics/thresholds` los publica para que el gráfico del frontend clasifique igual que el dashboard. Cambiarlos solo afecta a las mediciones nuevas: el estado de las guardadas no se recalcula.
 
+El puntaje de seguridad usa los rangos y pesos `SECURITY_SCORE_*` (por defecto: bueno desde 80, regular desde 50; cuestionario 30 % y análisis técnico 70 %). `GET /api/security-assessments/score-config` los publica para que el frontend coloree y divida el puntaje igual que el backend.
+
 ## Modo de la IA (`AI_MODE`)
 
 | Modo | Qué hace |
