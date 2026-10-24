@@ -16,11 +16,8 @@ down_revision: Union[str, Sequence[str], None] = 'c4f2a8d1e6b9'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-# El bucket "avatars" es público (lectura por URL), pero storage.objects tiene
-# RLS activo y no había ninguna política de escritura: Supabase rechazaba toda
-# subida con "new row violates row-level security policy". Cada usuario solo
-# puede escribir en su propia carpeta ({uid}/avatar.*), que es la ruta que usa
-# SupabaseAvatarStorageGateway. SELECT hace falta porque la subida usa upsert.
+# Sin política de escritura, RLS rechazaba toda subida de avatar. Cada usuario solo escribe en su carpeta ({uid}/),
+# la ruta de SupabaseAvatarStorageGateway; SELECT hace falta porque la subida usa upsert.
 _OWN_AVATAR_FOLDER = "bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text"
 
 _POLICIES = {

@@ -18,9 +18,7 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-# Estas columnas se guardaban como timestamp sin zona horaria, pero el valor ya
-# estaba en UTC (server_default=now() con el servidor en UTC). Por eso la
-# conversión solo etiqueta el offset con AT TIME ZONE, no desplaza el dato.
+# El valor ya estaba en UTC (now() con el servidor en UTC): AT TIME ZONE solo etiqueta el offset, no desplaza el dato.
 _DATETIME_COLUMNS = [
     ("network_metric_snapshots", "recorded_at"),
     ("alerts", "created_at"),

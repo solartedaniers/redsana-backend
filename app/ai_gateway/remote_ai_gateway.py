@@ -17,9 +17,8 @@ from app.ai_gateway.windowed_detectors import WindowedAnomalyDetector, WindowedO
 
 
 class RemoteAiGateway(AiGateway):
-    """La IA vive en el servicio aparte: chat y resumen siempre van allí; los detectores en segundo plano solo dentro
-     de la ventana de uso interactivo, y si no con el paquete local. El estado y el calentamiento son de
-     WarmUpController."""
+    """Chat y resumen siempre van al servicio; los detectores solo dentro de la ventana de uso interactivo, para no
+    despertarlo con cada medición. Estado y calentamiento: WarmUpController."""
 
     def __init__(
         self,
