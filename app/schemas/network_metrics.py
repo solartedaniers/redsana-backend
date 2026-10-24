@@ -31,6 +31,10 @@ class NetworkStatusThresholdsRead(BaseModel):
     latency_critical_ms: float
     packet_loss_warning_percent: float
     packet_loss_critical_percent: float
+    # Opcionales y agregados después: el escritorio los guarda para diagnosticar sin conexión con la misma regla. La web
+    # y el instalador 0.1.5 los ignoran.
+    gateway_latency_bad_ms: float | None = None
+    gateway_recent_reply_minutes: int | None = None
 
 
 class NetworkMetricSampleRead(BaseModel):

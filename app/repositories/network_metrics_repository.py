@@ -34,6 +34,11 @@ class NetworkMetricsRepository(ABC):
         ...
 
     @abstractmethod
+    def last_gateway_reply_at(self, owner_id: uuid.UUID, until: datetime) -> datetime | None:
+        """Hora de la medición más reciente, hasta `until`, en que el router respondió al ping (solo escritorio)."""
+        ...
+
+    @abstractmethod
     def count_by_owner(self, owner_id: uuid.UUID, scope: BaselineScope | None = None) -> int: ...
 
     @abstractmethod

@@ -51,6 +51,17 @@ class FakeNetworkMetricsRepository(NetworkMetricsRepository):
             None,
         )
 
+    def last_gateway_reply_at(self, owner_id: uuid.UUID, until: datetime) -> datetime | None:
+        replies = [
+            s.recorded_at
+            for s in self.snapshots
+            if s.owner_id == owner_id
+            and s.source == "native"
+            and s.recorded_at <= until
+            and s.gateway_latency_ms is not None
+        ]
+        return max(replies, default=None)
+
     def count_by_owner(self, owner_id: uuid.UUID, scope: BaselineScope | None = None) -> int:
         return sum(1 for s in self.snapshots if s.owner_id == owner_id and _in_scope(s, scope))
 

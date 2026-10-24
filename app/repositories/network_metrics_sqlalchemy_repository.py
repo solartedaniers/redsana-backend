@@ -71,6 +71,16 @@ class SqlAlchemyNetworkMetricsRepository(NetworkMetricsRepository):
         )
         return self._db.scalars(stmt).first()
 
+    def last_gateway_reply_at(self, owner_id: uuid.UUID, until: datetime) -> datetime | None:
+        # Usa el índice (owner_id, source, recorded_at); solo el escritorio mide el router.
+        stmt = select(func.max(NetworkMetricSnapshot.recorded_at)).where(
+            NetworkMetricSnapshot.owner_id == owner_id,
+            NetworkMetricSnapshot.source == "native",
+            NetworkMetricSnapshot.recorded_at <= until,
+            NetworkMetricSnapshot.gateway_latency_ms.is_not(None),
+        )
+        return self._db.scalar(stmt)
+
     def count_by_owner(self, owner_id: uuid.UUID, scope: BaselineScope | None = None) -> int:
         stmt = select(func.count()).select_from(NetworkMetricSnapshot).where(*_owner_filters(owner_id, scope))
         return self._db.scalar(stmt) or 0

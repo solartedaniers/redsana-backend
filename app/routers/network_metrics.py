@@ -82,7 +82,9 @@ def _get_metrics_service(db: Session = Depends(get_db)) -> NetworkMetricsService
 
 
 def _get_diagnosis_service(db: Session = Depends(get_db)) -> NetworkDiagnosisService:
-    return NetworkDiagnosisService(SqlAlchemyDeviceRepository(db), get_settings().network_diagnosis_policy)
+    return NetworkDiagnosisService(
+        SqlAlchemyDeviceRepository(db), SqlAlchemyNetworkMetricsRepository(db), get_settings().network_diagnosis_policy
+    )
 
 
 def _get_anomaly_service(db: Session = Depends(get_db)) -> NetworkAnomalyService:
@@ -129,12 +131,15 @@ def get_status_thresholds(
 ) -> NetworkStatusThresholdsRead:
     """Solo lectura: los mismos umbrales con que se calcula el estado de cada medición nueva de esa fuente. Sin
     source responde los del escritorio, como antes (instalador 0.1.5 y web anterior)."""
-    thresholds = get_settings().network_status_thresholds_for(source)
+    settings = get_settings()
+    thresholds = settings.network_status_thresholds_for(source)
     return NetworkStatusThresholdsRead(
         latency_warning_ms=thresholds.latency_warning_ms,
         latency_critical_ms=thresholds.latency_critical_ms,
         packet_loss_warning_percent=thresholds.packet_loss_warning_percent,
         packet_loss_critical_percent=thresholds.packet_loss_critical_percent,
+        gateway_latency_bad_ms=settings.network_gateway_latency_bad_ms,
+        gateway_recent_reply_minutes=settings.network_gateway_recent_reply_minutes,
     )
 
 

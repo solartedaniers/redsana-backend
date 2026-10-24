@@ -1,0 +1,28 @@
+{
+  "description": "Tabla de paridad del diagnóstico router / proveedor. La misma copia vive en el backend (tests/fixtures/network_diagnosis_cases.json) y en el frontend (src/app/core/domain/network-diagnosis-cases.json); las dos pruebas comprueban su huella SHA-256. minutes_since_router_reply: minutos desde la última medición en que el router respondió (null = nunca).",
+  "thresholds": {
+    "latency_warning_ms": 80,
+    "latency_critical_ms": 150,
+    "packet_loss_warning_percent": 1,
+    "packet_loss_critical_percent": 5,
+    "gateway_latency_bad_ms": 100,
+    "gateway_recent_reply_minutes": 60
+  },
+  "cases": [
+    { "name": "router lento e internet lento", "latency_ms": 300, "packet_loss_percent": 0, "gateway_latency_ms": 180, "minutes_since_router_reply": 0, "expected": "router" },
+    { "name": "router justo en el umbral", "latency_ms": 20, "packet_loss_percent": 0, "gateway_latency_ms": 100, "minutes_since_router_reply": 0, "expected": "router" },
+    { "name": "router lento con internet caído", "latency_ms": 0, "packet_loss_percent": 100, "gateway_latency_ms": 180, "minutes_since_router_reply": 0, "expected": "router" },
+    { "name": "router bien e internet crítico por latencia", "latency_ms": 150, "packet_loss_percent": 0, "gateway_latency_ms": 99.9, "minutes_since_router_reply": 0, "expected": "provider" },
+    { "name": "router bien e internet en advertencia por latencia", "latency_ms": 80, "packet_loss_percent": 0, "gateway_latency_ms": 5, "minutes_since_router_reply": 0, "expected": "provider" },
+    { "name": "router bien y pérdida en advertencia", "latency_ms": 20, "packet_loss_percent": 1, "gateway_latency_ms": 5, "minutes_since_router_reply": 0, "expected": "provider" },
+    { "name": "router bien e internet caído", "latency_ms": 0, "packet_loss_percent": 100, "gateway_latency_ms": 5, "minutes_since_router_reply": 0, "expected": "provider" },
+    { "name": "todo bien justo bajo los umbrales", "latency_ms": 79.9, "packet_loss_percent": 0.9, "gateway_latency_ms": 5, "minutes_since_router_reply": 0, "expected": "ok" },
+    { "name": "internet caído y router sin responder, respondió hace 1 minuto", "latency_ms": 0, "packet_loss_percent": 100, "gateway_latency_ms": null, "minutes_since_router_reply": 1, "expected": "router_unreachable" },
+    { "name": "internet caído y router sin responder, respondió justo en el límite", "latency_ms": 0, "packet_loss_percent": 100, "gateway_latency_ms": null, "minutes_since_router_reply": 60, "expected": "router_unreachable" },
+    { "name": "internet caído y router sin responder, respondió hace más del límite", "latency_ms": 0, "packet_loss_percent": 100, "gateway_latency_ms": null, "minutes_since_router_reply": 61, "expected": null },
+    { "name": "internet caído y el router nunca respondió al ping", "latency_ms": 0, "packet_loss_percent": 100, "gateway_latency_ms": null, "minutes_since_router_reply": null, "expected": null },
+    { "name": "casi caído (99 %) y router sin responder", "latency_ms": 0, "packet_loss_percent": 99, "gateway_latency_ms": null, "minutes_since_router_reply": 1, "expected": null },
+    { "name": "internet lento y router sin responder", "latency_ms": 900, "packet_loss_percent": 0, "gateway_latency_ms": null, "minutes_since_router_reply": 1, "expected": null },
+    { "name": "internet bien y router sin responder", "latency_ms": 20, "packet_loss_percent": 0, "gateway_latency_ms": null, "minutes_since_router_reply": 1, "expected": null }
+  ]
+}

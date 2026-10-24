@@ -103,12 +103,26 @@ def test_thresholds_endpoint_returns_the_configured_values(client: TestClient) -
     response = client.get("/api/network-metrics/thresholds")
 
     assert response.status_code == 200
-    assert response.json() == {
+    assert _original_fields(response.json()) == {
         "latency_warning_ms": 80,
         "latency_critical_ms": 150,
         "packet_loss_warning_percent": 1,
         "packet_loss_critical_percent": 5,
     }
+
+
+def _original_fields(body: dict) -> dict:
+    """Los campos que leen la web y el instalador 0.1.5; lo demás solo puede ser agregado y opcional."""
+    assert set(body) - ORIGINAL_THRESHOLD_FIELDS <= {"gateway_latency_bad_ms", "gateway_recent_reply_minutes"}
+    return {key: body[key] for key in ORIGINAL_THRESHOLD_FIELDS}
+
+
+ORIGINAL_THRESHOLD_FIELDS = {
+    "latency_warning_ms",
+    "latency_critical_ms",
+    "packet_loss_warning_percent",
+    "packet_loss_critical_percent",
+}
 
 
 def test_thresholds_endpoint_follows_the_environment(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -125,7 +139,7 @@ def test_thresholds_endpoint_follows_the_environment(client: TestClient, monkeyp
 def test_thresholds_for_web_use_the_web_latency_scale(client: TestClient) -> None:
     response = client.get("/api/network-metrics/thresholds", params={"source": "web"})
 
-    assert response.json() == {
+    assert _original_fields(response.json()) == {
         "latency_warning_ms": 400,
         "latency_critical_ms": 800,
         "packet_loss_warning_percent": 1,

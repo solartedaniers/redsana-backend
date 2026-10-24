@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     # menos tantos dispositivos conectados se sugiere, como posibilidad, que uno está usando mucha red.
     network_gateway_latency_bad_ms: float = 100
     network_busy_device_min_count: int = 8
+    # Con internet caído y el router sin responder, se culpa al WiFi o al router solo si el router respondió al ping
+    # en alguna medición de estos últimos minutos; si nunca responde (puede bloquear el ping), no se diagnostica.
+    network_gateway_recent_reply_minutes: int = 60
     # Puntaje de seguridad: desde dónde es bueno o regular, y cuánto pesa cada parte (suman 100).
     security_score_good_min: int = 80
     security_score_warning_min: int = 50
@@ -165,6 +168,7 @@ class Settings(BaseSettings):
         return NetworkDiagnosisPolicy(
             gateway_latency_bad_ms=self.network_gateway_latency_bad_ms,
             busy_device_min_count=self.network_busy_device_min_count,
+            gateway_recent_reply_window=timedelta(minutes=self.network_gateway_recent_reply_minutes),
         )
 
     @property
