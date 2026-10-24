@@ -1,9 +1,11 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
+from app.core.config import get_settings
 from app.domain.measurement_source import DEFAULT_MEASUREMENT_SOURCE, MeasurementSource
+from app.domain.measurement_timing import as_utc
 from app.domain.network_status import NetworkStatus
 
 
@@ -41,6 +43,19 @@ class NetworkMetricSnapshotCreate(BaseModel):
     jitter_ms: float
     packet_loss_percent: float
     source: MeasurementSource = DEFAULT_MEASUREMENT_SOURCE
+    # Hora original de la medición (la cola del cliente reenvía tarde). Sin ella se usa la del servidor, como antes.
+    # Con ella, reenviar la misma medición no la duplica.
     recorded_at: datetime | None = None
     # SHA-256 de la MAC del router calculado en el escritorio: la MAC cruda nunca llega aquí. None desde la web.
     network_fingerprint: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+    @field_validator("recorded_at")
+    @classmethod
+    def _recorded_at_within_accepted_window(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        recorded_at = as_utc(value)
+        reason = get_settings().measurement_timing_policy.rejection_reason(recorded_at, datetime.now(UTC))
+        if reason is not None:
+            raise ValueError(reason)
+        return recorded_at

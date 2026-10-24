@@ -25,6 +25,14 @@ class NetworkMetricsService:
         range_start = start or (range_end - timedelta(hours=default_hours))
         return self._repository.list_in_range(owner_id, range_start, range_end)
 
+    def find_already_recorded(
+        self, owner_id: uuid.UUID, payload: NetworkMetricSnapshotCreate
+    ) -> NetworkMetricSnapshot | None:
+        """Sin hora del cliente no hay forma de reconocer un reenvío: cada POST es una medición nueva, como antes."""
+        if payload.recorded_at is None:
+            return None
+        return self._repository.find_by_recorded_at(owner_id, payload.source, payload.recorded_at)
+
     def record_snapshot(self, owner_id: uuid.UUID, payload: NetworkMetricSnapshotCreate) -> NetworkMetricSnapshot:
         status = compute_network_status(
             payload.latency_ms,

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -8,6 +8,7 @@ from app.core.ai_composition import build_anomaly_detector, build_outage_detecto
 from app.core.authorization import ADMIN_ROLE_NAME, get_current_user
 from app.core.config import get_settings
 from app.domain.measurement_source import DEFAULT_MEASUREMENT_SOURCE, MeasurementSource
+from app.domain.measurement_timing import as_utc
 from app.domain.network_identity import NetworkIdentifier
 from app.core.database import SessionLocal, get_db
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
@@ -132,26 +133,35 @@ def get_anomaly_status(
     return _to_anomaly_status_read(status)
 
 
-def _evaluate_anomalies_in_background(owner_id: uuid.UUID) -> None:
-    """Corre después de responder, con su propia sesión (la del request ya se cerró). Entrenar el modelo
-    tarda ~200 ms y haría lento un POST que hoy responde en ~160 ms."""
+def _is_latest(repository: SqlAlchemyNetworkMetricsRepository, owner_id: uuid.UUID, snapshot_id: uuid.UUID) -> bool:
+    # Los detectores miran la medición más nueva: si la que llegó es más vieja (fuera de orden), esa ventana ya se
+    # evaluó y repetirlo duplicaría alertas.
+    latest = repository.get_latest(owner_id)
+    return latest is not None and latest.id == snapshot_id
+
+
+def _evaluate_anomalies_in_background(owner_id: uuid.UUID, snapshot_id: uuid.UUID) -> None:
+    """Corre después de responder, con su propia sesión (la del request ya se cerró). Entrenar el modelo tarda ~200 ms y
+    haría lento un POST que hoy responde en ~160 ms."""
     db = SessionLocal()
     try:
-        service = NetworkAnomalyService(
-            SqlAlchemyNetworkMetricsRepository(db), SqlAlchemyAlertRepository(db), build_anomaly_detector()
-        )
+        repository = SqlAlchemyNetworkMetricsRepository(db)
+        if not _is_latest(repository, owner_id, snapshot_id):
+            return
+        service = NetworkAnomalyService(repository, SqlAlchemyAlertRepository(db), build_anomaly_detector())
         service.evaluate_latest(owner_id)
     finally:
         db.close()
 
 
-def _evaluate_outage_in_background(owner_id: uuid.UUID) -> None:
+def _evaluate_outage_in_background(owner_id: uuid.UUID, snapshot_id: uuid.UUID) -> None:
     """Igual que _evaluate_anomalies_in_background, pero aparte para no acoplar los dos detectores."""
     db = SessionLocal()
     try:
-        service = OutageDetectionService(
-            SqlAlchemyNetworkMetricsRepository(db), SqlAlchemyAlertRepository(db), build_outage_detector()
-        )
+        repository = SqlAlchemyNetworkMetricsRepository(db)
+        if not _is_latest(repository, owner_id, snapshot_id):
+            return
+        service = OutageDetectionService(repository, SqlAlchemyAlertRepository(db), build_outage_detector())
         service.evaluate_latest(owner_id)
     finally:
         db.close()
@@ -166,10 +176,15 @@ def record_snapshot(
 ) -> NetworkMetricSnapshotRead:
     """Registra un snapshot real del usuario autenticado; un admin puede registrarlo a nombre de otro."""
     owner_id = _resolve_target_owner_id(user, payload.owner_id)
+    # Un reenvío de la cola del cliente que ya se guardó responde igual y no vuelve a evaluar nada.
+    already_recorded = service.find_already_recorded(owner_id, payload)
+    if already_recorded is not None:
+        return _to_snapshot_read(already_recorded)
     snapshot = service.record_snapshot(owner_id, payload)
-
-    # Anomalías y cortes van desacoplados y en segundo plano para no sumar latencia al POST.
-    background_tasks.add_task(_evaluate_anomalies_in_background, owner_id)
-    background_tasks.add_task(_evaluate_outage_in_background, owner_id)
-
+    # Anomalías y cortes desacoplados y en segundo plano para no sumar latencia al POST. Una medición que llega tarde
+    # sí registra el corte (con su duración real), pero no avisa ahora de una degradación que ya pasó.
+    timing = get_settings().measurement_timing_policy
+    if not timing.is_late(as_utc(snapshot.recorded_at), datetime.now(UTC)):
+        background_tasks.add_task(_evaluate_anomalies_in_background, owner_id, snapshot.id)
+    background_tasks.add_task(_evaluate_outage_in_background, owner_id, snapshot.id)
     return _to_snapshot_read(snapshot)

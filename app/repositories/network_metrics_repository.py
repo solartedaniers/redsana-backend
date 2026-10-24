@@ -27,6 +27,13 @@ class NetworkMetricsRepository(ABC):
         ...
 
     @abstractmethod
+    def find_by_recorded_at(
+        self, owner_id: uuid.UUID, source: MeasurementSource, recorded_at: datetime
+    ) -> NetworkMetricSnapshot | None:
+        """La medición ya guardada con esa hora exacta: así un reenvío de la cola del cliente no la duplica."""
+        ...
+
+    @abstractmethod
     def count_by_owner(self, owner_id: uuid.UUID, scope: BaselineScope | None = None) -> int: ...
 
     @abstractmethod

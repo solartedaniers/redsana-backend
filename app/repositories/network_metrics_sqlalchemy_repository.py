@@ -60,6 +60,17 @@ class SqlAlchemyNetworkMetricsRepository(NetworkMetricsRepository):
         )
         return list(self._db.scalars(stmt).all())
 
+    def find_by_recorded_at(
+        self, owner_id: uuid.UUID, source: MeasurementSource, recorded_at: datetime
+    ) -> NetworkMetricSnapshot | None:
+        # Usa el índice (owner_id, source, recorded_at) que ya existe.
+        stmt = select(NetworkMetricSnapshot).where(
+            NetworkMetricSnapshot.owner_id == owner_id,
+            NetworkMetricSnapshot.source == source,
+            NetworkMetricSnapshot.recorded_at == recorded_at,
+        )
+        return self._db.scalars(stmt).first()
+
     def count_by_owner(self, owner_id: uuid.UUID, scope: BaselineScope | None = None) -> int:
         stmt = select(func.count()).select_from(NetworkMetricSnapshot).where(*_owner_filters(owner_id, scope))
         return self._db.scalar(stmt) or 0

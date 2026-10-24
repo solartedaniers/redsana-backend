@@ -1,3 +1,4 @@
+from datetime import timedelta
 from functools import lru_cache
 from typing import Literal
 
@@ -5,6 +6,7 @@ from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.domain.measurement_source import MeasurementSource
+from app.domain.measurement_timing import MeasurementTimingPolicy
 from app.domain.network_status import NetworkStatusThresholds
 from app.domain.security_score_config import SecurityScoreConfig
 
@@ -36,6 +38,12 @@ class Settings(BaseSettings):
     # Tras un aviso de degradación no se crea otro igual durante este tiempo, aunque el primero ya se haya marcado
     # como visto: si no, saldría uno por minuto mientras dure el problema.
     prediction_alert_cooldown_minutes: int = 60
+    # Hora de medición que manda el cliente (cola local): se rechaza si es más vieja que esto o está en el futuro más
+    # allá del margen por relojes desfasados.
+    measurement_max_age_hours: int = 24
+    measurement_max_future_seconds: int = 300
+    # Una medición que llega con más de este retraso ya pasó: registra cortes, pero no dispara avisos de degradación.
+    measurement_late_after_seconds: int = 180
     # Puntaje de seguridad: desde dónde es bueno o regular, y cuánto pesa cada parte (suman 100).
     security_score_good_min: int = 80
     security_score_warning_min: int = 50
@@ -143,6 +151,14 @@ class Settings(BaseSettings):
             latency_critical_ms=self.network_status_web_latency_critical_ms,
             packet_loss_warning_percent=self.network_status_packet_loss_warning_percent,
             packet_loss_critical_percent=self.network_status_packet_loss_critical_percent,
+        )
+
+    @property
+    def measurement_timing_policy(self) -> MeasurementTimingPolicy:
+        return MeasurementTimingPolicy(
+            max_age=timedelta(hours=self.measurement_max_age_hours),
+            max_future=timedelta(seconds=self.measurement_max_future_seconds),
+            late_after=timedelta(seconds=self.measurement_late_after_seconds),
         )
 
     @property

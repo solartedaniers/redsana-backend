@@ -39,6 +39,14 @@ class FakeNetworkMetricsRepository(NetworkMetricsRepository):
         owned = [s for s in self.snapshots if s.owner_id == owner_id and _in_scope(s, scope)]
         return sorted(owned, key=lambda s: s.recorded_at, reverse=True)[:limit]
 
+    def find_by_recorded_at(
+        self, owner_id: uuid.UUID, source: str, recorded_at: datetime
+    ) -> NetworkMetricSnapshot | None:
+        return next(
+            (s for s in self.snapshots if (s.owner_id, s.source, s.recorded_at) == (owner_id, source, recorded_at)),
+            None,
+        )
+
     def count_by_owner(self, owner_id: uuid.UUID, scope: BaselineScope | None = None) -> int:
         return sum(1 for s in self.snapshots if s.owner_id == owner_id and _in_scope(s, scope))
 

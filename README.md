@@ -68,6 +68,15 @@ Las mediciones de la web (`source: web`) miden la latencia hasta el servidor, as
 
 Un aviso de degradación no se repite durante `PREDICTION_ALERT_COOLDOWN_MINUTES` (por defecto 60) desde el anterior, esté marcado como visto o no.
 
+## Mediciones enviadas tarde (cola del cliente)
+
+Si el cliente no puede enviar una medición, la guarda y la reenvía después con su hora original en `recorded_at` (opcional; sin ella se usa la hora del servidor, como antes y como el instalador 0.1.5):
+
+- La hora se valida: `422` si es más vieja que `MEASUREMENT_MAX_AGE_HOURS` (24 h) o si está en el futuro más de `MEASUREMENT_MAX_FUTURE_SECONDS` (300 s).
+- Reenviar la misma medición (mismo usuario, fuente y `recorded_at`) no la duplica: responde `201` con la que ya estaba y no vuelve a evaluar nada.
+- Una medición que llega con más de `MEASUREMENT_LATE_AFTER_SECONDS` (180 s) de retraso registra el corte con su duración real, pero no dispara un aviso de degradación por algo que ya pasó.
+- Los detectores solo evalúan cuando la medición que llega es la más nueva; una que llega fuera de orden no repite alertas.
+
 El puntaje de seguridad usa los rangos y pesos `SECURITY_SCORE_*` (por defecto: bueno desde 80, regular desde 50; cuestionario 30 % y análisis técnico 70 %). `GET /api/security-assessments/score-config` los publica para que el frontend coloree y divida el puntaje igual que el backend.
 
 ## Modo de la IA (`AI_MODE`)
