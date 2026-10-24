@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.ai_composition import build_anomaly_detector, build_outage_detector
 from app.core.authorization import ADMIN_ROLE_NAME, get_current_user
 from app.core.config import get_settings
+from app.domain.measurement_source import DEFAULT_MEASUREMENT_SOURCE, MeasurementSource
 from app.domain.network_identity import NetworkIdentifier
 from app.core.database import SessionLocal, get_db
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
@@ -106,9 +107,13 @@ def get_history(
 
 
 @router.get("/thresholds", response_model=NetworkStatusThresholdsRead)
-def get_status_thresholds(_user: User = Depends(get_current_user)) -> NetworkStatusThresholdsRead:
-    """Solo lectura: los mismos umbrales con que se calcula el estado de cada medición nueva."""
-    thresholds = get_settings().network_status_thresholds
+def get_status_thresholds(
+    source: MeasurementSource = Query(DEFAULT_MEASUREMENT_SOURCE),
+    _user: User = Depends(get_current_user),
+) -> NetworkStatusThresholdsRead:
+    """Solo lectura: los mismos umbrales con que se calcula el estado de cada medición nueva de esa fuente. Sin
+    source responde los del escritorio, como antes (instalador 0.1.5 y web anterior)."""
+    thresholds = get_settings().network_status_thresholds_for(source)
     return NetworkStatusThresholdsRead(
         latency_warning_ms=thresholds.latency_warning_ms,
         latency_critical_ms=thresholds.latency_critical_ms,

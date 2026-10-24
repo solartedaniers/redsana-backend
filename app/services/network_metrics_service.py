@@ -27,7 +27,9 @@ class NetworkMetricsService:
 
     def record_snapshot(self, owner_id: uuid.UUID, payload: NetworkMetricSnapshotCreate) -> NetworkMetricSnapshot:
         status = compute_network_status(
-            payload.latency_ms, payload.packet_loss_percent, get_settings().network_status_thresholds
+            payload.latency_ms,
+            payload.packet_loss_percent,
+            get_settings().network_status_thresholds_for(payload.source),
         )
         return self._repository.create(
             owner_id=owner_id,

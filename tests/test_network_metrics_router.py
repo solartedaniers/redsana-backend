@@ -122,6 +122,40 @@ def test_thresholds_endpoint_follows_the_environment(client: TestClient, monkeyp
     assert response.json()["latency_critical_ms"] == 300
 
 
+def test_thresholds_for_web_use_the_web_latency_scale(client: TestClient) -> None:
+    response = client.get("/api/network-metrics/thresholds", params={"source": "web"})
+
+    assert response.json() == {
+        "latency_warning_ms": 400,
+        "latency_critical_ms": 800,
+        "packet_loss_warning_percent": 1,
+        "packet_loss_critical_percent": 5,
+    }
+
+
+def test_thresholds_for_native_match_the_call_without_source(client: TestClient) -> None:
+    native = client.get("/api/network-metrics/thresholds", params={"source": "native"})
+
+    assert native.json() == client.get("/api/network-metrics/thresholds").json()
+
+
+def test_thresholds_with_an_unknown_source_are_rejected(client: TestClient) -> None:
+    assert client.get("/api/network-metrics/thresholds", params={"source": "radio"}).status_code == 422
+
+
+def test_a_web_measurement_of_250_ms_is_good(client: TestClient) -> None:
+    response = client.post("/api/network-metrics", json={**SNAPSHOT_PAYLOAD, "latency_ms": 250, "source": "web"})
+
+    assert response.json()["status"] == "good"
+
+
+def test_a_measurement_without_source_is_still_judged_as_desktop(client: TestClient) -> None:
+    # El instalador 0.1.5 no envía source: 250 ms sigue siendo crítico, como hoy.
+    response = client.post("/api/network-metrics", json={**SNAPSHOT_PAYLOAD, "latency_ms": 250})
+
+    assert response.json()["status"] == "critical"
+
+
 def test_thresholds_without_token_is_unauthorized(client_without_claims_override: TestClient) -> None:
     response = client_without_claims_override.get("/api/network-metrics/thresholds")
 

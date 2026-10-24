@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.domain.measurement_source import MeasurementSource
 from app.domain.network_status import NetworkStatusThresholds
 from app.domain.security_score_config import SecurityScoreConfig
 
@@ -28,6 +29,10 @@ class Settings(BaseSettings):
     network_status_latency_critical_ms: float = 150
     network_status_packet_loss_warning_percent: float = 1
     network_status_packet_loss_critical_percent: float = 5
+    # La web mide un fetch hasta el servidor (normal ~170–290 ms), no un ping a la red de la casa: necesita su propia
+    # escala de latencia. La pérdida de paquetes usa los mismos umbrales en las dos fuentes.
+    network_status_web_latency_warning_ms: float = 400
+    network_status_web_latency_critical_ms: float = 800
     # Puntaje de seguridad: desde dónde es bueno o regular, y cuánto pesa cada parte (suman 100).
     security_score_good_min: int = 80
     security_score_warning_min: int = 50
@@ -91,6 +96,10 @@ class Settings(BaseSettings):
         thresholds = self.network_status_thresholds
         if not 0 < thresholds.latency_warning_ms <= thresholds.latency_critical_ms:
             raise ValueError("NETWORK_STATUS_LATENCY_WARNING_MS must be > 0 and <= NETWORK_STATUS_LATENCY_CRITICAL_MS")
+        if not 0 < self.network_status_web_latency_warning_ms <= self.network_status_web_latency_critical_ms:
+            raise ValueError(
+                "NETWORK_STATUS_WEB_LATENCY_WARNING_MS must be > 0 and <= NETWORK_STATUS_WEB_LATENCY_CRITICAL_MS"
+            )
         if not 0 < thresholds.packet_loss_warning_percent <= thresholds.packet_loss_critical_percent <= 100:
             raise ValueError(
                 "NETWORK_STATUS_PACKET_LOSS_WARNING_PERCENT must be > 0 and <= "
@@ -118,6 +127,17 @@ class Settings(BaseSettings):
         return NetworkStatusThresholds(
             latency_warning_ms=self.network_status_latency_warning_ms,
             latency_critical_ms=self.network_status_latency_critical_ms,
+            packet_loss_warning_percent=self.network_status_packet_loss_warning_percent,
+            packet_loss_critical_percent=self.network_status_packet_loss_critical_percent,
+        )
+
+    def network_status_thresholds_for(self, source: MeasurementSource) -> NetworkStatusThresholds:
+        """Única fuente de los umbrales por fuente: el estado guardado, GET /thresholds y el asistente leen de aquí."""
+        if source == "native":
+            return self.network_status_thresholds
+        return NetworkStatusThresholds(
+            latency_warning_ms=self.network_status_web_latency_warning_ms,
+            latency_critical_ms=self.network_status_web_latency_critical_ms,
             packet_loss_warning_percent=self.network_status_packet_loss_warning_percent,
             packet_loss_critical_percent=self.network_status_packet_loss_critical_percent,
         )

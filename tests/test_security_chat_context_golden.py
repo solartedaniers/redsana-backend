@@ -120,13 +120,14 @@ SCENARIOS = {
     ),
 }
 
-# Generado con el código de main antes de mover el texto; no se edita a mano.
+# Generado con el código de main antes de mover el texto; no se edita a mano. Única excepción: "completo" mide desde la
+# web y desde el lote B recibe los umbrales de la web (400 / 800 ms).
 EXPECTED: dict[str, str] = {
     "completo": (
         "- Dispositivos conectados en el ultimo escaneo: 4 (incluye este equipo, sin contar el router). De los demas: 1 marcados de confianza, 1 marcados como inseguros y 1 sin revisar. RedSana no puede bloquear equipos en el router; el usuario solo los marca."
         "\n- Alertas activas sin reconocer (2): [critical/outage] alerts.outage {'minutes': 3}; [warning/untrusted_device] alerts.untrusted"
         "\n- Ultimo snapshot de red: latencia 263.1 ms, jitter 16.1 ms, perdida de paquetes 2.0%, estado 'critical'. Medido el 2026-03-13 21:22 (hora local, hace 7 min) desde la web (latencia al servidor: peticiones HTTPS al servidor de RedSana, incluye el viaje hasta el servidor; no es un ping a la red local)."
-        "\n- Umbrales reales del estado de la red (fijos, no dependen del historial): alerta desde 80 ms de latencia o 1% de perdida; critica desde 150 ms o 5% de perdida. El jitter no cambia el estado."
+        "\n- Umbrales reales del estado de la red (fijos, no dependen del historial): alerta desde 400 ms de latencia o 1% de perdida; critica desde 800 ms o 5% de perdida. El jitter no cambia el estado."
         "\n- Pantallas reales de la app: Panel principal (Latencia, Jitter, Pérdida de paquetes, Historial de latencia); Asistente de seguridad; Centro de alertas; Dispositivos conectados; Modo familiar; Descargar; Mi perfil."
         "\n- Puntaje de seguridad: 39/100 = cuestionario 19/100 (pesa 30%) + analisis tecnico 48/100 (pesa 70%, medido desde la app de escritorio el 2026-03-13)."
         "\n- Cifrado WiFi detectado: WPA2."

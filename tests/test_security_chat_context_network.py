@@ -1,7 +1,7 @@
 """La IA recibe cuándo y desde dónde se midió la red, los umbrales reales y las pantallas reales, para no inventarlos."""
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
 from app.services.security_chat_context_service import SecurityChatContextBuilder
@@ -45,7 +45,14 @@ def test_snapshot_line_accepts_naive_utc_dates_from_sqlite_and_names_the_desktop
 def test_thresholds_and_screens_are_the_real_ones() -> None:
     builder = SecurityChatContextBuilder(None, None, None, None, timezone.utc)
 
-    assert "alerta desde 80 ms" in builder._thresholds_line()
-    assert "critica desde 150 ms o 5% de perdida" in builder._thresholds_line()
+    assert "alerta desde 80 ms" in builder._thresholds_line("native")
+    assert "critica desde 150 ms o 5% de perdida" in builder._thresholds_line("native")
     assert "Panel principal (Latencia, Jitter, Pérdida de paquetes, Historial de latencia)" in builder._screens_line()
     assert "Dashboard" not in builder._screens_line()
+
+
+def test_thresholds_line_uses_the_scale_of_the_last_measurement_source() -> None:
+    builder = SecurityChatContextBuilder(None, None, None, None, UTC)
+
+    assert "alerta desde 400 ms" in builder._thresholds_line("web")
+    assert "critica desde 800 ms o 5% de perdida" in builder._thresholds_line("web")

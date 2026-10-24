@@ -7,7 +7,7 @@ from pathlib import Path
 from app.core.config import get_settings
 from app.domain.app_screens import USER_APP_SCREENS
 from app.domain.device_presence import connected_members, is_device_online, latest_seen_among
-from app.domain.measurement_source import MeasurementSource
+from app.domain.measurement_source import DEFAULT_MEASUREMENT_SOURCE, MeasurementSource
 from app.domain.security_analyzers import RISKY_ROUTER_PORTS, ROUTER_PORT_SERVICE_NAMES
 from app.models.alert import Alert
 from app.models.device import Device
@@ -63,7 +63,7 @@ class SecurityChatContextBuilder:
             self._devices_line(devices),
             self._alerts_line(unacknowledged),
             self._snapshot_line(snapshot),
-            self._thresholds_line(),
+            self._thresholds_line(snapshot.source if snapshot is not None else DEFAULT_MEASUREMENT_SOURCE),
             self._screens_line(),
             *self._assessment_lines(assessment),
             _TEXT["only_context_facts_rule"],
@@ -113,8 +113,8 @@ class SecurityChatContextBuilder:
             origin=_MEASUREMENT_ORIGINS[snapshot.source],
         )
 
-    def _thresholds_line(self) -> str:
-        thresholds = get_settings().network_status_thresholds
+    def _thresholds_line(self, source: MeasurementSource) -> str:
+        thresholds = get_settings().network_status_thresholds_for(source)
         # :g (en el recurso) escribe 80 y no 80.0, como el texto que ya conocía el asistente.
         return _TEXT["thresholds"].format(
             latency_warning_ms=thresholds.latency_warning_ms,
