@@ -82,8 +82,10 @@ Si el cliente no puede enviar una medición, la guarda y la reenvía después co
 
 El escritorio (desde 0.1.6) manda también `gateway_latency_ms`, la latencia al router (opcional; la web y el instalador 0.1.5 no la mandan). `GET /api/network-metrics/latest` agrega, con esa medición:
 
-- `diagnosis`: `router` si la latencia al router llega a `NETWORK_GATEWAY_LATENCY_BAD_MS` (100 ms; problema del WiFi o del router); `provider` si el router responde bien pero el estado de internet es `warning` o `critical`; `ok` si todo está bien; `null` sin dato del router (no diagnostica).
+- `diagnosis`: `router` si la latencia al router llega a `NETWORK_GATEWAY_LATENCY_BAD_MS` (100 ms; problema del WiFi o del router); `provider` si el router responde bien pero el estado de internet es `warning` o `critical`; `ok` si todo está bien; `router_unreachable` si internet está caído (100 % de pérdida) y el router no respondió, pero sí respondió al ping en alguna medición del escritorio de los últimos `NETWORK_GATEWAY_RECENT_REPLY_MINUTES` (60) minutos, contados desde la hora de esa medición (también apunta al WiFi o al router); `null` en cualquier otro caso sin dato del router, incluido un router que nunca responde al ping (puede tenerlo bloqueado), las mediciones de la web y las del instalador 0.1.5.
 - `possible_busy_device`: `true` si la latencia al router llega a ese umbral y hay al menos `NETWORK_BUSY_DEVICE_MIN_COUNT` (8) dispositivos conectados en el último escaneo (el mismo conteo de la pantalla Dispositivos). Es solo una posibilidad, nunca un hecho.
+
+`GET /api/network-metrics/thresholds` publica además, como campos opcionales, `gateway_latency_bad_ms` y `gateway_recent_reply_minutes`: el escritorio los guarda y, cuando no llega al servidor (internet caído), diagnostica con su última medición usando la misma regla. Las dos copias de la regla se prueban contra la misma tabla de casos (`tests/fixtures/network_diagnosis_cases.json`, idéntica en el frontend; las dos pruebas comprueban su huella SHA-256 y, con `FRONTEND_I18N_DIR` definida, se comparan directamente).
 
 La columna `gateway_latency_ms` (nullable, sin default) llega con la migración `c4f7a2d9e1b8`. El código que la usa necesita la columna: primero se migra y después se despliega.
 
