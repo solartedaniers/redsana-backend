@@ -17,7 +17,8 @@ def _status_read(gateway: AiGateway) -> AiStatusRead:
 
 @router.get("/status", response_model=AiStatusRead)
 def get_ai_status(gateway: AiGateway = Depends(get_ai_gateway)) -> AiStatusRead:
-    """Lee el estado que mantiene el calentamiento; no despierta la IA."""
+    """Lee el estado que mantiene el calentamiento. Si no hay uno en curso, no quedó «no disponible» y el dato guardado
+    venció, hace una consulta corta a /health de la IA, y esa consulta la despierta si estaba dormida."""
     return _status_read(gateway)
 
 
