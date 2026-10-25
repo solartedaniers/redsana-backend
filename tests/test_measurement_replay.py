@@ -13,7 +13,6 @@ from sqlalchemy.pool import StaticPool
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_current_claims
-from app.domain.network_anomaly_policy import MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE
 from app.main import app
 from app.models.alert import Alert
 from app.models.base import Base
@@ -175,7 +174,7 @@ def test_a_late_outage_is_recorded_once_with_its_real_duration(env) -> None:
 
 def _seed_calibrated_web_history(session_factory) -> None:
     """Historial web normal y suficiente para que el detector de anomalías esté activo."""
-    required = MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE["web"]
+    required = get_settings().anomaly_min_samples_for("web")
     start = datetime.now(UTC) - timedelta(minutes=required + 60)
     with session_factory() as db:
         db.add_all(

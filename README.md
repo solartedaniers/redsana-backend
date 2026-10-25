@@ -68,6 +68,23 @@ Las mediciones de la web (`source: web`) miden la latencia hasta el servidor, as
 
 Un aviso de degradación no se repite durante `PREDICTION_ALERT_COOLDOWN_MINUTES` (por defecto 60) desde el anterior, esté marcado como visto o no.
 
+## Parámetros de los detectores
+
+Salen de `Settings` (variables de entorno; ver `.env.example`). Por defecto son los mismos del paquete `redsana_ai`, así que sin definirlas el comportamiento es el de siempre (lo comprueba `tests/test_detector_settings.py`). Valores fuera de rango hacen fallar el arranque.
+
+| Variable | Por defecto | Qué controla |
+|---|---|---|
+| `ANOMALY_WINDOW_SIZE` | 1440 | Últimas mediciones con las que entrena IsolationForest (~24 h a una por minuto). El escritorio empieza a evaluar con la ventana completa y la web con la mitad. |
+| `ANOMALY_CRITICAL_Z_SCORE` | 3.0 | Desviaciones estándar desde las que una anomalía es grave y no leve. |
+| `ANOMALY_CONTAMINATION` | 0.1 | Proporción esperada de anomalías de IsolationForest (> 0 y ≤ 0.5). |
+| `ANOMALY_RANDOM_STATE` | 42 | Semilla de IsolationForest (resultados reproducibles). |
+| `OUTAGE_PACKET_LOSS_THRESHOLD_PERCENT` | 100 | Pérdida que cuenta como caída total. |
+| `OUTAGE_MAX_GAP_MINUTES` | 5 | Hueco máximo entre mediciones de una racha; si es mayor, la app pudo estar cerrada y no se afirma un corte. |
+| `OUTAGE_LOOKBACK_LIMIT` | 120 | Mediciones hacia atrás en las que se busca el inicio de un corte. |
+| `OUTAGE_CRITICAL_DURATION_MINUTES` | 15 | Desde cuántos minutos un corte es grave. |
+
+En modo remoto el servicio de IA lee las mismas variables, salvo `ANOMALY_WINDOW_SIZE` y `OUTAGE_LOOKBACK_LIMIT`: esas dos deciden cuánto historial le manda el backend. Si cambias una de las otras, ponla igual en los dos servicios para que el servicio y el respaldo local den lo mismo.
+
 ## Mediciones enviadas tarde (cola del cliente)
 
 Si el cliente no puede enviar una medición, la guarda y la reenvía después con su hora original en `recorded_at` (opcional; sin ella se usa la hora del servidor, como antes y como el instalador 0.1.5):

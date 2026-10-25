@@ -5,14 +5,13 @@ from datetime import UTC, datetime, timedelta, timezone
 
 from redsana_ai import ANOMALY_WINDOW_SIZE, IsolationForestAnomalyDetector
 
+from app.core.config import get_settings
 from app.domain.measurement_source import MeasurementSource
-from app.domain.network_anomaly_policy import MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE
-
-MIN_NATIVE_SAMPLES = MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE["native"]
 from app.services.network_anomaly_service import NetworkAnomalyService
 from tests.test_alert_service import FakeAlertRepository
 from tests.test_network_metrics_service import FakeNetworkMetricsRepository
 
+MIN_NATIVE_SAMPLES = get_settings().anomaly_min_samples_for("native")
 
 HOME_NETWORK = "home-network-id"
 OFFICE_NETWORK = "office-network-id"
@@ -225,7 +224,7 @@ def test_evaluate_latest_ignores_history_from_another_source() -> None:
 
 
 def test_web_source_calibrates_with_half_a_day_while_desktop_still_needs_the_full_day() -> None:
-    web_required = MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE["web"]
+    web_required = get_settings().anomaly_min_samples_for("web")
     assert web_required == 720 and MIN_NATIVE_SAMPLES == 1440
     metrics_repository = FakeNetworkMetricsRepository()
     web_owner, native_owner = uuid.uuid4(), uuid.uuid4()
@@ -244,7 +243,7 @@ def test_web_source_detects_anomalies_once_calibrated_with_720_samples() -> None
     metrics_repository = FakeNetworkMetricsRepository()
     alert_repository = FakeAlertRepository()
     owner_id = uuid.uuid4()
-    _seed_normal_history(metrics_repository, owner_id, MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE["web"], source="web")
+    _seed_normal_history(metrics_repository, owner_id, get_settings().anomaly_min_samples_for("web"), source="web")
     metrics_repository.create(
         owner_id=owner_id,
         latency_ms=400.0,

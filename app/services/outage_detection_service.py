@@ -1,7 +1,8 @@
 import uuid
 
-from redsana_ai import OUTAGE_LOOKBACK_LIMIT, OutageDetector, OutageSample
+from redsana_ai import OutageDetector, OutageSample
 
+from app.core.config import get_settings
 from app.domain.alert_messages import alert_message_key
 from app.repositories.alert_repository import AlertRepository
 from app.repositories.network_metrics_repository import NetworkMetricsRepository
@@ -21,7 +22,7 @@ class OutageDetectionService:
         self._detector = detector
 
     def evaluate_latest(self, owner_id: uuid.UUID) -> None:
-        window = self._metrics_repository.list_latest(owner_id, OUTAGE_LOOKBACK_LIMIT)
+        window = self._metrics_repository.list_latest(owner_id, get_settings().outage_lookback_limit)
         samples: list[OutageSample] = [(snapshot.recorded_at, snapshot.packet_loss_percent) for snapshot in window]
 
         episode = self._detector.detect(samples)

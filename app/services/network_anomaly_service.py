@@ -3,11 +3,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from redsana_ai import ANOMALY_WINDOW_SIZE, AnomalyDetector, NetworkMetricVector
+from redsana_ai import AnomalyDetector, NetworkMetricVector
 
 from app.core.config import get_settings
 from app.domain.measurement_source import DEFAULT_MEASUREMENT_SOURCE
-from app.domain.network_anomaly_policy import ANOMALY_MESSAGE_KEYS, MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE
+from app.domain.network_anomaly_policy import ANOMALY_MESSAGE_KEYS
 from app.domain.network_baseline import baseline_scope
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
 from app.repositories.alert_repository import AlertRepository
@@ -42,7 +42,7 @@ class NetworkAnomalyService:
         # La calibración es por fuente: informo la de la fuente con la que el usuario mide ahora.
         latest = self._metrics_repository.get_latest(owner_id)
         source = latest.source if latest is not None else DEFAULT_MEASUREMENT_SOURCE
-        required = MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE[source]
+        required = get_settings().anomaly_min_samples_for(source)
         if latest is None:
             return AnomalyStatus(status="calibrating", samples_collected=0, samples_required=required)
         # La calibración es por red: el progreso es el de la red de la última medición.
@@ -63,8 +63,9 @@ class NetworkAnomalyService:
         scope = baseline_scope(latest.source, latest.network_id)
         if scope is None:
             return
-        window = self._metrics_repository.list_latest(owner_id, ANOMALY_WINDOW_SIZE, scope)
-        if len(window) < MIN_SAMPLES_TO_CALIBRATE_BY_SOURCE[latest.source]:
+        settings = get_settings()
+        window = self._metrics_repository.list_latest(owner_id, settings.anomaly_window_size, scope)
+        if len(window) < settings.anomaly_min_samples_for(latest.source):
             return
 
         latest_snapshot, *history_snapshots = window  # window viene de más nueva a más vieja

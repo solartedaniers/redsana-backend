@@ -39,6 +39,19 @@ class Settings(BaseSettings):
     # Tras un aviso de degradación no se crea otro igual durante este tiempo, aunque el primero ya se haya marcado
     # como visto: si no, saldría uno por minuto mientras dure el problema.
     prediction_alert_cooldown_minutes: int = 60
+    # Detector de anomalías (IsolationForest). Por defecto, los mismos valores del paquete redsana_ai. La ventana son
+    # las últimas muestras con las que entrena (1440 = ~24 h a una por minuto); la web empieza con la mitad.
+    anomaly_window_size: int = 1440
+    # Desde cuántas desviaciones estándar una anomalía ya confirmada es grave y no leve.
+    anomaly_critical_z_score: float = 3.0
+    anomaly_contamination: float = 0.1
+    anomaly_random_state: int = 42
+    # Detector de cortes: pérdida que cuenta como caída total, hueco máximo entre mediciones de una misma racha (si
+    # no, la app pudo estar cerrada), cuántas mediciones hacia atrás se busca el inicio y desde cuántos minutos es grave.
+    outage_packet_loss_threshold_percent: float = 100.0
+    outage_max_gap_minutes: float = 5.0
+    outage_lookback_limit: int = 120
+    outage_critical_duration_minutes: int = 15
     # Hora de medición que manda el cliente (cola local): se rechaza si es más vieja que esto o está en el futuro más
     # allá del margen por relojes desfasados.
     measurement_max_age_hours: int = 24
@@ -129,6 +142,28 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def _require_valid_detector_settings(self) -> "Settings":
+        # La web entrena con la mitad de la ventana: con menos de 4 no quedaría historial que comparar.
+        if self.anomaly_window_size < 4:
+            raise ValueError("ANOMALY_WINDOW_SIZE must be >= 4")
+        # Rango que acepta IsolationForest de scikit-learn.
+        if not 0 < self.anomaly_contamination <= 0.5:
+            raise ValueError("ANOMALY_CONTAMINATION must be > 0 and <= 0.5")
+        if self.anomaly_critical_z_score <= 0:
+            raise ValueError("ANOMALY_CRITICAL_Z_SCORE must be > 0")
+        if not 0 < self.outage_packet_loss_threshold_percent <= 100:
+            raise ValueError("OUTAGE_PACKET_LOSS_THRESHOLD_PERCENT must be > 0 and <= 100")
+        if (
+            self.outage_max_gap_minutes <= 0
+            or self.outage_lookback_limit < 2
+            or self.outage_critical_duration_minutes < 1
+        ):
+            raise ValueError(
+                "OUTAGE_MAX_GAP_MINUTES must be > 0, OUTAGE_LOOKBACK_LIMIT >= 2 and OUTAGE_CRITICAL_DURATION_MINUTES >= 1"
+            )
+        return self
+
+    @model_validator(mode="after")
     def _require_coherent_security_score_config(self) -> "Settings":
         config = self.security_score_config
         if not 0 < config.warning_min <= config.good_min <= 100:
@@ -162,6 +197,11 @@ class Settings(BaseSettings):
             packet_loss_warning_percent=self.network_status_packet_loss_warning_percent,
             packet_loss_critical_percent=self.network_status_packet_loss_critical_percent,
         )
+
+    def anomaly_min_samples_for(self, source: MeasurementSource) -> int:
+        """Historial mínimo antes de evaluar. La web casi nunca junta 24 h seguidas, así que empieza con la mitad de la
+        ventana aunque sea menos precisa hasta completarla."""
+        return self.anomaly_window_size if source == "native" else self.anomaly_window_size // 2
 
     @property
     def network_diagnosis_policy(self) -> NetworkDiagnosisPolicy:
