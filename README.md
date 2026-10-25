@@ -6,7 +6,7 @@ API REST de RedSana con FastAPI. Autentica con los JWT de Supabase, guarda medic
 
 | Repositorio | Qué contiene |
 |---|---|
-| [redsana-frontend](https://github.com/solartedaniers/redsana-frontend) | App Angular + Tauri (web en Vercel, instalador en Releases) |
+| [redsana-frontend](https://github.com/solartedaniers/redsana-frontend) | App Angular + Tauri (web en [www.app-redsana.com](https://www.app-redsana.com), instalador en Releases) |
 | [redsana-backend](https://github.com/solartedaniers/redsana-backend) (este) | API FastAPI desplegada en Render; instala `redsana-ai` por tag |
 | [redsana-ai](https://github.com/solartedaniers/redsana-ai) | Paquete Python con el asistente y los detectores |
 
