@@ -1,9 +1,12 @@
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
+from app.core.realtime_composition import get_realtime_hub
 from app.routers import (
     admin_households,
     admin_metrics,
@@ -15,6 +18,7 @@ from app.routers import (
     health,
     me,
     network_metrics,
+    realtime,
     security_assessments,
 )
 
@@ -24,7 +28,19 @@ logging.getLogger("app").setLevel(logging.INFO)
 
 settings = get_settings()
 
-app = FastAPI(title="RedSana API")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    # Solo prepara el bus; no programa tráfico: sin sockets abiertos no hay pings ni mensajes hacia el servicio.
+    hub = get_realtime_hub()
+    await hub.start()
+    try:
+        yield
+    finally:
+        await hub.stop()
+
+
+app = FastAPI(title="RedSana API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -49,3 +65,4 @@ app.include_router(
     chat_conversations.router, prefix=chat_conversations.LEGACY_CHAT_CONVERSATIONS_PREFIX, include_in_schema=False
 )
 app.include_router(ai.router)
+app.include_router(realtime.router)
