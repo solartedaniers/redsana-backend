@@ -62,6 +62,10 @@ class SqlAlchemyNetworkMetricsRepository(NetworkMetricsRepository):
         )
         return [tuple(row) for row in self._db.execute(_latest_first(columns, owner_id, limit, scope))]
 
+    def list_latest_outage_samples(self, owner_id: uuid.UUID, limit: int) -> list[tuple[datetime, float]]:
+        columns = select(NetworkMetricSnapshot.recorded_at, NetworkMetricSnapshot.packet_loss_percent)
+        return [tuple(row) for row in self._db.execute(_latest_first(columns, owner_id, limit, None))]
+
     def find_recorded_near(
         self, owner_id: uuid.UUID, source: MeasurementSource, recorded_at: datetime, tolerance: timedelta
     ) -> NetworkMetricSnapshot | None:

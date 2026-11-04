@@ -22,8 +22,9 @@ class OutageDetectionService:
         self._detector = detector
 
     def evaluate_latest(self, owner_id: uuid.UUID) -> None:
-        window = self._metrics_repository.list_latest(owner_id, get_settings().outage_lookback_limit)
-        samples: list[OutageSample] = [(snapshot.recorded_at, snapshot.packet_loss_percent) for snapshot in window]
+        samples: list[OutageSample] = self._metrics_repository.list_latest_outage_samples(
+            owner_id, get_settings().outage_lookback_limit
+        )
 
         episode = self._detector.detect(samples)
         if episode is None:

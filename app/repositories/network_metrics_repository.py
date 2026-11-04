@@ -36,6 +36,11 @@ class NetworkMetricsRepository(ABC):
             for snapshot in self.list_latest(owner_id, limit, scope)
         ]
 
+    def list_latest_outage_samples(self, owner_id: uuid.UUID, limit: int) -> list[tuple[datetime, float]]:
+        """Lo que usa el detector de cortes de list_latest: (hora, pérdida). La versión de SQL trae solo esas dos
+        columnas."""
+        return [(snapshot.recorded_at, snapshot.packet_loss_percent) for snapshot in self.list_latest(owner_id, limit)]
+
     @abstractmethod
     def find_recorded_near(
         self, owner_id: uuid.UUID, source: MeasurementSource, recorded_at: datetime, tolerance: timedelta

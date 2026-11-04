@@ -10,7 +10,8 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.core.ai_composition import build_local_anomaly_detector
+from app.core.ai_composition import build_local_anomaly_detector, build_local_outage_detector
+from app.core.config import get_settings
 from app.models.base import Base
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
 from app.models.role import Role
@@ -18,6 +19,7 @@ from app.models.user import User
 from app.repositories.network_metrics_repository import NetworkMetricsRepository
 from app.repositories.network_metrics_sqlalchemy_repository import SqlAlchemyNetworkMetricsRepository
 from app.services.network_anomaly_service import NetworkAnomalyService
+from app.services.outage_detection_service import OutageDetectionService
 from tests.test_alert_service import FakeAlertRepository
 
 OWNER_ID = uuid.uuid4()
@@ -32,6 +34,20 @@ class _FullRowsRepository(SqlAlchemyNetworkMetricsRepository):
     """Lee como antes: filas completas, y de ellas toma lo que usa cada detector."""
 
     list_latest_vectors = NetworkMetricsRepository.list_latest_vectors
+    list_latest_outage_samples = NetworkMetricsRepository.list_latest_outage_samples
+
+
+class _RecordingOutageDetector:
+    def __init__(self, inner) -> None:
+        self._inner = inner
+        self.windows: list[list] = []
+        self.episodes: list = []
+
+    def detect(self, window):
+        self.windows.append(list(window))
+        episode = self._inner.detect(window)
+        self.episodes.append(episode)
+        return episode
 
 
 class _RecordingDetector:
@@ -133,3 +149,32 @@ def test_the_anomaly_detector_gets_the_same_window_and_raises_the_same_alert(ses
     # Ahora solo la última medición (get_latest) llega como fila completa; antes, las 1440 de la ventana (que la
     # incluyen).
     assert (before_loaded, after_loaded) == (1440, 1)
+
+
+def _evaluate_outage(session_factory, repository_class) -> tuple[_RecordingOutageDetector, FakeAlertRepository, int]:
+    detector = _RecordingOutageDetector(build_local_outage_detector())
+    alerts = FakeAlertRepository()
+    with session_factory() as db:
+        service = OutageDetectionService(repository_class(db), alerts, detector)
+        loaded = _loaded_snapshots(session_factory, lambda: service.evaluate_latest(OWNER_ID))
+    return detector, alerts, loaded
+
+
+def test_the_outage_detector_gets_the_same_samples_and_raises_the_same_alert(session_factory) -> None:
+    # Un corte de 6 minutos (en escritorio y web) que se recupera en la última medición.
+    with session_factory() as db:
+        outage = [_snapshot(HOME_SAMPLES + minute, 0, 0, 100, "native", HOME_NETWORK) for minute in range(1, 7)]
+        outage.append(_snapshot(HOME_SAMPLES + 3, 0, 0, 100, "web", HOME_NETWORK))
+        outage.append(_snapshot(HOME_SAMPLES + 7, 21.5, 2, 0, "native", HOME_NETWORK))
+        db.add_all(outage)
+        db.commit()
+
+    before, before_alerts, before_loaded = _evaluate_outage(session_factory, _FullRowsRepository)
+    after, after_alerts, after_loaded = _evaluate_outage(session_factory, SqlAlchemyNetworkMetricsRepository)
+
+    lookback = get_settings().outage_lookback_limit
+    assert after.windows == before.windows
+    assert len(after.windows[0]) == lookback
+    assert after.episodes == before.episodes != [None]
+    assert _alert_fields(after_alerts) == _alert_fields(before_alerts) != []
+    assert (before_loaded, after_loaded) == (lookback, 0)
