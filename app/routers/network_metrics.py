@@ -2,10 +2,13 @@ import uuid
 from datetime import UTC, datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from pydantic import TypeAdapter
 from sqlalchemy.orm import Session
 
+from app.cache.owner_cache import CacheEntry, OwnerCache
 from app.core.ai_composition import build_anomaly_detector, build_outage_detector
 from app.core.authorization import ADMIN_ROLE_NAME, get_current_user
+from app.core.cache_composition import get_owner_cache
 from app.core.config import get_settings
 from app.domain.measurement_source import DEFAULT_MEASUREMENT_SOURCE, MeasurementSource
 from app.domain.measurement_timing import as_utc
@@ -29,6 +32,9 @@ from app.services.network_metrics_service import NetworkMetricsService
 from app.services.outage_detection_service import OutageDetectionService
 
 router = APIRouter(prefix="/api/network-metrics", tags=["network-metrics"])
+
+LATEST_SNAPSHOT_CACHE = CacheEntry("latest-snapshot", TypeAdapter(NetworkMetricSnapshotRead))
+ANOMALY_STATUS_CACHE = CacheEntry("anomaly-status", TypeAdapter(AnomalyStatusRead))
 
 
 def _network_identifier() -> NetworkIdentifier:
@@ -99,12 +105,18 @@ def get_latest_snapshot(
     user: User = Depends(get_current_user),
     service: NetworkMetricsService = Depends(_get_metrics_service),
     diagnosis_service: NetworkDiagnosisService = Depends(_get_diagnosis_service),
+    cache: OwnerCache = Depends(get_owner_cache),
 ) -> NetworkMetricSnapshotRead:
     owner_id = _resolve_target_owner_id(user, user_id)
-    snapshot = service.get_latest_snapshot(owner_id)
-    if snapshot is None:
-        return _default_snapshot_read()
-    return _to_snapshot_read(snapshot, diagnosis_service.describe(owner_id, snapshot))
+
+    def load() -> NetworkMetricSnapshotRead | None:
+        snapshot = service.get_latest_snapshot(owner_id)
+        if snapshot is None:
+            return None
+        return _to_snapshot_read(snapshot, diagnosis_service.describe(owner_id, snapshot))
+
+    latest = cache.get_or_load(owner_id, LATEST_SNAPSHOT_CACHE, get_settings().cache_latest_snapshot_ttl_seconds, load)
+    return _default_snapshot_read() if latest is None else latest
 
 
 @router.get("/history", response_model=list[NetworkMetricSampleRead])
@@ -148,9 +160,15 @@ def get_anomaly_status(
     user_id: uuid.UUID | None = Query(None),
     user: User = Depends(get_current_user),
     service: NetworkAnomalyService = Depends(_get_anomaly_service),
-) -> AnomalyStatusRead:
-    status = service.get_status(_resolve_target_owner_id(user, user_id))
-    return _to_anomaly_status_read(status)
+    cache: OwnerCache = Depends(get_owner_cache),
+) -> AnomalyStatusRead | None:
+    owner_id = _resolve_target_owner_id(user, user_id)
+    return cache.get_or_load(
+        owner_id,
+        ANOMALY_STATUS_CACHE,
+        get_settings().cache_anomaly_status_ttl_seconds,
+        lambda: _to_anomaly_status_read(service.get_status(owner_id)),
+    )
 
 
 def _is_latest(repository: SqlAlchemyNetworkMetricsRepository, owner_id: uuid.UUID, snapshot_id: uuid.UUID) -> bool:
@@ -193,6 +211,7 @@ def record_snapshot(
     background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     service: NetworkMetricsService = Depends(_get_metrics_service),
+    cache: OwnerCache = Depends(get_owner_cache),
 ) -> NetworkMetricSnapshotRead:
     """Registra un snapshot real del usuario autenticado; un admin puede registrarlo a nombre de otro."""
     owner_id = _resolve_target_owner_id(user, payload.owner_id)
@@ -201,6 +220,7 @@ def record_snapshot(
     if already_recorded is not None:
         return _to_snapshot_read(already_recorded)
     snapshot = service.record_snapshot(owner_id, payload)
+    cache.invalidate(owner_id)
     # Anomalías y cortes desacoplados y en segundo plano para no sumar latencia al POST. Una medición que llega tarde
     # sí registra el corte (con su duración real), pero no avisa ahora de una degradación que ya pasó.
     timing = get_settings().measurement_timing_policy
