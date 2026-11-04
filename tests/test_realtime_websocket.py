@@ -4,6 +4,7 @@ de cierre y que cada usuario reciba solo lo suyo (y el admin, todo)."""
 import contextlib
 import time
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -213,3 +214,54 @@ def test_an_idle_socket_receives_pings(env: _Env, monkeypatch: pytest.MonkeyPatc
     with env.connect() as socket:
         _authenticate(socket, "owner")
         assert socket.receive_json() == {"type": "ping"}
+
+
+def test_a_new_measurement_reaches_only_its_owner_and_the_admin(env: _Env) -> None:
+    with env.connect() as owner, env.connect() as other, env.connect() as admin:
+        _authenticate(owner, "owner")
+        _authenticate(other, "other")
+        _authenticate(admin, "admin")
+
+        assert env.post_measurement(OTHER_ID, latency_ms=99) == 201
+        assert env.post_measurement(OWNER_ID, latency_ms=20) == 201
+
+        owner_event = owner.receive_json()
+        assert (owner_event["type"], owner_event["owner_id"]) == ("measurement.created", str(OWNER_ID))
+        assert owner_event["data"]["latency_ms"] == 20
+        assert set(owner_event) == {"v", "type", "owner_id", "data", "at"}
+        assert other.receive_json()["owner_id"] == str(OTHER_ID)
+        assert [admin.receive_json()["owner_id"] for _ in range(2)] == [str(OTHER_ID), str(OWNER_ID)]
+
+
+def test_a_replayed_measurement_is_not_published_again(env: _Env) -> None:
+    recorded_at = (datetime.now(UTC) - timedelta(seconds=30)).isoformat()
+
+    with env.connect() as owner:
+        _authenticate(owner, "owner")
+        env.post_measurement(OWNER_ID, latency_ms=20, recorded_at=recorded_at)
+        env.post_measurement(OWNER_ID, latency_ms=20, recorded_at=recorded_at)
+        env.post_measurement(OWNER_ID, latency_ms=30)
+
+        assert [owner.receive_json()["data"]["latency_ms"] for _ in range(2)] == [20, 30]
+
+
+def test_a_device_scan_publishes_devices_updated(env: _Env) -> None:
+    with env.connect() as owner:
+        _authenticate(owner, "owner")
+        env.act_as(OWNER_ID)
+        sync = {"devices": [{"mac_address": "aa-aa-aa-aa-aa-01", "ip_address": "192.168.1.10"}]}
+        assert env.client.post("/api/devices/sync", json=sync).status_code == 200
+
+        event = owner.receive_json()
+        assert (event["type"], event["owner_id"], event["data"]) == ("devices.updated", str(OWNER_ID), {})
+
+
+def test_a_failing_publish_never_breaks_the_measurement_post(env: _Env, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def failing_publish(_event) -> None:
+        raise ConnectionError("bus down")
+
+    monkeypatch.setattr(get_realtime_hub()._bus, "publish", failing_publish)
+
+    assert env.post_measurement(OWNER_ID) == 201
+    env.act_as(OWNER_ID)
+    assert env.client.get("/api/network-metrics/latest").json()["latency_ms"] == MEASUREMENT["latency_ms"]

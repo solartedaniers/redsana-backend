@@ -10,15 +10,19 @@ from app.core.ai_composition import build_anomaly_detector, build_outage_detecto
 from app.core.authorization import ADMIN_ROLE_NAME, get_current_user
 from app.core.cache_composition import get_owner_cache
 from app.core.config import get_settings
+from app.core.realtime_composition import get_event_publisher
 from app.domain.measurement_source import DEFAULT_MEASUREMENT_SOURCE, MeasurementSource
 from app.domain.measurement_timing import as_utc
 from app.domain.network_identity import NetworkIdentifier
 from app.core.database import SessionLocal, get_db
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
 from app.models.user import User
+from app.realtime.events import MEASUREMENT_CREATED, RealtimeEvent
+from app.realtime.publisher import EventPublisher
 from app.repositories.alert_sqlalchemy_repository import SqlAlchemyAlertRepository
 from app.repositories.device_sqlalchemy_repository import SqlAlchemyDeviceRepository
 from app.repositories.network_metrics_sqlalchemy_repository import SqlAlchemyNetworkMetricsRepository
+from app.repositories.publishing_alert_repository import PublishingAlertRepository
 from app.schemas.network_anomaly import AnomalyStatusRead
 from app.schemas.network_metrics import (
     NetworkMetricSampleRead,
@@ -187,7 +191,8 @@ def _evaluate_anomalies_in_background(owner_id: uuid.UUID, snapshot_id: uuid.UUI
         repository = SqlAlchemyNetworkMetricsRepository(db)
         if not _is_latest(repository, owner_id, snapshot_id):
             return
-        service = NetworkAnomalyService(repository, SqlAlchemyAlertRepository(db), build_anomaly_detector())
+        alerts = PublishingAlertRepository(db, get_event_publisher())
+        service = NetworkAnomalyService(repository, alerts, build_anomaly_detector())
         service.evaluate_latest(owner_id)
     finally:
         db.close()
@@ -200,7 +205,8 @@ def _evaluate_outage_in_background(owner_id: uuid.UUID, snapshot_id: uuid.UUID) 
         repository = SqlAlchemyNetworkMetricsRepository(db)
         if not _is_latest(repository, owner_id, snapshot_id):
             return
-        service = OutageDetectionService(repository, SqlAlchemyAlertRepository(db), build_outage_detector())
+        alerts = PublishingAlertRepository(db, get_event_publisher())
+        service = OutageDetectionService(repository, alerts, build_outage_detector())
         service.evaluate_latest(owner_id)
     finally:
         db.close()
@@ -213,6 +219,7 @@ def record_snapshot(
     user: User = Depends(get_current_user),
     service: NetworkMetricsService = Depends(_get_metrics_service),
     cache: OwnerCache = Depends(get_owner_cache),
+    publisher: EventPublisher = Depends(get_event_publisher),
 ) -> NetworkMetricSnapshotRead:
     """Registra un snapshot real del usuario autenticado; un admin puede registrarlo a nombre de otro."""
     owner_id = _resolve_target_owner_id(user, payload.owner_id)
@@ -222,10 +229,12 @@ def record_snapshot(
         return _to_snapshot_read(already_recorded)
     snapshot = service.record_snapshot(owner_id, payload)
     cache.invalidate(owner_id)
+    recorded = _to_snapshot_read(snapshot)
+    publisher.publish(RealtimeEvent.now(MEASUREMENT_CREATED, owner_id, recorded))
     # Anomalías y cortes desacoplados y en segundo plano para no sumar latencia al POST. Una medición que llega tarde
     # sí registra el corte (con su duración real), pero no avisa ahora de una degradación que ya pasó.
     timing = get_settings().measurement_timing_policy
     if not timing.is_late(as_utc(snapshot.recorded_at), datetime.now(UTC)):
         background_tasks.add_task(_evaluate_anomalies_in_background, owner_id, snapshot.id)
     background_tasks.add_task(_evaluate_outage_in_background, owner_id, snapshot.id)
-    return _to_snapshot_read(snapshot)
+    return recorded

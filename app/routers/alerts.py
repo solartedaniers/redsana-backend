@@ -8,10 +8,11 @@ from sqlalchemy.orm import Session
 from app.core.authorization import get_current_user, require_admin
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
+from app.core.realtime_composition import get_event_publisher
 from app.core.security import get_current_claims, owner_id_from_claims
-from app.models.alert import Alert
 from app.models.user import User
-from app.repositories.alert_sqlalchemy_repository import SqlAlchemyAlertRepository
+from app.realtime.publisher import EventPublisher
+from app.repositories.publishing_alert_repository import PublishingAlertRepository
 from app.schemas.alert import AlertCreate, AlertRead
 from app.services.alert_service import AlertNotFoundError, AlertService
 
@@ -23,20 +24,10 @@ RECENT_ALERTS_PATH = "/recent"
 LEGACY_RECENT_ALERTS_PATH = "/new"
 
 
-def _to_alert_read(alert: Alert) -> AlertRead:
-    return AlertRead(
-        id=alert.id,
-        type=alert.type,
-        severity=alert.severity,
-        message_key=alert.message_key,
-        message_params=alert.message_params,
-        timestamp=alert.created_at,
-        acknowledged=alert.acknowledged,
-    )
-
-
-def _get_service(db: Session = Depends(get_db)) -> AlertService:
-    return AlertService(SqlAlchemyAlertRepository(db))
+def _get_service(
+    db: Session = Depends(get_db), publisher: EventPublisher = Depends(get_event_publisher)
+) -> AlertService:
+    return AlertService(PublishingAlertRepository(db, publisher))
 
 
 def _require_test_alerts_enabled(settings: Settings = Depends(get_settings)) -> None:
@@ -51,7 +42,7 @@ def list_alerts(
     service: AlertService = Depends(_get_service),
 ) -> list[AlertRead]:
     alerts = service.list_alerts(owner_id_from_claims(claims))
-    return [_to_alert_read(alert) for alert in alerts]
+    return [AlertRead.from_alert(alert) for alert in alerts]
 
 
 @router.get(RECENT_ALERTS_PATH, response_model=list[AlertRead])
@@ -62,7 +53,7 @@ def list_recent_alerts(
     service: AlertService = Depends(_get_service),
 ) -> list[AlertRead]:
     alerts = service.list_new_alerts(owner_id_from_claims(claims), since)
-    return [_to_alert_read(alert) for alert in alerts]
+    return [AlertRead.from_alert(alert) for alert in alerts]
 
 
 @router.patch("/{alert_id}/acknowledge", response_model=AlertRead)
@@ -75,7 +66,7 @@ def acknowledge_alert(
         alert = service.acknowledge_alert(alert_id, owner_id_from_claims(claims))
     except AlertNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found") from error
-    return _to_alert_read(alert)
+    return AlertRead.from_alert(alert)
 
 
 @router.post(
@@ -91,4 +82,4 @@ def create_alert(
 ) -> AlertRead:
     """Inserta alertas de prueba mientras no haya un proceso real que las genere."""
     alert = service.create_alert(payload)
-    return _to_alert_read(alert)
+    return AlertRead.from_alert(alert)
