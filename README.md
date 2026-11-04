@@ -133,7 +133,7 @@ Todas las variables están documentadas en `.env.example`.
 
 ## Caché en Redis (`REDIS_URL`)
 
-Postgres sigue siendo la fuente de la verdad; Redis (Render Key Value) solo guarda copias de lectura con vencimiento.
+Postgres sigue siendo la fuente de la verdad; la caché solo guarda copias de lectura con vencimiento. En producción vive en Render Key Value, que en las instancias nuevas corre Valkey 8, un fork de Redis compatible con sus clientes: el backend lo usa con la librería `redis` y URLs `redis://`. Las pruebas usan `fakeredis`.
 
 | Endpoint | Qué se guarda | Vence (variable) | Se invalida con |
 |---|---|---|---|
@@ -141,12 +141,13 @@ Postgres sigue siendo la fuente de la verdad; Redis (Render Key Value) solo guar
 | `GET /api/network-metrics/anomaly-status` | El progreso de calibración | `CACHE_ANOMALY_STATUS_TTL_SECONDS` (60) | Lo mismo |
 | `GET /api/devices` | La lista de dispositivos | `CACHE_DEVICES_TTL_SECONDS` (120) | Lo mismo |
 
-- **Cache-aside por usuario con generación**: cada valor guarda la generación del dueño vigente cuando se leyó de Postgres, y cada escritura (después del commit) la sube con un `INCR`. Así una escritura invalida de una vez todo lo de ese usuario, y una lectura que estaba en curso mientras se escribía no puede dejar en la caché el dato viejo.
+- **Cache-aside por usuario con generación**: cada valor guarda la generación del dueño vigente cuando se leyó de Postgres, y cada escritura (después del commit) la reemplaza por otra. Así una escritura invalida de una vez todo lo de ese usuario, y una lectura que estaba en curso mientras se escribía no puede dejar en la caché el dato viejo.
+- **La generación es aleatoria y vence** (`CACHE_GENERATION_TTL_SECONDS`, 24 h): el Key Value gratuito no persiste y se puede reiniciar, y con `allkeys-lru` puede expulsar claves. Si se pierde la generación, el siguiente acceso crea una nueva que ningún valor anterior comparte, así que eso solo produce fallos de caché, nunca un dato viejo.
 - **Sin Redis la app funciona igual**: sin `REDIS_URL` la caché está apagada (`NullCacheStore`). Si Redis falla o tarda más de `REDIS_TIMEOUT_SECONDS`, esa petición lee de Postgres y durante `REDIS_FAILURE_COOLDOWN_SECONDS` no se lo vuelve a intentar.
 - **Límite conocido**: si Redis falla justo al invalidar, el dato viejo puede servirse hasta que venza (como mucho el TTL de arriba).
 - No se cachean el usuario ni su rol (un rol cambiado o una cuenta suspendida deben valer de inmediato), el historial ni los umbrales (salen de la configuración, sin consultar la base).
 - `REDIS_MAX_CONNECTIONS` es el tope por worker: el plan gratuito de Key Value admite 50 conexiones en total.
-- Las pruebas nunca usan un Redis real: `tests/conftest.py` deja `REDIS_URL` vacío y las de la caché usan `fakeredis`.
+- Las pruebas nunca usan un Valkey o Redis real: `tests/conftest.py` deja `REDIS_URL` vacío y las de la caché usan `fakeredis`.
 
 ## Nombres de rutas
 
