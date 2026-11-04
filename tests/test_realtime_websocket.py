@@ -122,7 +122,7 @@ def env(monkeypatch: pytest.MonkeyPatch):
 
 def _authenticate(socket, token: str) -> None:
     socket.send_json({"type": "auth", "token": token})
-    assert socket.receive_json() == {"type": "ready"}
+    assert socket.receive_json() == {"type": "ready", "server_id": get_realtime_hub().server_id}
 
 
 def _close_code(socket) -> int:

@@ -15,7 +15,7 @@ from app.realtime.hub import RealtimeHub
 
 AUTH_MESSAGE = "auth"
 LOGOUT_MESSAGE = "logout"
-READY_MESSAGE = json.dumps({"type": "ready"})
+READY_MESSAGE = "ready"
 PING_MESSAGE = json.dumps({"type": "ping"})
 
 
@@ -61,7 +61,7 @@ class RealtimeSession:
             await self._connection.close(CloseCode.TOO_MANY_CONNECTIONS)
             return
         try:
-            await self._connection.send_text(READY_MESSAGE)
+            await self._connection.send_text(json.dumps({"type": READY_MESSAGE, "server_id": self._hub.server_id}))
             await self._serve(identity)
         except (WebSocketDisconnect, RuntimeError, OSError):
             return

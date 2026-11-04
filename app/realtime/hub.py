@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import uuid
 
 from app.realtime.connections import CloseCode, ConnectionRegistry
 from app.realtime.event_bus import EventBus
@@ -14,8 +15,15 @@ class RealtimeHub:
     """Une el bus, los sockets de este worker y el fan-out. Arranca y se detiene con la app (lifespan)."""
 
     def __init__(
-        self, bus: EventBus, registry: ConnectionRegistry, fanout: BatchedFanOut, close_timeout_seconds: float
+        self,
+        bus: EventBus,
+        registry: ConnectionRegistry,
+        fanout: BatchedFanOut,
+        close_timeout_seconds: float,
+        server_id: str | None = None,
     ) -> None:
+        # Identifica a este worker en el saludo y en los logs: con varios se ve cuál publica y cuál entrega.
+        self.server_id = server_id or uuid.uuid4().hex[:8]
         self._bus = bus
         self.registry = registry
         self._fanout = fanout
