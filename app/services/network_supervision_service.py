@@ -3,11 +3,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
-from app.domain.device_presence import connected_members
+from app.domain.device_presence import ConnectedMemberCounts
 from app.domain.network_status import NetworkStatus
 from app.domain.security_score import compute_security_score
-from app.models.alert import Alert
-from app.models.device import Device
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
 from app.models.security_assessment import SecurityAssessment
 from app.models.user import User
@@ -20,7 +18,7 @@ from app.services.network_security_score_service import NetworkSecurityScoreServ
 from app.services.technical_evidence_resolver import ResolvedTechnicalEvidence, TechnicalEvidenceResolver
 
 STANDARD_ROLE_NAME = "standard"
-TRUSTED_DEVICE_TRUST_VALUE = "trusted"
+NO_CONNECTED_MEMBERS = ConnectedMemberCounts(members=0, trusted=0)
 
 SecurityScoreSource = Literal["real", "estimated"]
 
@@ -72,9 +70,9 @@ class NetworkSupervisionService:
         owners = [user for user in self._user_repository.list_all() if user.role.name == STANDARD_ROLE_NAME]
         owner_ids = [owner.id for owner in owners]
 
-        # 4 consultas en bloque en total en vez de 4 por hogar (antes eran 1 + 4·N).
-        devices_by_owner = self._device_repository.list_by_owners(owner_ids)
-        alerts_by_owner = self._alert_repository.list_by_owners(owner_ids)
+        # Consultas en bloque en vez de por hogar, y los dispositivos y alertas solo contados, sin traerlos.
+        member_counts_by_owner = self._device_repository.count_connected_members_by_owners(owner_ids)
+        unacknowledged_by_owner = self._alert_repository.count_unacknowledged_by_owners(owner_ids)
         latest_snapshot_by_owner = self._network_metrics_repository.get_latest_by_owners(owner_ids)
         latest_assessment_by_owner = self._security_assessment_repository.get_latest_by_owners(owner_ids)
         evidence_by_owner = self._evidence_resolver.resolve_latest_by_owners(latest_assessment_by_owner)
@@ -82,8 +80,8 @@ class NetworkSupervisionService:
         return [
             self._to_household(
                 owner,
-                devices_by_owner.get(owner.id, []),
-                alerts_by_owner.get(owner.id, []),
+                member_counts_by_owner.get(owner.id, NO_CONNECTED_MEMBERS),
+                unacknowledged_by_owner.get(owner.id, 0),
                 latest_snapshot_by_owner.get(owner.id),
                 latest_assessment_by_owner.get(owner.id),
                 evidence_by_owner.get(owner.id),
@@ -94,21 +92,17 @@ class NetworkSupervisionService:
     def _to_household(
         self,
         owner: User,
-        devices: list[Device],
-        alerts: list[Alert],
+        member_counts: ConnectedMemberCounts,
+        unacknowledged_count: int,
         latest_snapshot: NetworkMetricSnapshot | None,
         latest_assessment: SecurityAssessment | None,
         resolved_evidence: ResolvedTechnicalEvidence | None,
     ) -> MonitoredHousehold:
         """Pura: solo transforma lo que ya trajo list_households, sin consultar repositorios (por eso no hay N+1)."""
         # Solo lo conectado en el último escaneo: con todo el historial el porcentaje quedaba siempre cerca de 0.
-        members = connected_members(devices)
         trusted_ratio = None
-        if members:
-            trusted_count = sum(1 for device in members if device.trust == TRUSTED_DEVICE_TRUST_VALUE)
-            trusted_ratio = trusted_count / len(members)
-
-        unacknowledged_count = sum(1 for alert in alerts if not alert.acknowledged)
+        if member_counts.members:
+            trusted_ratio = member_counts.trusted / member_counts.members
 
         status: NetworkStatus = latest_snapshot.status if latest_snapshot is not None else "unknown"
         last_activity = latest_snapshot.recorded_at if latest_snapshot is not None else owner.created_at

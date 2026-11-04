@@ -25,6 +25,18 @@ class SqlAlchemyAlertRepository(AlertRepository):
             result[alert.owner_id].append(alert)
         return result
 
+    def count_unacknowledged_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
+        counts = dict.fromkeys(owner_ids, 0)
+        if not owner_ids:
+            return counts
+        stmt = (
+            select(Alert.owner_id, func.count())
+            .where(Alert.owner_id.in_(owner_ids), Alert.acknowledged.is_(False))
+            .group_by(Alert.owner_id)
+        )
+        counts.update(self._db.execute(stmt).tuples().all())
+        return counts
+
     def count_unacknowledged_all(self) -> int:
         stmt = select(func.count()).select_from(Alert).where(Alert.acknowledged.is_(False))
         return self._db.scalar(stmt) or 0

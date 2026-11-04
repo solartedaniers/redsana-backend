@@ -14,6 +14,13 @@ class AlertRepository(ABC):
         """Una sola consulta para varios dueños (p. ej. supervisión de admin)."""
         ...
 
+    def count_unacknowledged_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
+        """Alertas sin reconocer de cada dueño. Esta versión las trae; la de SQL solo las cuenta."""
+        return {
+            owner_id: sum(1 for alert in alerts if not alert.acknowledged)
+            for owner_id, alerts in self.list_by_owners(owner_ids).items()
+        }
+
     @abstractmethod
     def count_unacknowledged_all(self) -> int:
         """Alertas sin reconocer de toda la plataforma, para el admin; a diferencia del resto, no filtra por dueño."""
