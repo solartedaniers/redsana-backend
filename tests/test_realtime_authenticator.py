@@ -4,7 +4,7 @@ import uuid
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import create_engine
+from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -78,3 +78,22 @@ def test_an_invalid_token_is_unauthorized(session_factory, monkeypatch: pytest.M
         SupabaseRealtimeAuthenticator(session_factory).authenticate("token")
 
     assert error.value.close_code == CloseCode.UNAUTHORIZED
+
+
+def test_opening_a_socket_reads_only_the_user_and_its_role(session_factory, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Lo único que abrir (o renovar) un socket le pide a Postgres: el usuario y su rol, dos filas pequeñas."""
+    _accept_token(monkeypatch)
+    _add_user(session_factory, STANDARD_ROLE_ID)
+    statements: list[str] = []
+
+    def capture(_conn, _cursor, statement, *_args) -> None:
+        statements.append(statement)
+
+    event.listen(Engine, "before_cursor_execute", capture)
+    try:
+        SupabaseRealtimeAuthenticator(session_factory).authenticate("token")
+    finally:
+        event.remove(Engine, "before_cursor_execute", capture)
+
+    assert len(statements) == 2
+    assert all(statement.lstrip().upper().startswith("SELECT") for statement in statements)

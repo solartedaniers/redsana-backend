@@ -2,13 +2,14 @@
 de cierre y que cada usuario reciba solo lo suyo (y el admin, todo)."""
 
 import contextlib
+import json
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from starlette.websockets import WebSocketDisconnect
@@ -19,12 +20,16 @@ from app.core.realtime_composition import get_realtime_authenticator, get_realti
 from app.core.security import get_current_claims
 from app.main import app
 from app.models.base import Base
+from app.models.device import Device
 from app.models.role import Role
+from app.models.user import User
 from app.realtime.authenticator import RealtimeAuthenticator, RealtimeAuthError, RealtimeIdentity
 from app.realtime.connections import CloseCode, ConnectionRegistry
 from app.realtime.event_bus import InMemoryEventBus
+from app.realtime.events import MEASUREMENT_CREATED, RealtimeEvent
 from app.realtime.fanout import BatchedFanOut
 from app.realtime.hub import RealtimeHub
+from app.schemas.network_metrics import NetworkMetricSnapshotRead
 
 ORIGIN = "https://web.test"
 SOCKET_PATH = "/api/realtime/ws"
@@ -53,10 +58,11 @@ def _identity(user_id: uuid.UUID, is_admin: bool = False, lifetime: float = TOKE
 
 
 class _Env:
-    def __init__(self, client: TestClient, identities: dict, claims: dict) -> None:
+    def __init__(self, client: TestClient, identities: dict, claims: dict, session_factory) -> None:
         self.client = client
         self.identities = identities
         self._claims = claims
+        self.session_factory = session_factory
 
     def connect(self, origin: str | None = ORIGIN):
         headers = {"origin": origin} if origin else {}
@@ -107,7 +113,7 @@ def env(monkeypatch: pytest.MonkeyPatch):
     app.dependency_overrides[get_realtime_authenticator] = lambda: _FakeAuthenticator(identities)
     try:
         with TestClient(app) as client:
-            yield _Env(client, identities, claims)
+            yield _Env(client, identities, claims, session_factory)
     finally:
         app.dependency_overrides.clear()
         _reset_cached_singletons()
@@ -265,3 +271,69 @@ def test_a_failing_publish_never_breaks_the_measurement_post(env: _Env, monkeypa
     assert env.post_measurement(OWNER_ID) == 201
     env.act_as(OWNER_ID)
     assert env.client.get("/api/network-metrics/latest").json()["latency_ms"] == MEASUREMENT["latency_ms"]
+
+
+CAMPUS_DEVICES = 1849
+EVENT_SIZE_LIMIT_BYTES = 1024
+
+
+def _add_users(env: _Env) -> None:
+    with env.session_factory() as db:
+        db.add_all(
+            [
+                User(id=OWNER_ID, email="owner@example.com", role_id=1),
+                User(id=OTHER_ID, email="other@example.com", role_id=1),
+                User(id=ADMIN_ID, email="admin@example.com", role_id=2),
+            ]
+        )
+        db.commit()
+
+
+def test_a_measurement_event_carries_only_the_measurement_even_with_1849_devices(env: _Env) -> None:
+    _add_users(env)
+    now = datetime.now(UTC)
+    with env.session_factory() as db:
+        db.add_all(
+            Device(
+                owner_id=OWNER_ID,
+                name="",
+                mac_address=f"aa-bb-cc-dd-{index >> 8:02x}-{index & 0xFF:02x}",
+                ip_address=f"10.0.{index >> 8}.{index & 0xFF}",
+                trust="unknown",
+                network_role="other",
+                first_seen=now,
+                last_seen=now,
+            )
+            for index in range(CAMPUS_DEVICES)
+        )
+        db.commit()
+
+    with env.connect() as owner:
+        _authenticate(owner, "owner")
+        assert env.post_measurement(OWNER_ID, source="native", gateway_latency_ms=150) == 201
+        raw = owner.receive_text()
+
+    data = json.loads(raw)["data"]
+    assert set(data) == set(NetworkMetricSnapshotRead.model_fields)
+    assert not [value for value in data.values() if isinstance(value, list | dict)]
+    assert len(raw.encode()) < EVENT_SIZE_LIMIT_BYTES
+
+
+def test_delivering_an_event_does_not_query_the_database(env: _Env) -> None:
+    statements: list[str] = []
+
+    def capture(_conn, _cursor, statement, *_args) -> None:
+        statements.append(statement)
+
+    with env.connect() as owner, env.connect() as admin:
+        _authenticate(owner, "owner")
+        _authenticate(admin, "admin")
+        event.listen(Engine, "before_cursor_execute", capture)
+        try:
+            get_realtime_hub().publisher.publish(RealtimeEvent.now(MEASUREMENT_CREATED, OWNER_ID))
+            assert owner.receive_json()["owner_id"] == str(OWNER_ID)
+            assert admin.receive_json()["owner_id"] == str(OWNER_ID)
+        finally:
+            event.remove(Engine, "before_cursor_execute", capture)
+
+    assert statements == []
