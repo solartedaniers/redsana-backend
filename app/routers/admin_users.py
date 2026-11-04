@@ -3,7 +3,9 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.cache.owner_cache import OwnerCache
 from app.core.authorization import require_admin
+from app.core.cache_composition import get_owner_cache
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.supabase_admin_client import SupabaseAdminClient
@@ -68,6 +70,7 @@ def delete_user(
     user_id: uuid.UUID,
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
+    cache: OwnerCache = Depends(get_owner_cache),
 ) -> None:
     try:
         _build_service(db).delete_user(user_id, acting_admin_id=admin.id)
@@ -75,3 +78,5 @@ def delete_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found") from error
     except AdminLockoutError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    # El borrado arrastra sus mediciones y dispositivos: un admin no debe ver los suyos en caché.
+    cache.invalidate(user_id)
