@@ -1,10 +1,17 @@
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
+from typing import NamedTuple
 
 from app.domain.measurement_source import MeasurementSource
 from app.domain.network_baseline import BaselineScope
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
+
+
+class HistorySample(NamedTuple):
+    recorded_at: datetime
+    latency_ms: float
+    packet_loss_percent: float
 
 
 class NetworkMetricsRepository(ABC):
@@ -18,6 +25,13 @@ class NetworkMetricsRepository(ABC):
 
     @abstractmethod
     def list_in_range(self, owner_id: uuid.UUID, start: datetime, end: datetime) -> list[NetworkMetricSnapshot]: ...
+
+    def list_history_in_range(self, owner_id: uuid.UUID, start: datetime, end: datetime) -> list[HistorySample]:
+        """Lo que muestra /history de list_in_range. La versión de SQL trae solo esas tres columnas."""
+        return [
+            HistorySample(snapshot.recorded_at, snapshot.latency_ms, snapshot.packet_loss_percent)
+            for snapshot in self.list_in_range(owner_id, start, end)
+        ]
 
     @abstractmethod
     def list_latest(

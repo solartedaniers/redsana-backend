@@ -6,12 +6,16 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.ai_composition import build_local_anomaly_detector, build_local_outage_detector
 from app.core.config import get_settings
+from app.core.database import get_db
+from app.core.security import get_current_claims
+from app.main import app
 from app.models.base import Base
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
 from app.models.role import Role
@@ -178,3 +182,49 @@ def test_the_outage_detector_gets_the_same_samples_and_raises_the_same_alert(ses
     assert after.episodes == before.episodes != [None]
     assert _alert_fields(after_alerts) == _alert_fields(before_alerts) != []
     assert (before_loaded, after_loaded) == (lookback, 0)
+
+
+@pytest.fixture()
+def client(session_factory):
+    def override_get_db():
+        db = session_factory()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_claims] = lambda: {"sub": str(OWNER_ID), "email": "owner@example.com"}
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.clear()
+
+
+# Bordes exactos en una medición, un rango sin datos y uno que toma todas las fuentes y redes.
+HISTORY_RANGES = [
+    (START + timedelta(minutes=100), START + timedelta(minutes=1540)),
+    (START - timedelta(days=2), START - timedelta(days=1)),
+    (START - timedelta(days=1), START + timedelta(days=3)),
+]
+
+
+@pytest.mark.parametrize(("start", "end"), HISTORY_RANGES)
+def test_history_answers_the_same_json_without_loading_full_rows(
+    client: TestClient, session_factory, monkeypatch: pytest.MonkeyPatch, start: datetime, end: datetime
+) -> None:
+    params = {"from": start.isoformat(), "to": end.isoformat()}
+    responses: dict[str, list] = {}
+
+    def fetch(label: str) -> None:
+        responses[label] = client.get("/api/network-metrics/history", params=params).json()
+
+    with monkeypatch.context() as old_code:
+        old_code.setattr(
+            SqlAlchemyNetworkMetricsRepository, "list_history_in_range", NetworkMetricsRepository.list_history_in_range
+        )
+        before_loaded = _loaded_snapshots(session_factory, lambda: fetch("before"))
+    after_loaded = _loaded_snapshots(session_factory, lambda: fetch("after"))
+
+    assert responses["after"] == responses["before"]
+    assert (before_loaded, after_loaded) == (len(responses["before"]), 0)

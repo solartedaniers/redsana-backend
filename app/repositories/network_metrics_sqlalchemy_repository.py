@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, aliased
 from app.domain.measurement_source import MeasurementSource
 from app.domain.network_baseline import BaselineScope
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
-from app.repositories.network_metrics_repository import NetworkMetricsRepository
+from app.repositories.network_metrics_repository import HistorySample, NetworkMetricsRepository
 
 
 class SqlAlchemyNetworkMetricsRepository(NetworkMetricsRepository):
@@ -38,16 +38,15 @@ class SqlAlchemyNetworkMetricsRepository(NetworkMetricsRepository):
         return {row.owner_id: row for row in self._db.scalars(stmt).all()}
 
     def list_in_range(self, owner_id: uuid.UUID, start: datetime, end: datetime) -> list[NetworkMetricSnapshot]:
-        stmt = (
-            select(NetworkMetricSnapshot)
-            .where(
-                NetworkMetricSnapshot.owner_id == owner_id,
-                NetworkMetricSnapshot.recorded_at >= start,
-                NetworkMetricSnapshot.recorded_at <= end,
-            )
-            .order_by(NetworkMetricSnapshot.recorded_at.asc())
+        return list(self._db.scalars(_in_range(select(NetworkMetricSnapshot), owner_id, start, end)).all())
+
+    def list_history_in_range(self, owner_id: uuid.UUID, start: datetime, end: datetime) -> list[HistorySample]:
+        columns = select(
+            NetworkMetricSnapshot.recorded_at,
+            NetworkMetricSnapshot.latency_ms,
+            NetworkMetricSnapshot.packet_loss_percent,
         )
-        return list(self._db.scalars(stmt).all())
+        return [HistorySample(*row) for row in self._db.execute(_in_range(columns, owner_id, start, end))]
 
     def list_latest(
         self, owner_id: uuid.UUID, limit: int, scope: BaselineScope | None = None
@@ -120,6 +119,14 @@ class SqlAlchemyNetworkMetricsRepository(NetworkMetricsRepository):
         self._db.commit()
         self._db.refresh(snapshot)
         return snapshot
+
+
+def _in_range(stmt: Select, owner_id: uuid.UUID, start: datetime, end: datetime) -> Select:
+    return stmt.where(
+        NetworkMetricSnapshot.owner_id == owner_id,
+        NetworkMetricSnapshot.recorded_at >= start,
+        NetworkMetricSnapshot.recorded_at <= end,
+    ).order_by(NetworkMetricSnapshot.recorded_at.asc())
 
 
 def _latest_first(stmt: Select, owner_id: uuid.UUID, limit: int, scope: BaselineScope | None) -> Select:
