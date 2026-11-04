@@ -2,9 +2,15 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
+from app.domain.device_presence import (
+    DEVICE_PRESENCE_TOLERANCE,
+    NON_MEMBER_ROLES,
+    TRUSTED_DEVICE_TRUST_VALUE,
+    ConnectedMemberCounts,
+)
 from app.models.device import Device
 from app.repositories.device_repository import DeviceRepository
 
@@ -25,6 +31,33 @@ class SqlAlchemyDeviceRepository(DeviceRepository):
         for device in self._db.scalars(stmt).all():
             result[device.owner_id].append(device)
         return result
+
+    def count_connected_members_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, ConnectedMemberCounts]:
+        # Mismas reglas que connected_members, pero en SQL: con miles de dispositivos por dueño traerlos todos en cada
+        # /latest era la mayor parte de lo que salía de la base.
+        counts = {owner_id: ConnectedMemberCounts(members=0, trusted=0) for owner_id in owner_ids}
+        if not owner_ids:
+            return counts
+        latest_seen_stmt = (
+            select(Device.owner_id, func.max(Device.last_seen))
+            .where(Device.owner_id.in_(owner_ids))
+            .group_by(Device.owner_id)
+        )
+        latest_seen = self._db.execute(latest_seen_stmt).all()
+        if not latest_seen:
+            return counts
+        online = or_(
+            *(
+                and_(Device.owner_id == owner_id, Device.last_seen >= seen - DEVICE_PRESENCE_TOLERANCE)
+                for owner_id, seen in latest_seen
+            )
+        )
+        member = or_(Device.network_role.is_(None), Device.network_role.not_in(NON_MEMBER_ROLES))
+        trusted = func.sum(case((Device.trust == TRUSTED_DEVICE_TRUST_VALUE, 1), else_=0))
+        stmt = select(Device.owner_id, func.count(), trusted).where(online, member).group_by(Device.owner_id)
+        for owner_id, members, trusted_members in self._db.execute(stmt):
+            counts[owner_id] = ConnectedMemberCounts(members=members, trusted=trusted_members or 0)
+        return counts
 
     def get_by_id(self, device_id: uuid.UUID, owner_id: uuid.UUID) -> Device | None:
         stmt = select(Device).where(Device.id == device_id, Device.owner_id == owner_id)

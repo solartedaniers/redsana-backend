@@ -1,9 +1,11 @@
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from app.models.device import Device
 
 # El router es la red misma y este equipo es quien escanea: ninguno es un dispositivo sobre el que decidir confianza.
 NON_MEMBER_ROLES = frozenset({"gateway", "this_device"})
+TRUSTED_DEVICE_TRUST_VALUE = "trusted"
 
 # Los escaneos son manuales, así que el tiempo transcurrido no dice nada: lo que cuenta es haber quedado
 # fuera de la última sincronización.
@@ -34,3 +36,15 @@ def connected_members(devices: list[Device]) -> list[Device]:
         for device in devices
         if is_device_online(device, latest_seen) and device.network_role not in NON_MEMBER_ROLES
     ]
+
+
+@dataclass(frozen=True)
+class ConnectedMemberCounts:
+    members: int
+    trusted: int
+
+
+def count_connected_members(devices: list[Device]) -> ConnectedMemberCounts:
+    members = connected_members(devices)
+    trusted = sum(1 for device in members if device.trust == TRUSTED_DEVICE_TRUST_VALUE)
+    return ConnectedMemberCounts(members=len(members), trusted=trusted)

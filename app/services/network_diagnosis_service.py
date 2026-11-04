@@ -1,7 +1,6 @@
 import uuid
 from dataclasses import dataclass
 
-from app.domain.device_presence import connected_members
 from app.domain.measurement_timing import as_utc
 from app.domain.network_diagnosis import NetworkDiagnosis, NetworkDiagnosisPolicy
 from app.models.network_metric_snapshot import NetworkMetricSnapshot
@@ -34,7 +33,7 @@ class NetworkDiagnosisService:
             return NetworkDiagnosisResult(
                 diagnosis=self._diagnose_without_router(owner_id, snapshot), possible_busy_device=None
             )
-        connected = len(connected_members(self._device_repository.list_by_owner(owner_id)))
+        connected = self._device_repository.count_connected_members_by_owners([owner_id])[owner_id].members
         return NetworkDiagnosisResult(
             diagnosis=self._policy.diagnose(snapshot.status, gateway_latency_ms),
             possible_busy_device=self._policy.possible_busy_device(gateway_latency_ms, connected),

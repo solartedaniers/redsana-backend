@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any
 
+from app.domain.device_presence import ConnectedMemberCounts, count_connected_members
 from app.models.device import Device
 
 
@@ -14,6 +15,12 @@ class DeviceRepository(ABC):
     def list_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[Device]]:
         """Una sola consulta para varios dueños en vez de repetir list_by_owner N veces."""
         ...
+
+    def count_connected_members_by_owners(self, owner_ids: list[uuid.UUID]) -> dict[uuid.UUID, ConnectedMemberCounts]:
+        """connected_members contado por dueño. Esta versión trae los dispositivos; la de SQL solo los cuenta."""
+        return {
+            owner_id: count_connected_members(devices) for owner_id, devices in self.list_by_owners(owner_ids).items()
+        }
 
     @abstractmethod
     def get_by_id(self, device_id: uuid.UUID, owner_id: uuid.UUID) -> Device | None: ...
