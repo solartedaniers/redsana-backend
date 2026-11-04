@@ -132,3 +132,16 @@ def test_with_redis_down_the_endpoints_read_from_the_database(setup: _App) -> No
     assert setup.client.get("/api/network-metrics/latest").json()["latency_ms"] == SNAPSHOT_PAYLOAD["latency_ms"]
     assert setup.client.post("/api/devices/sync", json=SYNC_PAYLOAD).status_code == 200
     assert len(setup.client.get("/api/devices").json()) == 1
+
+
+def test_the_cached_endpoints_keep_the_response_schema_the_clients_read() -> None:
+    """La web y los instaladores 0.1.5 a 0.1.8 leen estos esquemas: la caché no puede volverlos opcionales."""
+    paths = app.openapi()["paths"]
+
+    def schema(path: str) -> dict:
+        return paths[path]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+
+    assert schema("/api/network-metrics/latest") == {"$ref": "#/components/schemas/NetworkMetricSnapshotRead"}
+    assert schema("/api/network-metrics/anomaly-status") == {"$ref": "#/components/schemas/AnomalyStatusRead"}
+    assert schema("/api/devices")["type"] == "array"
+    assert schema("/api/devices")["items"] == {"$ref": "#/components/schemas/DeviceRead"}

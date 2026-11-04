@@ -33,7 +33,8 @@ from app.services.outage_detection_service import OutageDetectionService
 
 router = APIRouter(prefix="/api/network-metrics", tags=["network-metrics"])
 
-LATEST_SNAPSHOT_CACHE = CacheEntry("latest-snapshot", TypeAdapter(NetworkMetricSnapshotRead))
+# None (aún sin mediciones) nunca se guarda: la respuesta por defecto lleva la hora actual.
+LATEST_SNAPSHOT_CACHE = CacheEntry("latest-snapshot", TypeAdapter(NetworkMetricSnapshotRead | None))
 ANOMALY_STATUS_CACHE = CacheEntry("anomaly-status", TypeAdapter(AnomalyStatusRead))
 
 
@@ -161,7 +162,7 @@ def get_anomaly_status(
     user: User = Depends(get_current_user),
     service: NetworkAnomalyService = Depends(_get_anomaly_service),
     cache: OwnerCache = Depends(get_owner_cache),
-) -> AnomalyStatusRead | None:
+) -> AnomalyStatusRead:
     owner_id = _resolve_target_owner_id(user, user_id)
     return cache.get_or_load(
         owner_id,

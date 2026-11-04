@@ -60,7 +60,7 @@ def list_devices(
     claims: dict[str, Any] = Depends(get_current_claims),
     service: DeviceService = Depends(_get_service),
     cache: OwnerCache = Depends(get_owner_cache),
-) -> list[DeviceRead] | None:
+) -> list[DeviceRead]:
     owner_id = owner_id_from_claims(claims)
 
     def load() -> list[DeviceRead]:

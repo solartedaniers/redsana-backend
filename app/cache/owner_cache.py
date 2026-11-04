@@ -28,9 +28,7 @@ class OwnerCache:
         self._store = store
         self._key_prefix = key_prefix
 
-    def get_or_load(
-        self, owner_id: uuid.UUID, entry: CacheEntry[T], ttl_seconds: int, load: Callable[[], T | None]
-    ) -> T | None:
+    def get_or_load(self, owner_id: uuid.UUID, entry: CacheEntry[T], ttl_seconds: int, load: Callable[[], T]) -> T:
         """None no se guarda: es "aún no hay datos" y la siguiente consulta debe volver a Postgres."""
         generation, cached = self._store.get_many([self._generation_key(owner_id), self._entry_key(owner_id, entry)])
         generation = generation or _MISSING_GENERATION
