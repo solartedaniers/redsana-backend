@@ -1,10 +1,14 @@
 import asyncio
 import contextlib
+import json
 import uuid
 from enum import IntEnum
 from typing import Protocol
 
 from fastapi import WebSocket
+from starlette.websockets import WebSocketDisconnect
+
+CLOSE_MESSAGE = "close"
 
 
 class CloseCode(IntEnum):
@@ -35,7 +39,10 @@ class WebSocketConnection:
             await self._websocket.send_text(text)
 
     async def close(self, code: CloseCode) -> None:
+        # El proxy de Render no deja pasar el frame de cierre (el cliente ve 1006): el código va antes como mensaje.
         # Puede estar cerrado ya (el cliente se fue o otro camino lo cerró): no hay nada más que hacer.
+        with contextlib.suppress(RuntimeError, OSError, WebSocketDisconnect):
+            await self.send_text(json.dumps({"type": CLOSE_MESSAGE, "code": int(code)}))
         with contextlib.suppress(RuntimeError, OSError):
             await self._websocket.close(code=code)
 

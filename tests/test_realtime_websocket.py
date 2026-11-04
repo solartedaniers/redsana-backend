@@ -126,8 +126,11 @@ def _authenticate(socket, token: str) -> None:
 
 
 def _close_code(socket) -> int:
+    # Antes de cada cierre del servidor llega {"type": "close", "code": ...} con el mismo código que el frame.
+    announced = socket.receive_json()
     with pytest.raises(WebSocketDisconnect) as closed:
         socket.receive_text()
+    assert announced == {"type": "close", "code": closed.value.code}
     return closed.value.code
 
 
