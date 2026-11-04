@@ -1,4 +1,5 @@
 import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -6,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
+from app.core.process_memory import peak_memory
 from app.core.realtime_composition import get_realtime_hub
 from app.routers import (
     admin_households,
@@ -25,6 +27,7 @@ from app.routers import (
 # uvicorn solo configura sus loggers: sin esto Python descartaba los INFO de la app (p. ej. el calentamiento de la IA).
 logging.basicConfig(format="%(levelname)s:     %(name)s: %(message)s")
 logging.getLogger("app").setLevel(logging.INFO)
+logger = logging.getLogger("app.main")
 
 settings = get_settings()
 
@@ -34,6 +37,13 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Solo prepara el bus; no programa tráfico: sin sockets abiertos no hay pings ni mensajes hacia el servicio.
     hub = get_realtime_hub()
     await hub.start()
+    logger.info(
+        "worker %s started: pid %d, peak memory %s, WEB_CONCURRENCY=%d",
+        hub.server_id,
+        os.getpid(),
+        peak_memory(),
+        settings.web_concurrency,
+    )
     try:
         yield
     finally:
