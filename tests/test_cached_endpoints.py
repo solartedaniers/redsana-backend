@@ -1,6 +1,7 @@
 """Los endpoints cacheados responden lo mismo que sin caché, se invalidan con cada escritura y siguen sin Redis."""
 
 import uuid
+from typing import ClassVar
 
 import fakeredis
 import pytest
@@ -17,9 +18,12 @@ from app.core.security import get_current_claims
 from app.main import app
 from app.models.base import Base
 from app.models.role import Role
+from app.models.user import User
 from app.repositories.network_metrics_sqlalchemy_repository import SqlAlchemyNetworkMetricsRepository
 
 OWNER_USER_ID = uuid.uuid4()
+ADMIN_USER_ID = uuid.uuid4()
+ADMIN_ROLE_ID = 2
 SNAPSHOT_PAYLOAD = {"latency_ms": 20, "jitter_ms": 2, "packet_loss_percent": 0}
 HOME_NETWORK_FINGERPRINT = "b" * 64
 GENERATION_TTL_SECONDS = 600
@@ -34,6 +38,17 @@ class _App:
 
     def use_cache(self, cache: OwnerCache) -> None:
         app.dependency_overrides[get_owner_cache] = lambda: cache
+
+    def act_as_admin(self) -> None:
+        with self.session_factory() as db:
+            db.add(User(id=ADMIN_USER_ID, email="admin@example.com", role_id=ADMIN_ROLE_ID))
+            db.commit()
+        app.dependency_overrides[get_current_claims] = lambda: {"sub": str(ADMIN_USER_ID), "email": "admin@example.com"}
+
+    def generation_of(self, owner_id: uuid.UUID) -> str | None:
+        return fakeredis.FakeRedis(server=self.redis_server, decode_responses=True).get(
+            f"test:owner:{owner_id}:generation"
+        )
 
     def write_snapshot_behind_the_api(self, latency_ms: float) -> None:
         """Escribe sin pasar por el router, así que nada invalida la caché: sirve para saber de dónde se leyó."""
@@ -146,3 +161,31 @@ def test_the_cached_endpoints_keep_the_response_schema_the_clients_read() -> Non
     assert schema("/api/network-metrics/anomaly-status") == {"$ref": "#/components/schemas/AnomalyStatusRead"}
     assert schema("/api/devices")["type"] == "array"
     assert schema("/api/devices")["items"] == {"$ref": "#/components/schemas/DeviceRead"}
+
+
+class _FakeSupabaseAdminClient:
+    """Doble de la Admin API de Supabase: el borrado nunca sale de la prueba."""
+
+    deleted: ClassVar[list[uuid.UUID]] = []
+
+    def __init__(self, _settings) -> None:
+        return None
+
+    def delete_user(self, user_id: uuid.UUID) -> None:
+        self.deleted.append(user_id)
+
+
+def test_deleting_a_user_invalidates_their_cache(setup: _App, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.routers.admin_users.SupabaseAdminClient", _FakeSupabaseAdminClient)
+    monkeypatch.setattr(_FakeSupabaseAdminClient, "deleted", [])
+    setup.client.post("/api/network-metrics", json=SNAPSHOT_PAYLOAD)
+    setup.act_as_admin()
+    setup.client.get("/api/network-metrics/latest", params={"user_id": str(OWNER_USER_ID)})
+    before = setup.generation_of(OWNER_USER_ID)
+
+    response = setup.client.delete(f"/api/admin/users/{OWNER_USER_ID}")
+
+    assert response.status_code == 204
+    assert _FakeSupabaseAdminClient.deleted == [OWNER_USER_ID]
+    assert before is not None
+    assert setup.generation_of(OWNER_USER_ID) not in (None, before)
