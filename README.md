@@ -15,7 +15,8 @@ API REST de RedSana con FastAPI. Autentica con los JWT de Supabase, guarda medic
 ```
 app/
 ├── ai_gateway/    # Acceso a la IA: AiGateway con implementación local (paquete) y remota (servicio HTTP)
-├── core/          # Configuración, seguridad, base de datos y ai_composition.py
+├── cache/         # Caché en Redis: CacheStore (Redis o nula) y OwnerCache (cache-aside por usuario)
+├── core/          # Configuración, seguridad, base de datos, ai_composition.py y cache_composition.py
 ├── domain/        # Reglas de negocio puras (sin I/O)
 ├── models/        # Modelos SQLAlchemy
 ├── repositories/  # Contratos e implementaciones de acceso a datos
@@ -129,6 +130,23 @@ En modo remoto:
 | `POST /api/ai/warm-up` | `202` con el estado actual; despierta el servicio en segundo plano (hasta `AI_SERVICE_WARM_UP_TIMEOUT_SECONDS`; cada consulta espera hasta `AI_SERVICE_WARM_UP_PROBE_TIMEOUT_SECONDS` y queda en el log como `AI warm-up probe N: ...`) y abre la ventana de uso interactivo. |
 
 Todas las variables están documentadas en `.env.example`.
+
+## Caché en Redis (`REDIS_URL`)
+
+Postgres sigue siendo la fuente de la verdad; Redis (Render Key Value) solo guarda copias de lectura con vencimiento.
+
+| Endpoint | Qué se guarda | Vence (variable) | Se invalida con |
+|---|---|---|---|
+| `GET /api/network-metrics/latest` | La respuesta con su diagnóstico (no la de "aún sin datos") | `CACHE_LATEST_SNAPSHOT_TTL_SECONDS` (60) | Medición nueva, escaneo o cambio de dispositivos, borrado del usuario |
+| `GET /api/network-metrics/anomaly-status` | El progreso de calibración | `CACHE_ANOMALY_STATUS_TTL_SECONDS` (60) | Lo mismo |
+| `GET /api/devices` | La lista de dispositivos | `CACHE_DEVICES_TTL_SECONDS` (120) | Lo mismo |
+
+- **Cache-aside por usuario con generación**: cada valor guarda la generación del dueño vigente cuando se leyó de Postgres, y cada escritura (después del commit) la sube con un `INCR`. Así una escritura invalida de una vez todo lo de ese usuario, y una lectura que estaba en curso mientras se escribía no puede dejar en la caché el dato viejo.
+- **Sin Redis la app funciona igual**: sin `REDIS_URL` la caché está apagada (`NullCacheStore`). Si Redis falla o tarda más de `REDIS_TIMEOUT_SECONDS`, esa petición lee de Postgres y durante `REDIS_FAILURE_COOLDOWN_SECONDS` no se lo vuelve a intentar.
+- **Límite conocido**: si Redis falla justo al invalidar, el dato viejo puede servirse hasta que venza (como mucho el TTL de arriba).
+- No se cachean el usuario ni su rol (un rol cambiado o una cuenta suspendida deben valer de inmediato), el historial ni los umbrales (salen de la configuración, sin consultar la base).
+- `REDIS_MAX_CONNECTIONS` es el tope por worker: el plan gratuito de Key Value admite 50 conexiones en total.
+- Las pruebas nunca usan un Redis real: `tests/conftest.py` deja `REDIS_URL` vacío y las de la caché usan `fakeredis`.
 
 ## Nombres de rutas
 

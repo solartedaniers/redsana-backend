@@ -40,3 +40,6 @@ services:
       # Solo hace falta con AI_MODE=local; se conserva para poder volver a ese modo desde el panel.
       - key: GROQ_API_KEY
         sync: false
+      # URL interna del Key Value (caché). Sin ella la caché queda apagada y todo se lee de Postgres.
+      - key: REDIS_URL
+        sync: false
