@@ -3,9 +3,13 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import TypeAdapter
 from sqlalchemy.orm import Session
 
+from app.cache.owner_cache import CacheEntry, OwnerCache
 from app.core.authorization import get_current_user
+from app.core.cache_composition import get_owner_cache
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_current_claims, owner_id_from_claims
 from app.domain.device_presence import (
@@ -23,6 +27,8 @@ from app.services.untrusted_device_alert_service import UntrustedDeviceAlertServ
 
 # Cuenta suspendida: 403 en todo el router, no solo donde se usa el perfil (get_current_user lo comprueba).
 router = APIRouter(prefix="/api/devices", tags=["devices"], dependencies=[Depends(get_current_user)])
+
+DEVICES_CACHE = CacheEntry("devices", TypeAdapter(list[DeviceRead]))
 
 
 def _to_device_read(
@@ -53,10 +59,16 @@ def _get_untrusted_alert_service(db: Session = Depends(get_db)) -> UntrustedDevi
 def list_devices(
     claims: dict[str, Any] = Depends(get_current_claims),
     service: DeviceService = Depends(_get_service),
-) -> list[DeviceRead]:
-    devices = service.list_devices(owner_id_from_claims(claims))
-    latest_seen = latest_seen_among(devices)
-    return [_to_device_read(device, latest_seen) for device in devices]
+    cache: OwnerCache = Depends(get_owner_cache),
+) -> list[DeviceRead] | None:
+    owner_id = owner_id_from_claims(claims)
+
+    def load() -> list[DeviceRead]:
+        devices = service.list_devices(owner_id)
+        latest_seen = latest_seen_among(devices)
+        return [_to_device_read(device, latest_seen) for device in devices]
+
+    return cache.get_or_load(owner_id, DEVICES_CACHE, get_settings().cache_devices_ttl_seconds, load)
 
 
 @router.post("", response_model=DeviceRead, status_code=status.HTTP_201_CREATED)
@@ -64,8 +76,10 @@ def create_device(
     payload: DeviceCreate,
     claims: dict[str, Any] = Depends(get_current_claims),
     service: DeviceService = Depends(_get_service),
+    cache: OwnerCache = Depends(get_owner_cache),
 ) -> DeviceRead:
     device = service.create_device(owner_id_from_claims(claims), payload)
+    cache.invalidate(owner_id_from_claims(claims))
     latest_seen = latest_seen_among(service.list_devices(owner_id_from_claims(claims)))
     return _to_device_read(device, latest_seen)
 
@@ -76,11 +90,13 @@ def update_device(
     payload: DeviceUpdate,
     claims: dict[str, Any] = Depends(get_current_claims),
     service: DeviceService = Depends(_get_service),
+    cache: OwnerCache = Depends(get_owner_cache),
 ) -> DeviceRead:
     try:
         device = service.update_device(device_id, owner_id_from_claims(claims), payload)
     except DeviceNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found") from error
+    cache.invalidate(owner_id_from_claims(claims))
     latest_seen = latest_seen_among(service.list_devices(owner_id_from_claims(claims)))
     return _to_device_read(device, latest_seen)
 
@@ -91,9 +107,12 @@ def sync_devices(
     claims: dict[str, Any] = Depends(get_current_claims),
     service: DeviceService = Depends(_get_service),
     untrusted_alerts: UntrustedDeviceAlertService = Depends(_get_untrusted_alert_service),
+    cache: OwnerCache = Depends(get_owner_cache),
 ) -> list[DeviceRead]:
     owner_id = owner_id_from_claims(claims)
     devices = service.sync_discovered_devices(owner_id, payload.devices)
+    # También cambia el diagnóstico de /latest, que cuenta los dispositivos conectados.
+    cache.invalidate(owner_id)
     # El router orquesta: el servicio de dispositivos no sabe nada de alertas.
     untrusted_alerts.alert_for_scan(owner_id, devices)
     latest_seen = latest_seen_among(devices)
