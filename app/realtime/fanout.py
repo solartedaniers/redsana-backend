@@ -21,13 +21,15 @@ class BatchedFanOut:
         self._batch_size = batch_size
         self._send_timeout_seconds = send_timeout_seconds
 
-    async def deliver(self, event: RealtimeEvent) -> None:
+    async def deliver(self, event: RealtimeEvent) -> int:
+        """Devuelve a cuántos sockets de este worker se le envió."""
         payload = event.model_dump_json()
         recipients = self._registry.recipients_for(event.owner_id)
         for start in range(0, len(recipients), self._batch_size):
             batch = recipients[start : start + self._batch_size]
             await asyncio.gather(*(self._send(connection, payload) for connection in batch))
             await asyncio.sleep(0)
+        return len(recipients)
 
     async def _send(self, connection: RealtimeConnection, payload: str) -> None:
         try:

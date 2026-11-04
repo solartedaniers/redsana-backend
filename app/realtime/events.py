@@ -25,6 +25,8 @@ class RealtimeEvent(BaseModel):
     owner_id: uuid.UUID
     data: dict[str, Any] = Field(default_factory=dict)
     at: datetime
+    # server_id del worker que lo publicó: el que lo entrega lo deja en el log junto al suyo.
+    origin: str | None = None
 
     @classmethod
     def now(cls, type_: EventType, owner_id: uuid.UUID, data: BaseModel | None = None) -> "RealtimeEvent":

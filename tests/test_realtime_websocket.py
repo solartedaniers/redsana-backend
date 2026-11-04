@@ -237,7 +237,7 @@ def test_a_new_measurement_reaches_only_its_owner_and_the_admin(env: _Env) -> No
         owner_event = owner.receive_json()
         assert (owner_event["type"], owner_event["owner_id"]) == ("measurement.created", str(OWNER_ID))
         assert owner_event["data"]["latency_ms"] == 20
-        assert set(owner_event) == {"v", "type", "owner_id", "data", "at"}
+        assert set(owner_event) == {"v", "type", "owner_id", "data", "at", "origin"}
         assert other.receive_json()["owner_id"] == str(OTHER_ID)
         assert [admin.receive_json()["owner_id"] for _ in range(2)] == [str(OTHER_ID), str(OWNER_ID)]
 

@@ -186,27 +186,69 @@ def loop_thread():
 
 
 def test_the_publisher_does_nothing_without_an_event_loop() -> None:
-    EventPublisher(InMemoryEventBus()).publish(_event())
+    EventPublisher(InMemoryEventBus(), "a").publish(_event())
 
 
 def test_the_publisher_delivers_from_a_worker_thread(loop_thread: _LoopThread) -> None:
     bus, recorder = InMemoryEventBus(), _Recorder()
     loop_thread.run(bus.start(recorder.on_event, recorder.on_unavailable))
-    publisher = EventPublisher(bus)
+    publisher = EventPublisher(bus, "a")
     publisher.attach(loop_thread.loop)
     event = _event()
 
     publisher.publish(event)
     loop_thread.run(_until(lambda: recorder.events))
 
-    assert recorder.events == [event]
+    assert recorder.events == [event.model_copy(update={"origin": "a"})]
 
 
 def test_a_failing_bus_never_raises_into_the_caller(loop_thread: _LoopThread) -> None:
     server = fakeredis.FakeServer()
     server.connected = False
-    publisher = EventPublisher(_redis_bus(server))
+    publisher = EventPublisher(_redis_bus(server), "a")
     publisher.attach(loop_thread.loop)
 
     publisher.publish(_event())
     loop_thread.run(asyncio.sleep(FAST_SECONDS))
+
+
+class _SocketStub:
+    def __init__(self) -> None:
+        self.sent: list[str] = []
+
+    async def send_text(self, text: str) -> None:
+        self.sent.append(text)
+
+    async def close(self, code) -> None:
+        return None
+
+
+def test_with_two_workers_the_log_says_which_one_published_and_which_one_delivered(
+    loop_thread: _LoopThread, caplog: pytest.LogCaptureFixture
+) -> None:
+    """El worker A publica (desde un hilo, como un endpoint) y el B, que tiene el socket del dueño, lo entrega."""
+    server = fakeredis.FakeServer()
+    registry_a, registry_b = ConnectionRegistry(5), ConnectionRegistry(5)
+    hub_a = RealtimeHub(_redis_bus(server), registry_a, BatchedFanOut(registry_a, 10, 1), 1, server_id="worker-a")
+    hub_b = RealtimeHub(_redis_bus(server), registry_b, BatchedFanOut(registry_b, 10, 1), 1, server_id="worker-b")
+    event, socket = _event(), _SocketStub()
+    registry_b.register(socket, event.owner_id, is_admin=False)
+    for hub in (hub_a, hub_b):
+        loop_thread.run(hub.start())
+    loop_thread.run(_until(lambda: hub_a.is_available and hub_b.is_available))
+
+    with caplog.at_level("INFO", logger="app.realtime.hub"):
+        hub_a.publisher.publish(event)
+        loop_thread.run(_until(lambda: len(_deliveries(caplog)) == 2))
+    for hub in (hub_a, hub_b):
+        loop_thread.run(hub.stop())
+
+    assert RealtimeEvent.model_validate_json(socket.sent[0]).origin == "worker-a"
+    assert sorted(_deliveries(caplog)) == [
+        "devices.updated published by worker-a, delivered by worker-a to 0 sockets",
+        "devices.updated published by worker-a, delivered by worker-b to 1 sockets",
+    ]
+
+
+def _deliveries(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [record.getMessage() for record in caplog.records if " published by " in record.getMessage()]

@@ -28,7 +28,7 @@ class RealtimeHub:
         self.registry = registry
         self._fanout = fanout
         self._close_timeout_seconds = close_timeout_seconds
-        self.publisher = EventPublisher(bus)
+        self.publisher = EventPublisher(bus, self.server_id)
 
     @property
     def is_available(self) -> bool:
@@ -45,7 +45,10 @@ class RealtimeHub:
 
     async def _route(self, event: RealtimeEvent) -> None:
         if event.type != ACCESS_CHANGED:
-            await self._fanout.deliver(event)
+            delivered = await self._fanout.deliver(event)
+            logger.info(
+                "%s published by %s, delivered by %s to %d sockets", event.type, event.origin, self.server_id, delivered
+            )
             return
         # El rol o la cuenta cambió: con 4401 el cliente se vuelve a autenticar y valen el rol y el estado nuevos.
         connections = self.registry.connections_of(event.owner_id)

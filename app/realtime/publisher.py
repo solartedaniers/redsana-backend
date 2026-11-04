@@ -12,8 +12,9 @@ class EventPublisher:
     """Puente entre los endpoints síncronos (corren en hilos) y el bus asíncrono. Publicar nunca bloquea ni lanza:
     sin event loop (pruebas sin lifespan) no hace nada, y un fallo del bus solo queda en el log."""
 
-    def __init__(self, bus: EventBus) -> None:
+    def __init__(self, bus: EventBus, server_id: str) -> None:
         self._bus = bus
+        self._server_id = server_id
         self._loop: asyncio.AbstractEventLoop | None = None
 
     def attach(self, loop: asyncio.AbstractEventLoop) -> None:
@@ -27,7 +28,9 @@ class EventPublisher:
         if loop is None or loop.is_closed():
             return
         try:
-            future = asyncio.run_coroutine_threadsafe(self._bus.publish(event), loop)
+            future = asyncio.run_coroutine_threadsafe(
+                self._bus.publish(event.model_copy(update={"origin": self._server_id})), loop
+            )
         except RuntimeError as error:
             logger.warning("realtime event not published: %s", error)
             return
