@@ -149,6 +149,30 @@ Postgres sigue siendo la fuente de la verdad; la caché solo guarda copias de le
 - `REDIS_MAX_CONNECTIONS` es el tope por worker: el plan gratuito de Key Value admite 50 conexiones en total.
 - Las pruebas nunca usan un Valkey o Redis real: `tests/conftest.py` deja `REDIS_URL` vacío y las de la caché usan `fakeredis`.
 
+## Tiempo real (`/api/realtime/ws`)
+
+Un WebSocket por pestaña o app de escritorio recibe los eventos del usuario sin esperar al siguiente sondeo. El REST no cambia: si el socket no está, todo sigue funcionando como antes.
+
+1. **Origin**: debe estar en `CORS_ORIGINS`; si no, se cierra con 1008 antes de aceptar.
+2. **Autenticación**: el primer mensaje es `{"type":"auth","token":"<JWT de Supabase>"}` (el token nunca va en la URL). Responde `{"type":"ready"}`. Se puede renovar el token mandando otro `auth` del mismo usuario; `{"type":"logout"}` cierra con 1000.
+3. **Eventos** `{"v":1,"type","owner_id","data","at"}`: `measurement.created` (después del commit; no en reenvíos de la cola), `alert.created` y `devices.updated`. Cada usuario recibe solo los suyos; el admin (rol leído de la base) recibe todos.
+
+| Cierre | Motivo |
+|---|---|
+| 1000 | `logout` |
+| 1008 | Origin no permitido |
+| 1013 | Bus no disponible (Redis caído) o cliente demasiado lento; el cliente reintenta |
+| 4401 | Token inválido o vencido (también cuando vence con el socket abierto) |
+| 4403 | Cuenta suspendida |
+| 4408 | No llegó `auth` en `REALTIME_AUTH_TIMEOUT_SECONDS` |
+| 4429 | Más de `REALTIME_MAX_CONNECTIONS_PER_USER` sockets del usuario en el worker |
+
+- **Bus**: sin `REDIS_URL`, en memoria (un worker). Con `REDIS_URL`, Pub/Sub de Redis en `REALTIME_CHANNEL` como *backplane*: lo que publica un worker lo reciben todos, y cada uno entrega a sus propios sockets.
+- **Fan-out por lotes**: cada worker envía en lotes de `REALTIME_FANOUT_BATCH_SIZE` con `asyncio.gather` y cede el event loop entre lotes (`await asyncio.sleep(0)`), así un evento para muchos sockets no frena al resto de peticiones. Cada envío tiene un tope de `REALTIME_SEND_TIMEOUT_SECONDS`: un cliente lento o roto se cierra con 1013 sin demorar a los demás.
+- **Publicar nunca rompe una escritura**: se publica sin esperar desde el endpoint; si Redis falla, la medición, la alerta o el escaneo se guardan y responden igual.
+- **Sin tráfico programado**: el servidor solo manda pings (`REALTIME_PING_INTERVAL_SECONDS`) a sockets abiertos. Sin usuarios conectados no hay nada que mantenga despierto el servicio en Render.
+- **Conexiones de Redis por worker**: caché `REDIS_MAX_CONNECTIONS` (10) + publicación `REALTIME_REDIS_MAX_CONNECTIONS` (2) + 1 suscripción = 13. El arranque falla si eso por `WEB_CONCURRENCY` supera `REDIS_CONNECTION_LIMIT` (50 en el plan gratuito).
+
 ## Nombres de rutas
 
 Las rutas usan sustantivos en inglés, en plural y con guiones. Estas cambiaron de nombre; el anterior sigue respondiendo igual (misma autenticación, mismo CORS) como alias oculto en `/docs`, porque lo usan el instalador 0.1.5 y la web ya desplegada:
