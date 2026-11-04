@@ -134,6 +134,56 @@ class Settings(BaseSettings):
     # Vida de la generación de cada usuario; vencida, solo provoca fallos de caché. Mayor que los TTL de arriba.
     cache_generation_ttl_seconds: int = 86400
 
+    # Tiempo real (WebSocket). El canal Pub/Sub lo comparten todos los workers que usan el mismo Key Value.
+    realtime_channel: str = "redsana:events"
+    # Sin el mensaje {"type": "auth"} en este plazo, el socket se cierra con 4408.
+    realtime_auth_timeout_seconds: float = 10.0
+    # Ping del servidor a cada socket abierto; sin sockets no hay pings.
+    realtime_ping_interval_seconds: float = 30.0
+    realtime_max_connections_per_user: int = 5
+    # El fan-out envía por lotes de este tamaño y cede el event loop entre lotes.
+    realtime_fanout_batch_size: int = 50
+    # Un cliente que tarda más que esto en recibir se descarta sin frenar a los demás.
+    realtime_send_timeout_seconds: float = 5.0
+    # Conexiones para publicar por worker; la suscripción usa una más.
+    realtime_redis_max_connections: int = 2
+    # Tras perder la suscripción, espera antes de volver a suscribirse.
+    realtime_bus_retry_seconds: float = 5.0
+    # Cada cuánto la suscripción comprueba con un PING (saliente, hacia Redis) que la conexión sigue viva.
+    realtime_bus_health_check_seconds: int = 30
+    # Límite de conexiones del Key Value y workers de uvicorn: el arranque falla si no alcanzan para todos.
+    redis_connection_limit: int = 50
+    web_concurrency: int = 1
+
+    @property
+    def redis_connections_per_worker(self) -> int:
+        """Caché + publicación + la suscripción Pub/Sub."""
+        return self.redis_max_connections + self.realtime_redis_max_connections + 1
+
+    @model_validator(mode="after")
+    def _require_valid_realtime_settings(self) -> "Settings":
+        positive = (
+            self.realtime_auth_timeout_seconds,
+            self.realtime_ping_interval_seconds,
+            self.realtime_send_timeout_seconds,
+            self.realtime_bus_retry_seconds,
+        )
+        counts = (
+            self.realtime_max_connections_per_user,
+            self.realtime_fanout_batch_size,
+            self.realtime_redis_max_connections,
+            self.realtime_bus_health_check_seconds,
+            self.web_concurrency,
+        )
+        if min(positive) <= 0 or min(counts) < 1 or not self.realtime_channel:
+            raise ValueError("REALTIME_* timeouts must be > 0, counts >= 1 and REALTIME_CHANNEL not empty")
+        if self.redis_url and self.redis_connections_per_worker * self.web_concurrency > self.redis_connection_limit:
+            raise ValueError(
+                "(REDIS_MAX_CONNECTIONS + REALTIME_REDIS_MAX_CONNECTIONS + 1) * WEB_CONCURRENCY must be <= "
+                "REDIS_CONNECTION_LIMIT"
+            )
+        return self
+
     @model_validator(mode="after")
     def _require_valid_cache_settings(self) -> "Settings":
         if self.redis_url and not self.redis_url.startswith(REDIS_URL_SCHEMES):
