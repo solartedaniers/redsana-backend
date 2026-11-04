@@ -7,6 +7,7 @@ from app.ai_gateway.ai_gateway import AiAvailability, AiUnavailableReason
 from app.ai_gateway.ai_service_client import AiServiceClient
 from app.ai_gateway.ai_service_errors import AiServiceError, AiServiceUnavailableError
 from app.ai_gateway.interactive_usage_window import InteractiveUsageWindow
+from app.ai_gateway.shared_ai_status import AiStatusListener, AiStatusSnapshot, SharedAiStatus
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,8 @@ class WarmUpController:
         clock: Callable[[], float],
         sleep: Callable[[float], None],
         start_thread: Callable[[Callable[[], None]], None],
+        shared_status: SharedAiStatus | None = None,
+        on_change: AiStatusListener | None = None,
     ) -> None:
         # Cliente sin reintentos: cada consulta del calentamiento decide por sí misma cuánto esperar.
         self._status_client = status_client
@@ -60,7 +63,9 @@ class WarmUpController:
         self._clock = clock
         self._sleep = sleep
         self._start_thread = start_thread
-        # Estado en memoria del proceso: con varios workers cada uno calentaría por su cuenta (Render free usa uno).
+        self._shared_status = shared_status
+        self._on_change = on_change
+        # Copia en memoria del proceso: sirve sola sin Redis y, con él, guarda lo último que este worker leyó o supo.
         self._state_lock = threading.Lock()
         self._warming_up = False
         self._availability: AiAvailability = "warming_up"
@@ -71,6 +76,14 @@ class WarmUpController:
         with self._state_lock:
             if self._warming_up:
                 return "warming_up"
+        # Lo que otro worker (o este) dejó en Redis vale para todos: así no consulta cada uno al servicio.
+        shared = self._shared_status.load() if self._shared_status is not None else None
+        with self._state_lock:
+            if shared is not None and not self._warming_up:
+                self._availability, self._reason, self._checked_at = shared.availability, shared.reason, self._clock()
+                return shared.availability
+            if self._warming_up:
+                return "warming_up"
             # "No disponible" se mantiene hasta que se pida otro calentamiento (Reintentar): consultar no lo cambia.
             if self._availability == "unavailable" and self._checked_at is not None:
                 return "unavailable"
@@ -78,9 +91,11 @@ class WarmUpController:
                 return self._availability
         # Sin calentamiento en curso y con el dato vencido: una sola consulta corta, que queda en caché.
         probe = self._probe(self._status_timeout_seconds)
+        update = None
         with self._state_lock:
             if not self._warming_up:
-                self._remember(probe)
+                update = self._remember(probe)
+        self._announce(update)
         return probe.availability
 
     def unavailable_reason(self) -> AiUnavailableReason | None:
@@ -100,7 +115,8 @@ class WarmUpController:
             if self._warming_up:
                 return
             self._warming_up = True
-            self._availability, self._reason = "warming_up", None
+            update = self._remember(_Probe("warming_up"))
+        self._announce(update)
         self._start_thread(self._run)
 
     def _run(self) -> None:
@@ -138,8 +154,9 @@ class WarmUpController:
                 backoff = min(backoff * schedule.backoff_factor, schedule.max_backoff_seconds)
         finally:
             with self._state_lock:
-                self._remember(result)
+                update = self._remember(result)
                 self._warming_up = False
+        self._announce(update)
         if result.availability == "ready":
             # La IA está despierta: desde ahora los detectores pueden usarla durante la ventana de uso interactivo.
             self._usage_window.record_use()
@@ -151,8 +168,22 @@ class WarmUpController:
             self._clock() - started,
         )
 
-    def _remember(self, probe: _Probe) -> None:
+    def _remember(self, probe: _Probe) -> tuple[AiStatusSnapshot, bool]:
+        """Con el lock tomado: guarda el estado y dice si cambió; Redis y el aviso van después, fuera del lock."""
+        changed = (self._availability, self._reason) != (probe.availability, probe.reason) or self._checked_at is None
         self._availability, self._reason, self._checked_at = probe.availability, probe.reason, self._clock()
+        return AiStatusSnapshot(probe.availability, probe.reason), changed
+
+    def _announce(self, update: tuple[AiStatusSnapshot, bool] | None) -> None:
+        if update is None:
+            return
+        snapshot, changed = update
+        if self._shared_status is not None:
+            # "Lista" vence como la caché local; "encendiendo" y "no disponible" duran lo que puede durar un calentamiento.
+            ready = snapshot.availability == "ready"
+            self._shared_status.save(snapshot, self._status_cache_seconds if ready else self._schedule.timeout_seconds)
+        if changed and self._on_change is not None:
+            self._on_change(snapshot)
 
     def _probe(self, timeout_seconds: float) -> _Probe:
         try:

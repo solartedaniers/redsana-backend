@@ -12,6 +12,7 @@ from app.ai_gateway.remote_ai_adapters import (
     RemoteSecurityBriefing,
     RemoteSecurityChat,
 )
+from app.ai_gateway.shared_ai_status import AiStatusListener, SharedAiStatus
 from app.ai_gateway.warm_up_controller import WarmUpController, WarmUpSchedule, start_daemon_thread
 from app.ai_gateway.windowed_detectors import WindowedAnomalyDetector, WindowedOutageDetector
 
@@ -32,6 +33,8 @@ class RemoteAiGateway(AiGateway):
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
         start_thread: Callable[[Callable[[], None]], None] = start_daemon_thread,
+        shared_status: SharedAiStatus | None = None,
+        on_status_change: AiStatusListener | None = None,
     ) -> None:
         self._client = client
         self._local_fallback = local_fallback
@@ -45,6 +48,8 @@ class RemoteAiGateway(AiGateway):
             clock,
             sleep,
             start_thread,
+            shared_status,
+            on_status_change,
         )
 
     def security_chat(self) -> SecurityChat:

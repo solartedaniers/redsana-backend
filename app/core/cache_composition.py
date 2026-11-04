@@ -9,7 +9,9 @@ from app.cache.owner_cache import OwnerCache
 from app.core.config import get_settings
 
 
-def _build_cache_store() -> CacheStore:
+@lru_cache
+def get_cache_store() -> CacheStore:
+    """Uno por proceso: la caché de cada dueño y el estado de la IA comparten el pool y el enfriamiento tras un fallo."""
     settings = get_settings()
     if not settings.redis_url:
         return NullCacheStore()
@@ -27,6 +29,5 @@ def _build_cache_store() -> CacheStore:
 
 @lru_cache
 def get_owner_cache() -> OwnerCache:
-    # Uno por proceso: comparte el pool de conexiones y el enfriamiento tras un fallo entre todas las peticiones.
     settings = get_settings()
-    return OwnerCache(_build_cache_store(), settings.cache_key_prefix, settings.cache_generation_ttl_seconds)
+    return OwnerCache(get_cache_store(), settings.cache_key_prefix, settings.cache_generation_ttl_seconds)

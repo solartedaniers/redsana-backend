@@ -20,13 +20,18 @@ from app.ai_gateway.ai_service_client import AiServiceClient
 from app.ai_gateway.interactive_usage_window import InteractiveUsageWindow
 from app.ai_gateway.local_ai_gateway import LocalAiGateway
 from app.ai_gateway.remote_ai_gateway import RemoteAiGateway
+from app.ai_gateway.shared_ai_status import AiStatusSnapshot, SharedAiStatus
 from app.ai_gateway.warm_up_controller import WarmUpSchedule
+from app.core.cache_composition import get_cache_store
 from app.core.config import get_settings
+from app.core.realtime_composition import get_event_publisher
 from app.domain.user_timezone import timezone_from_browser_offset
+from app.realtime.events import AI_STATUS_CHANGED, RealtimeEvent
 from app.repositories.alert_sqlalchemy_repository import SqlAlchemyAlertRepository
 from app.repositories.device_sqlalchemy_repository import SqlAlchemyDeviceRepository
 from app.repositories.network_metrics_sqlalchemy_repository import SqlAlchemyNetworkMetricsRepository
 from app.repositories.security_assessment_sqlalchemy_repository import SqlAlchemySecurityAssessmentRepository
+from app.schemas.ai import AiStatusRead
 from app.services.network_security_score_service import default_network_security_score_service
 from app.services.security_assessment_service import SecurityAssessmentService
 from app.services.security_assistant_service import SecurityAssistantService
@@ -96,7 +101,15 @@ def _remote_ai_gateway() -> RemoteAiGateway:
             backoff_factor=settings.ai_service_warm_up_backoff_factor,
             rate_limited_backoff_seconds=settings.ai_service_warm_up_rate_limited_backoff_seconds,
         ),
+        shared_status=SharedAiStatus(get_cache_store(), f"{settings.cache_key_prefix}:ai-status"),
+        on_status_change=_publish_ai_status,
     )
+
+
+def _publish_ai_status(snapshot: AiStatusSnapshot) -> None:
+    # Para todos los sockets: el frontend deja de preguntar /api/ai/status mientras el socket esté abierto.
+    status_read = AiStatusRead(status=snapshot.availability, reason=snapshot.reason)
+    get_event_publisher().publish(RealtimeEvent.now(AI_STATUS_CHANGED, None, status_read))
 
 
 def get_ai_gateway(engine: ChatEngine = Depends(get_chat_engine)) -> AiGateway:

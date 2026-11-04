@@ -21,10 +21,12 @@ def redis_url(monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setenv("REDIS_URL", url)
         get_settings.cache_clear()
         cache_composition.get_owner_cache.cache_clear()
+        cache_composition.get_cache_store.cache_clear()
 
     yield configure
     get_settings.cache_clear()
     cache_composition.get_owner_cache.cache_clear()
+    cache_composition.get_cache_store.cache_clear()
 
 
 def test_an_unreachable_redis_answers_from_the_loader_within_the_timeout(redis_url) -> None:

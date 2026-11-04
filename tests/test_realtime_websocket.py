@@ -14,6 +14,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from starlette.websockets import WebSocketDisconnect
 
+from app.ai_gateway.shared_ai_status import AiStatusSnapshot
+from app.core.ai_composition import _publish_ai_status
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.realtime_composition import get_realtime_authenticator, get_realtime_hub
@@ -240,6 +242,19 @@ def test_a_new_measurement_reaches_only_its_owner_and_the_admin(env: _Env) -> No
         assert set(owner_event) == {"v", "type", "owner_id", "data", "at", "origin"}
         assert other.receive_json()["owner_id"] == str(OTHER_ID)
         assert [admin.receive_json()["owner_id"] for _ in range(2)] == [str(OTHER_ID), str(OWNER_ID)]
+
+
+def test_an_ai_status_change_reaches_every_socket_of_every_user(env: _Env) -> None:
+    with env.connect() as owner, env.connect() as other:
+        _authenticate(owner, "owner")
+        _authenticate(other, "other")
+
+        _publish_ai_status(AiStatusSnapshot("unavailable", "timed_out"))
+
+        for socket in (owner, other):
+            event = socket.receive_json()
+            assert (event["type"], event["owner_id"]) == ("ai.status.changed", None)
+            assert event["data"] == {"status": "unavailable", "reason": "timed_out"}
 
 
 def test_a_replayed_measurement_is_not_published_again(env: _Env) -> None:
