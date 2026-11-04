@@ -73,6 +73,9 @@ class ConnectionRegistry:
                 self._by_owner.pop(owner_id, None)
         self._admins.discard(connection)
 
+    def connections_of(self, owner_id: uuid.UUID) -> list[RealtimeConnection]:
+        return list(self._by_owner.get(owner_id, set()))
+
     def recipients_for(self, owner_id: uuid.UUID) -> list[RealtimeConnection]:
         return list(self._by_owner.get(owner_id, set()) | self._admins)
 

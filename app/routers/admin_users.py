@@ -8,8 +8,11 @@ from app.core.authorization import require_admin
 from app.core.cache_composition import get_owner_cache
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.realtime_composition import get_event_publisher
 from app.core.supabase_admin_client import SupabaseAdminClient
 from app.models.user import User
+from app.realtime.events import ACCESS_CHANGED, RealtimeEvent
+from app.realtime.publisher import EventPublisher
 from app.repositories.user_sqlalchemy_repository import SqlAlchemyUserRepository
 from app.schemas.admin import AdminUserCreate, AdminUserRead, AdminUserUpdate
 from app.services.admin_user_service import AdminLockoutError, AdminUserService, UserNotFoundError
@@ -55,6 +58,7 @@ def update_user(
     payload: AdminUserUpdate,
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
+    publisher: EventPublisher = Depends(get_event_publisher),
 ) -> AdminUserRead:
     try:
         user = _build_service(db).update_user(user_id, payload, acting_admin_id=admin.id)
@@ -62,6 +66,8 @@ def update_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found") from error
     except AdminLockoutError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    if payload.role is not None or payload.status is not None:
+        publisher.publish(RealtimeEvent.now(ACCESS_CHANGED, user_id))
     return _to_user_read(user)
 
 
@@ -71,6 +77,7 @@ def delete_user(
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
     cache: OwnerCache = Depends(get_owner_cache),
+    publisher: EventPublisher = Depends(get_event_publisher),
 ) -> None:
     try:
         _build_service(db).delete_user(user_id, acting_admin_id=admin.id)
@@ -80,3 +87,4 @@ def delete_user(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     # El borrado arrastra sus mediciones y dispositivos: un admin no debe ver los suyos en caché.
     cache.invalidate(user_id)
+    publisher.publish(RealtimeEvent.now(ACCESS_CHANGED, user_id))

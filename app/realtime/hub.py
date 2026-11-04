@@ -3,6 +3,7 @@ import logging
 
 from app.realtime.connections import CloseCode, ConnectionRegistry
 from app.realtime.event_bus import EventBus
+from app.realtime.events import ACCESS_CHANGED, RealtimeEvent
 from app.realtime.fanout import BatchedFanOut, close_quietly
 from app.realtime.publisher import EventPublisher
 
@@ -26,13 +27,25 @@ class RealtimeHub:
         return self._bus.is_available
 
     async def start(self) -> None:
-        await self._bus.start(on_event=self._fanout.deliver, on_unavailable=self._close_all)
+        await self._bus.start(on_event=self._route, on_unavailable=self._close_all)
         self.publisher.attach(asyncio.get_running_loop())
 
     async def stop(self) -> None:
         self.publisher.detach()
         await self._bus.stop()
         await self._close_all()
+
+    async def _route(self, event: RealtimeEvent) -> None:
+        if event.type != ACCESS_CHANGED:
+            await self._fanout.deliver(event)
+            return
+        # El rol o la cuenta cambió: con 4401 el cliente se vuelve a autenticar y valen el rol y el estado nuevos.
+        connections = self.registry.connections_of(event.owner_id)
+        for connection in connections:
+            self.registry.unregister(connection)
+        await asyncio.gather(
+            *(close_quietly(c, CloseCode.UNAUTHORIZED, self._close_timeout_seconds) for c in connections)
+        )
 
     async def _close_all(self) -> None:
         """Sin bus no llegarían eventos: cierro con 1013 para que cada cliente vuelva al polling y reintente."""

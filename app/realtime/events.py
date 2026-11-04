@@ -9,7 +9,10 @@ EVENT_VERSION = 1
 MEASUREMENT_CREATED = "measurement.created"
 ALERT_CREATED = "alert.created"
 DEVICES_UPDATED = "devices.updated"
-EventType = Literal["measurement.created", "alert.created", "devices.updated"]
+# Interno, nunca llega a un cliente: el admin cambió el rol o el estado del usuario (o lo borró) y sus sockets deben
+# volver a autenticarse para que valga de inmediato.
+ACCESS_CHANGED = "access.changed"
+EventType = Literal["measurement.created", "alert.created", "devices.updated", "access.changed"]
 
 
 class RealtimeEvent(BaseModel):

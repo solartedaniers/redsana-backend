@@ -337,3 +337,72 @@ def test_delivering_an_event_does_not_query_the_database(env: _Env) -> None:
             event.remove(Engine, "before_cursor_execute", capture)
 
     assert statements == []
+
+
+def test_suspending_a_user_closes_their_sockets_and_the_reconnection_is_forbidden(env: _Env) -> None:
+    _add_users(env)
+    with env.connect() as owner, env.connect() as admin:
+        _authenticate(owner, "owner")
+        _authenticate(admin, "admin")
+        env.act_as(ADMIN_ID)
+        assert env.client.patch(f"/api/admin/users/{OWNER_ID}", json={"status": "suspended"}).status_code == 200
+
+        assert _close_code(owner) == CloseCode.UNAUTHORIZED
+        # El admin sigue conectado y recibiendo.
+        assert env.post_measurement(OTHER_ID) == 201
+        assert admin.receive_json()["owner_id"] == str(OTHER_ID)
+
+    env.identities["owner"] = RealtimeAuthError(CloseCode.FORBIDDEN)
+    with env.connect() as again:
+        again.send_json({"type": "auth", "token": "owner"})
+        assert _close_code(again) == CloseCode.FORBIDDEN
+
+
+def test_a_demoted_admin_stops_receiving_other_users_events(env: _Env) -> None:
+    _add_users(env)
+    with env.connect() as admin:
+        _authenticate(admin, "admin")
+        env.act_as(ADMIN_ID)
+        # Otro admin le quita el rol: el socket se cierra y al volver solo recibe lo suyo.
+        other_admin = uuid.uuid4()
+        with env.session_factory() as db:
+            db.add(User(id=other_admin, email="second-admin@example.com", role_id=2))
+            db.commit()
+        env.act_as(other_admin)
+        assert env.client.patch(f"/api/admin/users/{ADMIN_ID}", json={"role": "standard"}).status_code == 200
+        assert _close_code(admin) == CloseCode.UNAUTHORIZED
+
+    env.identities["admin"] = _identity(ADMIN_ID, is_admin=False)
+    with env.connect() as demoted:
+        _authenticate(demoted, "admin")
+        assert env.post_measurement(OTHER_ID) == 201
+        assert env.post_measurement(ADMIN_ID) == 201
+        assert demoted.receive_json()["owner_id"] == str(ADMIN_ID)
+
+
+def test_editing_only_the_name_keeps_the_sockets_open(env: _Env) -> None:
+    _add_users(env)
+    with env.connect() as owner:
+        _authenticate(owner, "owner")
+        env.act_as(ADMIN_ID)
+        assert env.client.patch(f"/api/admin/users/{OWNER_ID}", json={"full_name": "Nuevo nombre"}).status_code == 200
+        assert env.post_measurement(OWNER_ID) == 201
+        assert owner.receive_json()["type"] == "measurement.created"
+
+
+def test_deleting_a_user_closes_their_sockets(env: _Env, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.routers.admin_users.SupabaseAdminClient", _FakeSupabaseAdminClient)
+    _add_users(env)
+    with env.connect() as owner:
+        _authenticate(owner, "owner")
+        env.act_as(ADMIN_ID)
+        assert env.client.delete(f"/api/admin/users/{OWNER_ID}").status_code == 204
+        assert _close_code(owner) == CloseCode.UNAUTHORIZED
+
+
+class _FakeSupabaseAdminClient:
+    def __init__(self, _settings) -> None:
+        pass
+
+    def delete_user(self, _user_id: uuid.UUID) -> None:
+        pass
