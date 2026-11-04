@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session, aliased
 
 from app.domain.measurement_source import MeasurementSource
@@ -52,13 +52,15 @@ class SqlAlchemyNetworkMetricsRepository(NetworkMetricsRepository):
     def list_latest(
         self, owner_id: uuid.UUID, limit: int, scope: BaselineScope | None = None
     ) -> list[NetworkMetricSnapshot]:
-        stmt = (
-            select(NetworkMetricSnapshot)
-            .where(*_owner_filters(owner_id, scope))
-            .order_by(NetworkMetricSnapshot.recorded_at.desc())
-            .limit(limit)
+        return list(self._db.scalars(_latest_first(select(NetworkMetricSnapshot), owner_id, limit, scope)).all())
+
+    def list_latest_vectors(
+        self, owner_id: uuid.UUID, limit: int, scope: BaselineScope | None = None
+    ) -> list[tuple[float, float, float]]:
+        columns = select(
+            NetworkMetricSnapshot.latency_ms, NetworkMetricSnapshot.jitter_ms, NetworkMetricSnapshot.packet_loss_percent
         )
-        return list(self._db.scalars(stmt).all())
+        return [tuple(row) for row in self._db.execute(_latest_first(columns, owner_id, limit, scope))]
 
     def find_recorded_near(
         self, owner_id: uuid.UUID, source: MeasurementSource, recorded_at: datetime, tolerance: timedelta
@@ -114,6 +116,10 @@ class SqlAlchemyNetworkMetricsRepository(NetworkMetricsRepository):
         self._db.commit()
         self._db.refresh(snapshot)
         return snapshot
+
+
+def _latest_first(stmt: Select, owner_id: uuid.UUID, limit: int, scope: BaselineScope | None) -> Select:
+    return stmt.where(*_owner_filters(owner_id, scope)).order_by(NetworkMetricSnapshot.recorded_at.desc()).limit(limit)
 
 
 def _owner_filters(owner_id: uuid.UUID, scope: BaselineScope | None) -> list:

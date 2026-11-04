@@ -3,13 +3,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from redsana_ai import AnomalyDetector, NetworkMetricVector
+from redsana_ai import AnomalyDetector
 
 from app.core.config import get_settings
 from app.domain.measurement_source import DEFAULT_MEASUREMENT_SOURCE
 from app.domain.network_anomaly_policy import ANOMALY_MESSAGE_KEYS
 from app.domain.network_baseline import baseline_scope
-from app.models.network_metric_snapshot import NetworkMetricSnapshot
 from app.repositories.alert_repository import AlertRepository
 from app.repositories.network_metrics_repository import NetworkMetricsRepository
 
@@ -64,13 +63,11 @@ class NetworkAnomalyService:
         if scope is None:
             return
         settings = get_settings()
-        window = self._metrics_repository.list_latest(owner_id, settings.anomaly_window_size, scope)
+        window = self._metrics_repository.list_latest_vectors(owner_id, settings.anomaly_window_size, scope)
         if len(window) < settings.anomaly_min_samples_for(latest.source):
             return
 
-        latest_snapshot, *history_snapshots = window  # window viene de más nueva a más vieja
-        latest_vector = _to_vector(latest_snapshot)
-        history_vectors: list[NetworkMetricVector] = [_to_vector(snapshot) for snapshot in history_snapshots]
+        latest_vector, *history_vectors = window  # window viene de más nueva a más vieja
 
         classification = self._detector.evaluate(history_vectors, latest_vector)
         if classification is None:
@@ -95,7 +92,3 @@ class NetworkAnomalyService:
         # SQLite devuelve la fecha sin zona; se guarda siempre en UTC.
         created_at = previous.created_at if previous.created_at.tzinfo else previous.created_at.replace(tzinfo=UTC)
         return datetime.now(UTC) - created_at < self._alert_cooldown
-
-
-def _to_vector(snapshot: NetworkMetricSnapshot) -> NetworkMetricVector:
-    return (snapshot.latency_ms, snapshot.jitter_ms, snapshot.packet_loss_percent)

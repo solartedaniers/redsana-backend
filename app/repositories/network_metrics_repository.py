@@ -26,6 +26,16 @@ class NetworkMetricsRepository(ABC):
         """Las `limit` muestras más recientes, la más nueva primero; `scope` filtra por fuente y red (None = todas)."""
         ...
 
+    def list_latest_vectors(
+        self, owner_id: uuid.UUID, limit: int, scope: BaselineScope | None = None
+    ) -> list[tuple[float, float, float]]:
+        """Lo que usa el detector de anomalías de list_latest: (latencia, jitter, pérdida). La versión de SQL trae solo
+        esas tres columnas."""
+        return [
+            (snapshot.latency_ms, snapshot.jitter_ms, snapshot.packet_loss_percent)
+            for snapshot in self.list_latest(owner_id, limit, scope)
+        ]
+
     @abstractmethod
     def find_recorded_near(
         self, owner_id: uuid.UUID, source: MeasurementSource, recorded_at: datetime, tolerance: timedelta
