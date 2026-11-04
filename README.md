@@ -153,16 +153,17 @@ Postgres sigue siendo la fuente de la verdad; la caché solo guarda copias de le
 
 Un WebSocket por pestaña o app de escritorio recibe los eventos del usuario sin esperar al siguiente sondeo. El REST no cambia: si el socket no está, todo sigue funcionando como antes.
 
-1. **Origin**: debe estar en `CORS_ORIGINS`; si no, se cierra con 1008 antes de aceptar.
+1. **Origin**: debe estar en `CORS_ORIGINS`; si no, se rechaza antes de aceptar. Uvicorn responde el handshake con HTTP 403, así que el navegador lo ve como cierre 1006.
 2. **Autenticación**: el primer mensaje es `{"type":"auth","token":"<JWT de Supabase>"}` (el token nunca va en la URL). Responde `{"type":"ready"}`. Se puede renovar el token mandando otro `auth` del mismo usuario; `{"type":"logout"}` cierra con 1000.
-3. **Eventos** `{"v":1,"type","owner_id","data","at"}`: `measurement.created` (después del commit; no en reenvíos de la cola), `alert.created` y `devices.updated`. Cada usuario recibe solo los suyos; el admin (rol leído de la base) recibe todos.
+3. **Eventos** `{"v":1,"type","owner_id","data","at"}`: `measurement.created` (después del commit; no en reenvíos de la cola), `alert.created` y `devices.updated`. Cada usuario recibe solo los suyos; el admin (rol leído de la base) recibe todos. `measurement.created` lleva solo la medición (`data` con la forma de `/latest`, sin `diagnosis` y sin dispositivos, menos de 1 KB); el diagnóstico sigue saliendo de `/latest`.
+4. **Cambios de acceso**: si un admin cambia el rol o el estado de un usuario, o lo borra, sus sockets se cierran con 4401 en todos los workers (evento interno `access.changed`, que no llega a ningún cliente). Al reconectarse valen el rol y el estado nuevos.
 
 | Cierre | Motivo |
 |---|---|
 | 1000 | `logout` |
-| 1008 | Origin no permitido |
+| 1006 (handshake con HTTP 403) | Origin no permitido |
 | 1013 | Bus no disponible (Redis caído) o cliente demasiado lento; el cliente reintenta |
-| 4401 | Token inválido o vencido (también cuando vence con el socket abierto) |
+| 4401 | Token inválido o vencido (también cuando vence con el socket abierto), o el admin cambió el acceso del usuario |
 | 4403 | Cuenta suspendida |
 | 4408 | No llegó `auth` en `REALTIME_AUTH_TIMEOUT_SECONDS` |
 | 4429 | Más de `REALTIME_MAX_CONNECTIONS_PER_USER` sockets del usuario en el worker |
@@ -170,7 +171,8 @@ Un WebSocket por pestaña o app de escritorio recibe los eventos del usuario sin
 - **Bus**: sin `REDIS_URL`, en memoria (un worker). Con `REDIS_URL`, Pub/Sub de Redis en `REALTIME_CHANNEL` como *backplane*: lo que publica un worker lo reciben todos, y cada uno entrega a sus propios sockets.
 - **Fan-out por lotes**: cada worker envía en lotes de `REALTIME_FANOUT_BATCH_SIZE` con `asyncio.gather` y cede el event loop entre lotes (`await asyncio.sleep(0)`), así un evento para muchos sockets no frena al resto de peticiones. Cada envío tiene un tope de `REALTIME_SEND_TIMEOUT_SECONDS`: un cliente lento o roto se cierra con 1013 sin demorar a los demás.
 - **Publicar nunca rompe una escritura**: se publica sin esperar desde el endpoint; si Redis falla, la medición, la alerta o el escaneo se guardan y responden igual.
-- **Sin tráfico programado**: el servidor solo manda pings (`REALTIME_PING_INTERVAL_SECONDS`) a sockets abiertos. Sin usuarios conectados no hay nada que mantenga despierto el servicio en Render.
+- **Sin tráfico programado**: el servidor solo manda pings (`REALTIME_PING_INTERVAL_SECONDS`) a sockets abiertos. Sin usuarios conectados no hay nada que mantenga despierto el servicio en Render. Con `REDIS_URL`, la suscripción comprueba cada `REALTIME_BUS_HEALTH_CHECK_SECONDS` que sigue viva con un PING saliente al Key Value. Es tráfico de salida, que no evita que Render apague el servicio por inactividad.
+- **Consumo de la base**: abrir o renovar un socket lee el usuario y su rol (2 consultas de una fila). Entregar un evento no consulta la base, y publicar usa los datos que el endpoint ya guardó.
 - **Conexiones de Redis por worker**: caché `REDIS_MAX_CONNECTIONS` (10) + publicación `REALTIME_REDIS_MAX_CONNECTIONS` (2) + 1 suscripción = 13. El arranque falla si eso por `WEB_CONCURRENCY` supera `REDIS_CONNECTION_LIMIT` (50 en el plan gratuito).
 
 ## Nombres de rutas
