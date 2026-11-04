@@ -11,6 +11,8 @@ from app.domain.network_diagnosis import NetworkDiagnosisPolicy
 from app.domain.network_status import NetworkStatusThresholds
 from app.domain.security_score_config import SecurityScoreConfig
 
+REDIS_URL_SCHEMES = ("redis://", "rediss://")
+
 
 class Settings(BaseSettings):
     """Configuración de la aplicación, cargada desde las variables de entorno (.env)."""
@@ -116,6 +118,36 @@ class Settings(BaseSettings):
     # Tras el último uso interactivo (calentamiento, chat o resumen), cuánto tiempo los detectores en segundo plano
     # siguen usando el servicio; fuera de la ventana usan el paquete local para no despertarlo con cada medición.
     ai_service_interactive_window_seconds: int = 600
+    # Redis solo como caché: vacío la apaga y todo se lee de Postgres, igual que antes.
+    redis_url: str = ""
+    # Corto a propósito: una caché lenta no debe sumar más latencia que la consulta que ahorra.
+    redis_timeout_seconds: float = 0.25
+    # Tope del pool por worker: el plan gratuito de Render Key Value admite 50 conexiones en total.
+    redis_max_connections: int = 10
+    # Tras un fallo de Redis no se lo vuelve a intentar durante este tiempo: se lee directo de Postgres.
+    redis_failure_cooldown_seconds: float = 30.0
+    cache_key_prefix: str = "redsana"
+    # Una invalidación perdida (Redis caído justo al escribir) deja un dato viejo como mucho este tiempo.
+    cache_latest_snapshot_ttl_seconds: int = 60
+    cache_anomaly_status_ttl_seconds: int = 60
+    cache_devices_ttl_seconds: int = 120
+
+    @model_validator(mode="after")
+    def _require_valid_cache_settings(self) -> "Settings":
+        if self.redis_url and not self.redis_url.startswith(REDIS_URL_SCHEMES):
+            raise ValueError("REDIS_URL must start with redis:// or rediss://")
+        if self.redis_timeout_seconds <= 0 or self.redis_max_connections < 1 or self.redis_failure_cooldown_seconds < 0:
+            raise ValueError(
+                "REDIS_TIMEOUT_SECONDS must be > 0, REDIS_MAX_CONNECTIONS >= 1 and REDIS_FAILURE_COOLDOWN_SECONDS >= 0"
+            )
+        ttls = (
+            self.cache_latest_snapshot_ttl_seconds,
+            self.cache_anomaly_status_ttl_seconds,
+            self.cache_devices_ttl_seconds,
+        )
+        if min(ttls) < 1:
+            raise ValueError("CACHE_*_TTL_SECONDS must be >= 1")
+        return self
 
     @model_validator(mode="after")
     def _require_ai_mode_settings(self) -> "Settings":
