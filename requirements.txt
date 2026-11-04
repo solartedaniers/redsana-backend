@@ -10,3 +10,4 @@ cryptography==50.0.2
 python-dotenv==1.2.3
 httpx2==2.13.0
 redsana-ai @ git+https://github.com/solartedaniers/redsana-ai.git@v0.1.0
+redis==8.1.0
