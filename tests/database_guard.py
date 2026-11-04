@@ -16,6 +16,8 @@ TEST_AI_ENVIRONMENT = {
     "GROQ_API_KEY": "test-groq-key",
     "GROQ_API_URL": "https://groq.invalid/openai/v1/chat/completions",
 }
+# Caché apagada: ninguna prueba alcanza un Redis real; las de la caché usan fakeredis en su propio fixture.
+TEST_REDIS_URL = ""
 ABORT_RETURN_CODE = 3
 
 

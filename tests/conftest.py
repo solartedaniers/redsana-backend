@@ -5,6 +5,7 @@ import os
 from tests.database_guard import (
     TEST_AI_ENVIRONMENT,
     TEST_DATABASE_URL,
+    TEST_REDIS_URL,
     TEST_SUPABASE_SERVICE_ROLE_KEY,
     TEST_SUPABASE_URL,
     abort_unless_test_database,
@@ -15,6 +16,7 @@ os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["SUPABASE_URL"] = TEST_SUPABASE_URL
 os.environ["SUPABASE_SERVICE_ROLE_KEY"] = TEST_SUPABASE_SERVICE_ROLE_KEY
 os.environ.update(TEST_AI_ENVIRONMENT)
+os.environ["REDIS_URL"] = TEST_REDIS_URL
 
 from app.core.database import engine  # noqa: E402  (tiene que ir después de fijar el entorno)
 
