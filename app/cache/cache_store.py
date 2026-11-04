@@ -21,7 +21,7 @@ class CacheStore(ABC):
     def set(self, key: str, value: str, ttl_seconds: int) -> None: ...
 
     @abstractmethod
-    def increment(self, key: str) -> None: ...
+    def set_if_absent(self, key: str, value: str, ttl_seconds: int) -> None: ...
 
 
 class NullCacheStore(CacheStore):
@@ -33,7 +33,7 @@ class NullCacheStore(CacheStore):
     def set(self, key: str, value: str, ttl_seconds: int) -> None:
         return None
 
-    def increment(self, key: str) -> None:
+    def set_if_absent(self, key: str, value: str, ttl_seconds: int) -> None:
         return None
 
 
@@ -64,8 +64,8 @@ class RedisCacheStore(CacheStore):
     def set(self, key: str, value: str, ttl_seconds: int) -> None:
         self._run(lambda: self._client.set(key, value, ex=ttl_seconds), None)
 
-    def increment(self, key: str) -> None:
-        self._run(lambda: self._client.incr(key), None)
+    def set_if_absent(self, key: str, value: str, ttl_seconds: int) -> None:
+        self._run(lambda: self._client.set(key, value, ex=ttl_seconds, nx=True), None)
 
     def _run(self, command: Callable[[], T], fallback: T) -> T:
         if self._cooldown.is_cooling_down():

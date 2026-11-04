@@ -22,6 +22,7 @@ from app.repositories.network_metrics_sqlalchemy_repository import SqlAlchemyNet
 OWNER_USER_ID = uuid.uuid4()
 SNAPSHOT_PAYLOAD = {"latency_ms": 20, "jitter_ms": 2, "packet_loss_percent": 0}
 HOME_NETWORK_FINGERPRINT = "b" * 64
+GENERATION_TTL_SECONDS = 600
 SYNC_PAYLOAD = {"devices": [{"mac_address": "aa-aa-aa-aa-aa-01", "ip_address": "192.168.1.10"}]}
 
 
@@ -67,7 +68,7 @@ def setup(monkeypatch: pytest.MonkeyPatch):
 
     redis_server = fakeredis.FakeServer()
     redis_client = fakeredis.FakeRedis(server=redis_server, decode_responses=True)
-    cache = OwnerCache(RedisCacheStore(redis_client, FailureCooldown(0)), "test")
+    cache = OwnerCache(RedisCacheStore(redis_client, FailureCooldown(0)), "test", GENERATION_TTL_SECONDS)
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_claims] = lambda: {"sub": str(OWNER_USER_ID), "email": "owner@example.com"}
     app.dependency_overrides[get_owner_cache] = lambda: cache
@@ -85,7 +86,7 @@ def test_latest_answers_the_same_json_with_and_without_the_cache(setup: _App) ->
 
     cold = [setup.client.get(path).json() for path in paths]
     cached = [setup.client.get(path).json() for path in paths]
-    setup.use_cache(OwnerCache(NullCacheStore(), "test"))
+    setup.use_cache(OwnerCache(NullCacheStore(), "test", GENERATION_TTL_SECONDS))
     without_cache = [setup.client.get(path).json() for path in paths]
 
     assert cold == cached == without_cache

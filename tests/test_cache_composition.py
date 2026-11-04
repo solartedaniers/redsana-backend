@@ -44,3 +44,11 @@ def test_redis_url_must_use_a_redis_scheme(monkeypatch: pytest.MonkeyPatch) -> N
 
     with pytest.raises(ValidationError, match="REDIS_URL"):
         Settings()
+
+
+def test_the_generation_must_outlive_the_cached_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CACHE_DEVICES_TTL_SECONDS", "600")
+    monkeypatch.setenv("CACHE_GENERATION_TTL_SECONDS", "300")
+
+    with pytest.raises(ValidationError, match="CACHE_GENERATION_TTL_SECONDS"):
+        Settings()

@@ -28,4 +28,5 @@ def _build_cache_store() -> CacheStore:
 @lru_cache
 def get_owner_cache() -> OwnerCache:
     # Uno por proceso: comparte el pool de conexiones y el enfriamiento tras un fallo entre todas las peticiones.
-    return OwnerCache(_build_cache_store(), get_settings().cache_key_prefix)
+    settings = get_settings()
+    return OwnerCache(_build_cache_store(), settings.cache_key_prefix, settings.cache_generation_ttl_seconds)

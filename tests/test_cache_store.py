@@ -30,13 +30,15 @@ def test_set_stores_with_the_ttl_and_get_many_reads_in_order() -> None:
     assert 0 < fakeredis.FakeRedis(server=server).ttl("a") <= 60
 
 
-def test_increment_starts_a_missing_key_at_one() -> None:
-    store = _store(fakeredis.FakeServer())
+def test_set_if_absent_keeps_the_first_value_and_its_ttl() -> None:
+    server = fakeredis.FakeServer()
+    store = _store(server)
 
-    store.increment("generation")
-    store.increment("generation")
+    store.set_if_absent("generation", "first", ttl_seconds=60)
+    store.set_if_absent("generation", "second", ttl_seconds=60)
 
-    assert store.get_many(["generation"]) == ["2"]
+    assert store.get_many(["generation"]) == ["first"]
+    assert 0 < fakeredis.FakeRedis(server=server).ttl("generation") <= 60
 
 
 def test_a_failing_redis_answers_empty_instead_of_raising() -> None:
@@ -46,7 +48,7 @@ def test_a_failing_redis_answers_empty_instead_of_raising() -> None:
 
     assert store.get_many(["a", "b"]) == [None, None]
     store.set("a", "1", ttl_seconds=60)
-    store.increment("generation")
+    store.set_if_absent("generation", "1", ttl_seconds=60)
 
 
 def test_after_a_failure_redis_is_not_retried_until_the_cooldown_ends() -> None:
@@ -66,6 +68,6 @@ def test_after_a_failure_redis_is_not_retried_until_the_cooldown_ends() -> None:
 def test_the_null_store_is_always_a_miss() -> None:
     store = NullCacheStore()
     store.set("a", "1", ttl_seconds=60)
-    store.increment("generation")
+    store.set_if_absent("generation", "1", ttl_seconds=60)
 
     assert store.get_many(["a", "generation"]) == [None, None]

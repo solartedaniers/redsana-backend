@@ -131,6 +131,8 @@ class Settings(BaseSettings):
     cache_latest_snapshot_ttl_seconds: int = 60
     cache_anomaly_status_ttl_seconds: int = 60
     cache_devices_ttl_seconds: int = 120
+    # Vida de la generación de cada usuario; vencida, solo provoca fallos de caché. Mayor que los TTL de arriba.
+    cache_generation_ttl_seconds: int = 86400
 
     @model_validator(mode="after")
     def _require_valid_cache_settings(self) -> "Settings":
@@ -145,8 +147,8 @@ class Settings(BaseSettings):
             self.cache_anomaly_status_ttl_seconds,
             self.cache_devices_ttl_seconds,
         )
-        if min(ttls) < 1:
-            raise ValueError("CACHE_*_TTL_SECONDS must be >= 1")
+        if min(ttls) < 1 or self.cache_generation_ttl_seconds < max(ttls):
+            raise ValueError("CACHE_*_TTL_SECONDS must be >= 1 and CACHE_GENERATION_TTL_SECONDS >= the others")
         return self
 
     @model_validator(mode="after")

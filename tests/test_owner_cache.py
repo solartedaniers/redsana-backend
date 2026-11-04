@@ -9,6 +9,7 @@ from app.cache.cache_store import FailureCooldown, RedisCacheStore
 from app.cache.owner_cache import CacheEntry, OwnerCache
 
 TTL_SECONDS = 60
+GENERATION_TTL_SECONDS = 600
 OWNER_ID = uuid.uuid4()
 OTHER_OWNER_ID = uuid.uuid4()
 
@@ -32,7 +33,11 @@ class _Loader:
 
 def _cache(server: fakeredis.FakeServer | None = None) -> OwnerCache:
     client = fakeredis.FakeRedis(server=server or fakeredis.FakeServer(), decode_responses=True)
-    return OwnerCache(RedisCacheStore(client, FailureCooldown(0)), "test")
+    return OwnerCache(RedisCacheStore(client, FailureCooldown(0)), "test", GENERATION_TTL_SECONDS)
+
+
+def _generation_key(owner_id: uuid.UUID) -> str:
+    return f"test:owner:{owner_id}:generation"
 
 
 def test_a_hit_does_not_load_again() -> None:
@@ -94,7 +99,9 @@ def test_invalidating_one_owner_keeps_the_others_cached() -> None:
 def test_a_value_saved_with_another_schema_is_read_again() -> None:
     server = fakeredis.FakeServer()
     cache = _cache(server)
-    fakeredis.FakeRedis(server=server).set(f"test:owner:{OWNER_ID}:reading", '0:{"unexpected": true}')
+    cache.get_or_load(OWNER_ID, ENTRY, TTL_SECONDS, _Loader(None))
+    generation = fakeredis.FakeRedis(server=server, decode_responses=True).get(_generation_key(OWNER_ID))
+    fakeredis.FakeRedis(server=server).set(f"test:owner:{OWNER_ID}:reading", f'{generation}:{{"unexpected": true}}')
 
     assert cache.get_or_load(OWNER_ID, ENTRY, TTL_SECONDS, _Loader(3)) == _Reading(value=3)
 
@@ -110,3 +117,28 @@ def test_without_redis_every_read_loads_from_the_database() -> None:
     cache.get_or_load(OWNER_ID, ENTRY, TTL_SECONDS, loader)
 
     assert loader.calls == 2
+
+
+def test_a_lost_generation_never_serves_a_value_saved_before_it() -> None:
+    """Valkey puede perder la generación (reinicio o allkeys-lru) y quedarse con el valor: no debe volver a servirse."""
+    server = fakeredis.FakeServer()
+    cache = _cache(server)
+    cache.get_or_load(OWNER_ID, ENTRY, TTL_SECONDS, _Loader(1))
+    cache.invalidate(OWNER_ID)
+
+    fakeredis.FakeRedis(server=server).delete(_generation_key(OWNER_ID))
+    loader = _Loader(3)
+
+    assert cache.get_or_load(OWNER_ID, ENTRY, TTL_SECONDS, loader) == _Reading(value=3)
+    assert loader.calls == 1
+
+
+def test_the_generation_expires() -> None:
+    server = fakeredis.FakeServer()
+    cache = _cache(server)
+    cache.get_or_load(OWNER_ID, ENTRY, TTL_SECONDS, _Loader(1))
+    client = fakeredis.FakeRedis(server=server)
+
+    assert 0 < client.ttl(_generation_key(OWNER_ID)) <= GENERATION_TTL_SECONDS
+    cache.invalidate(OWNER_ID)
+    assert 0 < client.ttl(_generation_key(OWNER_ID)) <= GENERATION_TTL_SECONDS
