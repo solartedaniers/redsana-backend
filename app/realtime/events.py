@@ -9,10 +9,12 @@ EVENT_VERSION = 1
 MEASUREMENT_CREATED = "measurement.created"
 ALERT_CREATED = "alert.created"
 DEVICES_UPDATED = "devices.updated"
+# Sin dueño: el estado de la IA es uno solo y llega a todos los sockets.
+AI_STATUS_CHANGED = "ai.status.changed"
 # Interno, nunca llega a un cliente: el admin cambió el rol o el estado del usuario (o lo borró) y sus sockets deben
 # volver a autenticarse para que valga de inmediato.
 ACCESS_CHANGED = "access.changed"
-EventType = Literal["measurement.created", "alert.created", "devices.updated", "access.changed"]
+EventType = Literal["measurement.created", "alert.created", "devices.updated", "ai.status.changed", "access.changed"]
 
 
 class RealtimeEvent(BaseModel):
@@ -22,13 +24,14 @@ class RealtimeEvent(BaseModel):
 
     v: Literal[1] = EVENT_VERSION
     type: EventType
-    owner_id: uuid.UUID
+    # None: el evento es para todos los sockets.
+    owner_id: uuid.UUID | None
     data: dict[str, Any] = Field(default_factory=dict)
     at: datetime
     # server_id del worker que lo publicó: el que lo entrega lo deja en el log junto al suyo.
     origin: str | None = None
 
     @classmethod
-    def now(cls, type_: EventType, owner_id: uuid.UUID, data: BaseModel | None = None) -> "RealtimeEvent":
+    def now(cls, type_: EventType, owner_id: uuid.UUID | None, data: BaseModel | None = None) -> "RealtimeEvent":
         payload = data.model_dump(mode="json") if data is not None else {}
         return cls(type=type_, owner_id=owner_id, data=payload, at=datetime.now(UTC))
