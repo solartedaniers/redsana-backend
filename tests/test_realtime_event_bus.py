@@ -145,6 +145,30 @@ def test_without_redis_the_bus_is_unavailable_and_publishing_fails_inside_the_bu
     assert asyncio.run(scenario()) is False
 
 
+def test_with_redis_down_each_retry_waits_twice_as_long_up_to_the_cap(caplog: pytest.LogCaptureFixture) -> None:
+    async def scenario() -> None:
+        server = fakeredis.FakeServer()
+        server.connected = False
+        bus = RedisEventBus(
+            publish_client=fakeredis.aioredis.FakeRedis(server=server, decode_responses=True),
+            subscribe_client=fakeredis.aioredis.FakeRedis(server=server, decode_responses=True),
+            channel=CHANNEL,
+            retry_seconds=0.01,
+            health_check_seconds=FAST_SECONDS,
+            max_retry_seconds=0.04,
+        )
+        recorder = _Recorder()
+        await bus.start(recorder.on_event, recorder.on_unavailable)
+        await _until(lambda: len(caplog.records) >= 5)
+        await bus.stop()
+
+    with caplog.at_level("WARNING", logger="app.realtime.event_bus"):
+        asyncio.run(scenario())
+
+    waits = [record.getMessage().split("retrying in ")[1].split("s:")[0] for record in caplog.records[:5]]
+    assert waits == ["0.01", "0.02", "0.04", "0.04", "0.04"]
+
+
 def test_starting_the_hub_without_redis_schedules_no_background_work() -> None:
     """Sin sockets no puede haber tráfico programado: con el bus en memoria arrancar no crea ninguna tarea."""
 
