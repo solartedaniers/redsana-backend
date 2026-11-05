@@ -10,6 +10,9 @@ class UserRepository(ABC):
     def get_by_id(self, user_id: uuid.UUID) -> User | None: ...
 
     @abstractmethod
+    def get_by_email(self, email: str) -> User | None: ...
+
+    @abstractmethod
     def create(self, user_id: uuid.UUID, email: str, full_name: str | None, role_name: str) -> User: ...
 
     @abstractmethod

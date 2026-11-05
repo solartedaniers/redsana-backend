@@ -17,6 +17,9 @@ class FakeUserRepository(UserRepository):
     def get_by_id(self, user_id: uuid.UUID) -> User | None:
         return self.users.get(user_id)
 
+    def get_by_email(self, email: str) -> User | None:
+        return next((user for user in self.users.values() if user.email.lower() == email.lower()), None)
+
     def create(self, user_id: uuid.UUID, email: str, full_name: str | None, role_name: str) -> User:
         user = User(
             id=user_id,

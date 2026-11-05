@@ -1,7 +1,7 @@
 import uuid
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.role import Role
@@ -15,6 +15,10 @@ class SqlAlchemyUserRepository(UserRepository):
 
     def get_by_id(self, user_id: uuid.UUID) -> User | None:
         return self._db.get(User, user_id)
+
+    def get_by_email(self, email: str) -> User | None:
+        # Supabase guarda el correo en minúsculas; comparo igual para no depender de cómo se escribió.
+        return self._db.scalars(select(User).where(func.lower(User.email) == email.lower())).first()
 
     def list_all(self) -> list[User]:
         return list(self._db.scalars(select(User).order_by(User.created_at)).all())
