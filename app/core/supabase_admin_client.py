@@ -10,6 +10,14 @@ class SupabaseAdminError(Exception):
     pass
 
 
+class SupabaseEmailTakenError(SupabaseAdminError):
+    """Supabase rechazó la invitación porque el correo ya tiene cuenta."""
+
+
+# Códigos con los que Supabase Auth responde a un correo que ya tiene cuenta.
+EMAIL_TAKEN_ERROR_CODES = frozenset({"email_exists", "user_already_exists"})
+
+
 class SupabaseAdminClient:
     """Única clase que habla con la Admin API de Supabase Auth; necesita la service_role key, nunca la anon."""
 
@@ -49,6 +57,16 @@ class SupabaseAdminClient:
                 return json.loads(raw) if raw else {}
         except urllib.error.HTTPError as error:
             detail = error.read().decode("utf-8", errors="ignore")
+            if _error_code(detail) in EMAIL_TAKEN_ERROR_CODES:
+                raise SupabaseEmailTakenError("Supabase Admin API: email already registered") from error
             raise SupabaseAdminError(f"Supabase Admin API error {error.code}: {detail}") from error
         except (urllib.error.URLError, TimeoutError) as error:
             raise SupabaseAdminError(f"Supabase Admin API unreachable: {error}") from error
+
+
+def _error_code(detail: str) -> str | None:
+    try:
+        body = json.loads(detail)
+    except ValueError:
+        return None
+    return body.get("error_code") if isinstance(body, dict) else None
