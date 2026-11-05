@@ -154,7 +154,7 @@ Postgres sigue siendo la fuente de la verdad; la caché solo guarda copias de le
 
 ## Tiempo real (`/api/realtime/ws`)
 
-Un WebSocket por pestaña o app de escritorio recibe los eventos del usuario sin esperar al siguiente sondeo. Hoy lo abre la web; el instalador publicado (0.1.8) es anterior y sigue sondeando. El REST no cambia: si el socket no está, todo sigue funcionando como antes.
+Un WebSocket por pestaña o app de escritorio recibe los eventos del usuario sin esperar al siguiente sondeo. Lo abren la web y la app de escritorio (desde la 0.2.1). El REST no cambia: si el socket no está, todo sigue funcionando como antes.
 
 1. **Origin**: debe estar en `CORS_ORIGINS`; si no, se rechaza antes de aceptar. Uvicorn responde el handshake con HTTP 403, así que el navegador lo ve como cierre 1006.
 2. **Autenticación**: el primer mensaje es `{"type":"auth","token":"<JWT de Supabase>"}` (el token nunca va en la URL). Responde `{"type":"ready","server_id":"<id del worker>"}`. Se puede renovar el token mandando otro `auth` del mismo usuario; `{"type":"logout"}` cierra con 1000.
