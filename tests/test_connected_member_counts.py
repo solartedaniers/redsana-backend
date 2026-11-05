@@ -27,12 +27,12 @@ OWNER_ID = uuid.uuid4()
 CAMPUS_DEVICES = 1849
 SCAN_AT = datetime(2026, 11, 4, 12, 0, 0, 123456, tzinfo=UTC)
 ONE_MICROSECOND = timedelta(microseconds=1)
-# Justo dentro, justo en el borde y justo fuera de la tolerancia, más escaneos viejos.
+# Dos en el último escaneo (justo en el borde), uno justo fuera y escaneos anteriores.
 OFFSETS = (
     timedelta(0),
-    DEVICE_PRESENCE_TOLERANCE - ONE_MICROSECOND,
     DEVICE_PRESENCE_TOLERANCE,
     DEVICE_PRESENCE_TOLERANCE + ONE_MICROSECOND,
+    timedelta(seconds=30),
     timedelta(hours=1),
 )
 ROLES = (None, *DEVICE_ROLE_VALUES)
@@ -113,7 +113,7 @@ def test_the_border_of_the_tolerance_is_counted_like_before(session_factory) -> 
         counts = repository.count_connected_members_by_owners([OWNER_ID])
 
         assert counts == _old_counts(repository, [OWNER_ID])
-    assert counts[OWNER_ID].members == 3
+    assert counts[OWNER_ID].members == 2  # solo los dos del último escaneo
 
 
 @pytest.fixture()

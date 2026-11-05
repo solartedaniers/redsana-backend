@@ -89,14 +89,17 @@ def _sync(client: TestClient, macs: list[str], **extra) -> dict[str, bool]:
     return {device["mac_address"]: device["is_online"] for device in response.json()}
 
 
-def test_sync_without_the_manual_flag_keeps_the_presence_tolerance(setup) -> None:
+@pytest.mark.parametrize("extra", [{}, {"manual": False}, {"manual": True}])
+def test_every_sync_and_the_list_after_it_count_only_what_the_latest_scan_saw(setup, extra) -> None:
     client, _ = setup
     _sync(client, ["aa-aa-aa-aa-aa-01", "aa-aa-aa-aa-aa-02"])
 
-    # Lo que envía el instalador 0.1.5 y el escaneo al entrar: el que faltó hace segundos sigue en línea.
-    online = _sync(client, ["aa-aa-aa-aa-aa-01"])
+    # Sin la marca (instaladores 0.1.5 y 0.1.8) vale la misma regla: el que faltó hace segundos ya no está.
+    online = _sync(client, ["aa-aa-aa-aa-aa-01"], **extra)
 
-    assert online == {"aa-aa-aa-aa-aa-01": True, "aa-aa-aa-aa-aa-02": True}
+    assert online == {"aa-aa-aa-aa-aa-01": True, "aa-aa-aa-aa-aa-02": False}
+    # Volver a abrir la pantalla no lo trae de vuelta.
+    assert {device["mac_address"]: device["is_online"] for device in _devices(client).values()} == online
 
 
 def test_manual_sync_marks_offline_what_did_not_answer_this_scan(setup) -> None:

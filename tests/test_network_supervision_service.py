@@ -1,6 +1,7 @@
 """Sin base ni red: solo hogares estándar, el puntaje aproximado y que el del cuestionario tenga prioridad."""
 
 import uuid
+from datetime import UTC, datetime
 
 from app.services.network_security_score_service import default_network_security_score_service
 from app.schemas.security_assessment import SecurityAssessmentCreate
@@ -47,8 +48,10 @@ def test_security_score_combines_device_trust_alerts_and_network_status() -> Non
     owner = user_repository.create(uuid.uuid4(), "owner@redsana.dev", "Owner", "standard")
 
     device_repository = FakeDeviceRepository()
-    device_repository.create(owner.id, "trusted-1", "AA:AA", "1.1.1.1", "trusted")
-    device_repository.create(owner.id, "blocked-1", "BB:BB", "1.1.1.2", "blocked")
+    # Los dos los vio el mismo escaneo: guardan la misma hora, como en un sync real.
+    scanned_at = datetime.now(UTC)
+    device_repository.create(owner.id, "trusted-1", "AA:AA", "1.1.1.1", "trusted", last_seen=scanned_at)
+    device_repository.create(owner.id, "blocked-1", "BB:BB", "1.1.1.2", "blocked", last_seen=scanned_at)
 
     alert_repository = FakeAlertRepository()
     alert_repository.create(owner.id, "outage", "critical", "a", None, None)

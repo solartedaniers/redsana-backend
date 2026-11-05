@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from app.domain.device_presence import MANUAL_SCAN_PRESENCE_TOLERANCE, is_device_online, latest_seen_among
+from app.domain.device_presence import is_device_online, latest_seen_among
 from app.models.device import Device
 
 
@@ -45,19 +45,18 @@ def test_no_scan_ever_run_means_offline() -> None:
     assert is_device_online(device, latest_seen_among([])) is False
 
 
-def test_manual_scan_drops_a_device_seen_seconds_before() -> None:
+def test_a_device_seen_seconds_before_the_latest_scan_is_offline() -> None:
     now = datetime.now(timezone.utc)
     seconds_ago = _device(now - timedelta(seconds=5))
     latest_seen = latest_seen_among([seconds_ago, _device(now)])
 
-    # El escaneo automático lo tolera; el manual exige que haya respondido en este escaneo.
-    assert is_device_online(seconds_ago, latest_seen) is True
-    assert is_device_online(seconds_ago, latest_seen, MANUAL_SCAN_PRESENCE_TOLERANCE) is False
+    # Lo que cuenta es haber respondido en el último escaneo, aunque otro lo haya visto hace segundos.
+    assert is_device_online(seconds_ago, latest_seen) is False
 
 
 if __name__ == "__main__":
     test_device_touched_by_the_latest_scan_is_online()
     test_device_missing_from_the_latest_scan_is_offline()
     test_no_scan_ever_run_means_offline()
-    test_manual_scan_drops_a_device_seen_seconds_before()
+    test_a_device_seen_seconds_before_the_latest_scan_is_offline()
     print("OK")
