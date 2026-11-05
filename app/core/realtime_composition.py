@@ -28,6 +28,8 @@ def _build_event_bus(settings: Settings) -> EventBus:
         socket_timeout=settings.redis_timeout_seconds,
         socket_connect_timeout=settings.redis_timeout_seconds,
         decode_responses=True,
+        # Sin CLIENT SETINFO al conectar: son dos comandos por conexión que Upstash cobraría sin aportar nada.
+        driver_info=None,
     )
     # La suscripción espera mensajes sin límite de lectura; el PING periódico detecta si la conexión murió.
     subscribe_client = redis_async.Redis.from_url(
@@ -36,6 +38,7 @@ def _build_event_bus(settings: Settings) -> EventBus:
         socket_keepalive=True,
         health_check_interval=settings.realtime_bus_health_check_seconds,
         decode_responses=True,
+        driver_info=None,
     )
     logger.info(
         "redis connections per worker: up to %d (cache %d, publish %d, subscribe 1)",

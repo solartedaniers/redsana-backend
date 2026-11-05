@@ -1,5 +1,6 @@
 """Upstash exige TLS (rediss://): la caché, la publicación y la suscripción usan conexiones TLS que verifican el
-certificado y el nombre del servidor. Solo se construyen los clientes; ninguna prueba se conecta."""
+certificado y el nombre del servidor, y no mandan CLIENT SETINFO al conectar (Upstash cobra cada comando). Solo se
+construyen los clientes; ninguna prueba se conecta."""
 
 import ssl
 
@@ -29,6 +30,7 @@ def test_the_cache_uses_tls_and_verifies_the_certificate(tls_settings) -> None:
     assert pool.connection_class is redis.connection.SSLConnection
     connection = pool.make_connection()
     assert (connection.cert_reqs, connection.check_hostname) == (ssl.CERT_REQUIRED, True)
+    assert connection.driver_info is None
     assert pool.max_connections == tls_settings.redis_max_connections
 
 
@@ -38,6 +40,8 @@ def test_publishing_and_subscribing_use_tls_and_verify_the_certificate(tls_setti
     for client in (bus._publish_client, bus._subscribe_client):
         pool = client.connection_pool
         assert pool.connection_class is redis_async.connection.SSLConnection
-        context = pool.make_connection().ssl_context
+        connection = pool.make_connection()
+        context = connection.ssl_context
+        assert connection.driver_info is None
         assert (context.cert_reqs, context.check_hostname) == (ssl.CERT_REQUIRED, True)
     assert bus._publish_client.connection_pool.max_connections == tls_settings.realtime_redis_max_connections

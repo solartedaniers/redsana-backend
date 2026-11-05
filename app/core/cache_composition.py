@@ -23,6 +23,8 @@ def get_cache_store() -> CacheStore:
         socket_timeout=settings.redis_timeout_seconds,
         socket_connect_timeout=settings.redis_timeout_seconds,
         decode_responses=True,
+        # Sin CLIENT SETINFO al conectar: son dos comandos por conexión que Upstash cobraría sin aportar nada.
+        driver_info=None,
     )
     return RedisCacheStore(redis.Redis(connection_pool=pool), FailureCooldown(settings.redis_failure_cooldown_seconds))
 
