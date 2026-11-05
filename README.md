@@ -135,7 +135,7 @@ Todas las variables están documentadas en `.env.example`.
 
 ## Caché en Redis (`REDIS_URL`)
 
-Postgres sigue siendo la fuente de la verdad; la caché solo guarda copias de lectura con vencimiento. En producción vive en Upstash Redis (plan gratuito, en Oregon si está disponible), con TLS: la URL es `rediss://` (con doble s), y la librería `redis` verifica el certificado y el nombre del servidor. Upstash cobra cada comando contra un cupo de 500 mil al mes, PING y AUTH incluidos. Por eso las conexiones no mandan `CLIENT SETINFO` al abrirse. **Sin Redis la API sigue funcionando**: sin `REDIS_URL`, o con Redis caído o sin cupo, todo se lee de Postgres y el tiempo real queda en polling. Las pruebas usan `fakeredis`.
+Postgres sigue siendo la fuente de la verdad; la caché solo guarda copias de lectura con vencimiento. En producción vive en Upstash Redis (plan gratuito, en Oregon: AWS us-west-2), con TLS: la URL es `rediss://` (con doble s), y la librería `redis` verifica el certificado y el nombre del servidor. Upstash cobra cada comando contra un cupo de 500 mil al mes, PING y AUTH incluidos. Por eso las conexiones no mandan `CLIENT SETINFO` al abrirse. **Sin Redis la API sigue funcionando**: sin `REDIS_URL`, o con Redis caído o sin cupo, todo se lee de Postgres y el tiempo real queda en polling. Las pruebas usan `fakeredis`.
 
 | Endpoint | Qué se guarda | Vence (variable) | Se invalida con |
 |---|---|---|---|
