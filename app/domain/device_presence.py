@@ -7,12 +7,9 @@ from app.models.device import Device
 NON_MEMBER_ROLES = frozenset({"gateway", "this_device"})
 TRUSTED_DEVICE_TRUST_VALUE = "trusted"
 
-# Los escaneos son manuales, así que el tiempo transcurrido no dice nada: lo que cuenta es haber quedado
-# fuera de la última sincronización.
-DEVICE_PRESENCE_TOLERANCE = timedelta(seconds=30)
-# El botón "Escanear en busca de intrusos" confirma cada equipo en el momento: lo que no respondió ya no está,
-# aunque otro escaneo lo haya visto hace segundos.
-MANUAL_SCAN_PRESENCE_TOLERANCE = timedelta(0)
+# Conectado es lo que vio el último escaneo: todos los equipos de un sync guardan la misma hora, y lo que no
+# respondió ya no está, aunque otro escaneo lo haya visto hace segundos. La lista, el diagnóstico y el admin usan esto.
+DEVICE_PRESENCE_TOLERANCE = timedelta(0)
 
 
 def latest_seen_among(devices: list[Device]) -> datetime | None:

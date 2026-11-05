@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -13,12 +13,7 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.realtime_composition import get_event_publisher
 from app.core.security import get_current_claims, owner_id_from_claims
-from app.domain.device_presence import (
-    DEVICE_PRESENCE_TOLERANCE,
-    MANUAL_SCAN_PRESENCE_TOLERANCE,
-    is_device_online,
-    latest_seen_among,
-)
+from app.domain.device_presence import is_device_online, latest_seen_among
 from app.models.device import Device
 from app.realtime.events import DEVICES_UPDATED, RealtimeEvent
 from app.realtime.publisher import EventPublisher
@@ -34,9 +29,7 @@ router = APIRouter(prefix="/api/devices", tags=["devices"], dependencies=[Depend
 DEVICES_CACHE = CacheEntry("devices", TypeAdapter(list[DeviceRead]))
 
 
-def _to_device_read(
-    device: Device, latest_seen: datetime | None, tolerance: timedelta = DEVICE_PRESENCE_TOLERANCE
-) -> DeviceRead:
+def _to_device_read(device: Device, latest_seen: datetime | None) -> DeviceRead:
     return DeviceRead(
         id=device.id,
         name=device.name,
@@ -45,7 +38,7 @@ def _to_device_read(
         trust=device.trust,
         first_seen=device.first_seen,
         last_seen=device.last_seen,
-        is_online=is_device_online(device, latest_seen, tolerance),
+        is_online=is_device_online(device, latest_seen),
         network_role=device.network_role,
     )
 
@@ -130,5 +123,4 @@ def sync_devices(
     # El router orquesta: el servicio de dispositivos no sabe nada de alertas.
     untrusted_alerts.alert_for_scan(owner_id, devices)
     latest_seen = latest_seen_among(devices)
-    tolerance = MANUAL_SCAN_PRESENCE_TOLERANCE if payload.manual else DEVICE_PRESENCE_TOLERANCE
-    return [_to_device_read(device, latest_seen, tolerance) for device in devices]
+    return [_to_device_read(device, latest_seen) for device in devices]
