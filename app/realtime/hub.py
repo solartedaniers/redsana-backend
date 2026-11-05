@@ -1,6 +1,8 @@
 import asyncio
+import contextlib
 import logging
 import uuid
+from collections.abc import AsyncIterator
 
 from app.realtime.connections import CloseCode, ConnectionRegistry
 from app.realtime.event_bus import EventBus
@@ -33,6 +35,15 @@ class RealtimeHub:
     @property
     def is_available(self) -> bool:
         return self._bus.is_available
+
+    @contextlib.asynccontextmanager
+    async def listening(self) -> AsyncIterator[bool]:
+        """Mientras dure un socket, este worker escucha el bus; da False si no está disponible (Redis caído)."""
+        available = await self._bus.acquire()
+        try:
+            yield available
+        finally:
+            self._bus.release()
 
     async def start(self) -> None:
         await self._bus.start(on_event=self._route, on_unavailable=self._close_all)

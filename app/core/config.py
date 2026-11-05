@@ -151,6 +151,10 @@ class Settings(BaseSettings):
     realtime_bus_retry_seconds: float = 5.0
     # Tope de esa espera, que se duplica en cada intento fallido: Redis caído no genera un intento cada pocos segundos.
     realtime_bus_max_retry_seconds: float = 300.0
+    # La suscripción solo existe mientras haya sockets: un socket nuevo espera esto a que quede lista (si no, 1013), y
+    # sin sockets se mantiene este tiempo por si alguien reconecta enseguida. Sin nadie conectado no gasta comandos.
+    realtime_bus_subscribe_timeout_seconds: float = 3.0
+    realtime_bus_idle_seconds: float = 60.0
     # Cada cuánto la suscripción comprueba con un PING (saliente, hacia Redis) que la conexión sigue viva.
     realtime_bus_health_check_seconds: int = 30
     # Límite de conexiones del Key Value y workers de uvicorn: el arranque falla si no alcanzan para todos.
@@ -170,6 +174,8 @@ class Settings(BaseSettings):
             self.realtime_send_timeout_seconds,
             self.realtime_bus_retry_seconds,
             self.realtime_bus_max_retry_seconds,
+            self.realtime_bus_subscribe_timeout_seconds,
+            self.realtime_bus_idle_seconds,
         )
         counts = (
             self.realtime_max_connections_per_user,

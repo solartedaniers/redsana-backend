@@ -49,6 +49,8 @@ def _build_event_bus(settings: Settings) -> EventBus:
         channel=settings.realtime_channel,
         retry_seconds=settings.realtime_bus_retry_seconds,
         max_retry_seconds=settings.realtime_bus_max_retry_seconds,
+        subscribe_timeout_seconds=settings.realtime_bus_subscribe_timeout_seconds,
+        idle_seconds=settings.realtime_bus_idle_seconds,
         health_check_seconds=settings.realtime_bus_health_check_seconds,
     )
 

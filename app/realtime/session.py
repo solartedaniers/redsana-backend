@@ -51,9 +51,13 @@ class RealtimeSession:
             await self._websocket.close(code=CloseCode.POLICY_VIOLATION)
             return
         await self._websocket.accept()
-        if not self._hub.is_available:
-            await self._connection.close(CloseCode.TRY_AGAIN_LATER)
-            return
+        async with self._hub.listening() as available:
+            if not available:
+                await self._connection.close(CloseCode.TRY_AGAIN_LATER)
+                return
+            await self._run_authenticated()
+
+    async def _run_authenticated(self) -> None:
         identity = await self._authenticate_first_message()
         if identity is None:
             return

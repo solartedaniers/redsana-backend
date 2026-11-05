@@ -3,6 +3,7 @@ vuelve a suscribir; publicar desde un endpoint nunca lanza ni bloquea."""
 
 import asyncio
 import threading
+import time
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
@@ -34,6 +35,8 @@ def _redis_bus(server: fakeredis.FakeServer) -> RedisEventBus:
         channel=CHANNEL,
         retry_seconds=FAST_SECONDS,
         health_check_seconds=FAST_SECONDS,
+        subscribe_timeout_seconds=FAST_SECONDS,
+        idle_seconds=FAST_SECONDS,
     )
 
 
@@ -77,6 +80,8 @@ def test_pub_sub_delivers_an_event_to_every_worker_including_the_publisher() -> 
         recorder_a, recorder_b = _Recorder(), _Recorder()
         await worker_a.start(recorder_a.on_event, recorder_a.on_unavailable)
         await worker_b.start(recorder_b.on_event, recorder_b.on_unavailable)
+        await worker_a.acquire()
+        await worker_b.acquire()
         await _until(lambda: worker_a.is_available and worker_b.is_available)
         await worker_a.publish(event)
         await _until(lambda: recorder_a.events and recorder_b.events)
@@ -96,6 +101,7 @@ def test_a_malformed_message_is_ignored_and_the_subscription_keeps_working() -> 
         server = fakeredis.FakeServer()
         bus, recorder = _redis_bus(server), _Recorder()
         await bus.start(recorder.on_event, recorder.on_unavailable)
+        await bus.acquire()
         await _until(lambda: bus.is_available)
         await fakeredis.aioredis.FakeRedis(server=server).publish(CHANNEL, '{"v": 2}')
         await bus.publish(event)
@@ -111,6 +117,7 @@ def test_losing_redis_notifies_once_and_the_subscription_comes_back() -> None:
         server = fakeredis.FakeServer()
         bus, recorder = _redis_bus(server), _Recorder()
         await bus.start(recorder.on_event, recorder.on_unavailable)
+        await bus.acquire()
         await _until(lambda: bus.is_available)
         server.connected = False
         await _until(lambda: not bus.is_available)
@@ -135,6 +142,7 @@ def test_without_redis_the_bus_is_unavailable_and_publishing_fails_inside_the_bu
         server.connected = False
         bus, recorder = _redis_bus(server), _Recorder()
         await bus.start(recorder.on_event, recorder.on_unavailable)
+        await bus.acquire()
         await asyncio.sleep(FAST_SECONDS * 3)
         with pytest.raises(RedisError):
             await bus.publish(_event())
@@ -156,9 +164,11 @@ def test_with_redis_down_each_retry_waits_twice_as_long_up_to_the_cap(caplog: py
             retry_seconds=0.01,
             health_check_seconds=FAST_SECONDS,
             max_retry_seconds=0.04,
+            subscribe_timeout_seconds=FAST_SECONDS,
         )
         recorder = _Recorder()
         await bus.start(recorder.on_event, recorder.on_unavailable)
+        await bus.acquire()
         await _until(lambda: len(caplog.records) >= 5)
         await bus.stop()
 
@@ -253,12 +263,15 @@ def test_with_two_workers_the_log_says_which_one_published_and_which_one_deliver
     """El worker A publica (desde un hilo, como un endpoint) y el B, que tiene el socket del dueño, lo entrega."""
     server = fakeredis.FakeServer()
     registry_a, registry_b = ConnectionRegistry(5), ConnectionRegistry(5)
-    hub_a = RealtimeHub(_redis_bus(server), registry_a, BatchedFanOut(registry_a, 10, 1), 1, server_id="worker-a")
-    hub_b = RealtimeHub(_redis_bus(server), registry_b, BatchedFanOut(registry_b, 10, 1), 1, server_id="worker-b")
+    bus_a, bus_b = _redis_bus(server), _redis_bus(server)
+    hub_a = RealtimeHub(bus_a, registry_a, BatchedFanOut(registry_a, 10, 1), 1, server_id="worker-a")
+    hub_b = RealtimeHub(bus_b, registry_b, BatchedFanOut(registry_b, 10, 1), 1, server_id="worker-b")
     event, socket = _event(), _SocketStub()
     registry_b.register(socket, event.owner_id, is_admin=False)
     for hub in (hub_a, hub_b):
         loop_thread.run(hub.start())
+    for bus in (bus_a, bus_b):
+        loop_thread.run(bus.acquire())
     loop_thread.run(_until(lambda: hub_a.is_available and hub_b.is_available))
 
     with caplog.at_level("INFO", logger="app.realtime.hub"):
@@ -276,3 +289,79 @@ def test_with_two_workers_the_log_says_which_one_published_and_which_one_deliver
 
 def _deliveries(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [record.getMessage() for record in caplog.records if " published by " in record.getMessage()]
+
+
+async def _subscribers(server: fakeredis.FakeServer) -> int:
+    client = fakeredis.aioredis.FakeRedis(server=server, decode_responses=True)
+    counts = await client.pubsub_numsub(CHANNEL)
+    await client.aclose()
+    return counts[0][1]
+
+
+def test_without_sockets_the_bus_does_not_subscribe_and_stops_after_the_last_one_leaves() -> None:
+    """Sin nadie conectado no hay SUBSCRIBE ni PING periódicos: ningún comando de Redis gastado."""
+
+    async def scenario() -> list[int]:
+        server = fakeredis.FakeServer()
+        bus, recorder = _redis_bus(server), _Recorder()
+        await bus.start(recorder.on_event, recorder.on_unavailable)
+        await asyncio.sleep(FAST_SECONDS * 2)
+        baseline_tasks = len(asyncio.all_tasks())
+        counts = [await _subscribers(server)]
+        assert await bus.acquire() is True
+        assert await bus.acquire() is True
+        counts.append(await _subscribers(server))
+        bus.release()
+        await asyncio.sleep(FAST_SECONDS * 2)
+        counts.append(await _subscribers(server))
+        bus.release()
+        await _until(lambda: not bus.is_available)
+        await asyncio.sleep(FAST_SECONDS)
+        # Sin la tarea que escucha no queda conexión suscrita ni PING (fakeredis no limpia al cerrar; Redis sí).
+        counts.append(len(asyncio.all_tasks()) - baseline_tasks)
+        await bus.stop()
+        return counts
+
+    assert asyncio.run(scenario()) == [0, 1, 1, 0]
+
+
+def test_reconnecting_before_the_idle_time_keeps_the_same_subscription() -> None:
+    async def scenario() -> tuple[bool, bool]:
+        server = fakeredis.FakeServer()
+        bus, recorder = _redis_bus(server), _Recorder()
+        await bus.start(recorder.on_event, recorder.on_unavailable)
+        await bus.acquire()
+        bus.release()
+        reacquired = await bus.acquire()
+        await asyncio.sleep(FAST_SECONDS * 3)
+        still_available = bus.is_available
+        await bus.stop()
+        return reacquired, still_available
+
+    assert asyncio.run(scenario()) == (True, True)
+
+
+def test_with_redis_down_a_socket_gets_false_quickly_and_retries_stop_once_nobody_is_connected(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    async def scenario() -> tuple[bool, float, int, int]:
+        server = fakeredis.FakeServer()
+        server.connected = False
+        bus, recorder = _redis_bus(server), _Recorder()
+        await bus.start(recorder.on_event, recorder.on_unavailable)
+        started = time.perf_counter()
+        acquired = await bus.acquire()
+        waited = time.perf_counter() - started
+        bus.release()
+        await asyncio.sleep(FAST_SECONDS * 3)
+        retries_after_idle = len(caplog.records)
+        await asyncio.sleep(FAST_SECONDS * 6)
+        await bus.stop()
+        return acquired, waited, retries_after_idle, len(caplog.records)
+
+    with caplog.at_level("WARNING", logger="app.realtime.event_bus"):
+        acquired, waited, retries_after_idle, retries_at_the_end = asyncio.run(scenario())
+
+    assert acquired is False
+    assert waited < FAST_SECONDS * 4
+    assert retries_at_the_end == retries_after_idle
