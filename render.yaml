@@ -40,6 +40,17 @@ services:
       # Solo hace falta con AI_MODE=local; se conserva para poder volver a ese modo desde el panel.
       - key: GROQ_API_KEY
         sync: false
-      # URL interna del Key Value (Valkey 8, caché). Sin ella la caché queda apagada y todo se lee de Postgres.
+      # Upstash Redis (gratuito, Oregon, TLS): rediss://default:<password>@<host>.upstash.io:6379. Sin ella, o con
+      # Redis caído, la API sigue funcionando: la caché se apaga, todo se lee de Postgres y el tiempo real es local.
       - key: REDIS_URL
         sync: false
+      # Valores para Upstash: el handshake TLS necesita más que 0,25 s; pocas conexiones (cada una nueva cuesta un
+      # AUTH en el cupo de 500 mil comandos al mes) y un PING de la suscripción por minuto en vez de cada 30 s.
+      - key: REDIS_TIMEOUT_SECONDS
+        value: "0.5"
+      - key: REDIS_MAX_CONNECTIONS
+        value: "5"
+      - key: REALTIME_REDIS_MAX_CONNECTIONS
+        value: "2"
+      - key: REALTIME_BUS_HEALTH_CHECK_SECONDS
+        value: "60"

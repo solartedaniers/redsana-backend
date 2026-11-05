@@ -1,4 +1,4 @@
-"""El arranque falla si los workers pedirían más conexiones de las que admite el Key Value (50 en el plan gratuito)."""
+"""El arranque falla si los workers pedirían más conexiones de el tope REDIS_CONNECTION_LIMIT (50)."""
 
 import pytest
 from pydantic import ValidationError

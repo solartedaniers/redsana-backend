@@ -133,7 +133,7 @@ Todas las variables están documentadas en `.env.example`.
 
 ## Caché en Redis (`REDIS_URL`)
 
-Postgres sigue siendo la fuente de la verdad; la caché solo guarda copias de lectura con vencimiento. En producción vive en Render Key Value, que en las instancias nuevas corre Valkey 8, un fork de Redis compatible con sus clientes: el backend lo usa con la librería `redis` y URLs `redis://`. Las pruebas usan `fakeredis`.
+Postgres sigue siendo la fuente de la verdad; la caché solo guarda copias de lectura con vencimiento. En producción vive en Upstash Redis (plan gratuito, en Oregon si está disponible), con TLS: la URL es `rediss://` (con doble s), y la librería `redis` verifica el certificado y el nombre del servidor. Upstash cobra cada comando contra un cupo de 500 mil al mes, PING y AUTH incluidos. Por eso las conexiones no mandan `CLIENT SETINFO` al abrirse. **Sin Redis la API sigue funcionando**: sin `REDIS_URL`, o con Redis caído o sin cupo, todo se lee de Postgres y el tiempo real queda en polling. Las pruebas usan `fakeredis`.
 
 | Endpoint | Qué se guarda | Vence (variable) | Se invalida con |
 |---|---|---|---|
@@ -142,12 +142,13 @@ Postgres sigue siendo la fuente de la verdad; la caché solo guarda copias de le
 | `GET /api/devices` | La lista de dispositivos | `CACHE_DEVICES_TTL_SECONDS` (120) | Lo mismo |
 
 - **Cache-aside por usuario con generación**: cada valor guarda la generación del dueño vigente cuando se leyó de Postgres, y cada escritura (después del commit) la reemplaza por otra. Así una escritura invalida de una vez todo lo de ese usuario, y una lectura que estaba en curso mientras se escribía no puede dejar en la caché el dato viejo.
-- **La generación es aleatoria y vence** (`CACHE_GENERATION_TTL_SECONDS`, 24 h): el Key Value gratuito no persiste y se puede reiniciar, y con `allkeys-lru` puede expulsar claves. Si se pierde la generación, el siguiente acceso crea una nueva que ningún valor anterior comparte, así que eso solo produce fallos de caché, nunca un dato viejo.
+- **La generación es aleatoria y vence** (`CACHE_GENERATION_TTL_SECONDS`, 24 h): Redis puede reiniciarse o expulsar claves. Si se pierde la generación, el siguiente acceso crea una nueva que ningún valor anterior comparte, así que eso solo produce fallos de caché, nunca un dato viejo.
 - **Sin Redis la app funciona igual**: sin `REDIS_URL` la caché está apagada (`NullCacheStore`). Si Redis falla o tarda más de `REDIS_TIMEOUT_SECONDS`, esa petición lee de Postgres y durante `REDIS_FAILURE_COOLDOWN_SECONDS` no se lo vuelve a intentar.
 - **Límite conocido**: si Redis falla justo al invalidar, el dato viejo puede servirse hasta que venza (como mucho el TTL de arriba).
 - No se cachean el usuario ni su rol (un rol cambiado o una cuenta suspendida deben valer de inmediato), el historial ni los umbrales (salen de la configuración, sin consultar la base).
-- `REDIS_MAX_CONNECTIONS` es el tope por worker: el plan gratuito de Key Value admite 50 conexiones en total.
-- Las pruebas nunca usan un Valkey o Redis real: `tests/conftest.py` deja `REDIS_URL` vacío y las de la caché usan `fakeredis`.
+- `REDIS_MAX_CONNECTIONS` es el tope por worker. Cada conexión nueva cuesta un AUTH, así que conviene pocas (5 en Render).
+- **Comandos de la caché**: un acierto cuesta 1 `MGET`; un fallo, `MGET` + `SET`; invalidar, 1 `SET`.
+- Las pruebas nunca usan un Redis real: `tests/conftest.py` deja `REDIS_URL` vacío y las de la caché usan `fakeredis`.
 
 ## Tiempo real (`/api/realtime/ws`)
 
@@ -172,11 +173,12 @@ Un WebSocket por pestaña o app de escritorio recibe los eventos del usuario sin
 - **Bus**: sin `REDIS_URL`, en memoria (un worker). Con `REDIS_URL`, Pub/Sub de Redis en `REALTIME_CHANNEL` como *backplane*: lo que publica un worker lo reciben todos, y cada uno entrega a sus propios sockets.
 - **Fan-out por lotes**: cada worker envía en lotes de `REALTIME_FANOUT_BATCH_SIZE` con `asyncio.gather` y cede el event loop entre lotes (`await asyncio.sleep(0)`), así un evento para muchos sockets no frena al resto de peticiones. Cada envío tiene un tope de `REALTIME_SEND_TIMEOUT_SECONDS`: un cliente lento o roto se cierra con 1013 sin demorar a los demás.
 - **Publicar nunca rompe una escritura**: se publica sin esperar desde el endpoint; si Redis falla, la medición, la alerta o el escaneo se guardan y responden igual.
-- **Sin tráfico programado**: el servidor solo manda pings (`REALTIME_PING_INTERVAL_SECONDS`) a sockets abiertos. Sin usuarios conectados no hay nada que mantenga despierto el servicio en Render. Con `REDIS_URL`, la suscripción comprueba cada `REALTIME_BUS_HEALTH_CHECK_SECONDS` que sigue viva con un PING saliente al Key Value. Es tráfico de salida, que no evita que Render apague el servicio por inactividad.
+- **Sin tráfico programado**: el servidor solo manda pings (`REALTIME_PING_INTERVAL_SECONDS`) a sockets abiertos. Sin usuarios conectados no hay nada que mantenga despierto el servicio en Render. Con `REDIS_URL`, la suscripción comprueba cada `REALTIME_BUS_HEALTH_CHECK_SECONDS` que sigue viva con un PING saliente a Redis. Es tráfico de salida, que no evita que Render apague el servicio por inactividad.
+- **Suscripción solo con sockets abiertos**: el worker se suscribe al canal cuando llega su primer socket. Ese socket espera hasta `REALTIME_BUS_SUBSCRIBE_TIMEOUT_SECONDS`; si no se logra, recibe 1013. El worker se desuscribe `REALTIME_BUS_IDLE_SECONDS` después de que se cierra el último. Sin nadie conectado no se gasta ningún comando (ni SUBSCRIBE ni PING). Si Redis cae, cada reintento espera el doble que el anterior, desde `REALTIME_BUS_RETRY_SECONDS` hasta `REALTIME_BUS_MAX_RETRY_SECONDS`, sin bucles rápidos.
 - **Consumo de la base**: abrir o renovar un socket lee el usuario y su rol (2 consultas de una fila). Entregar un evento no consulta la base, y publicar usa los datos que el endpoint ya guardó.
 - **Estado de la IA en Redis**: con `REDIS_URL` el último estado (`<CACHE_KEY_PREFIX>:ai-status`) lo comparten los workers: si uno ya consultó o está calentando la IA, los demás lo leen sin volver a preguntar al servicio. `ready` dura `AI_SERVICE_STATUS_CACHE_SECONDS`; `warming_up` y `unavailable`, lo que dura un calentamiento. Sin Redis cada worker usa su copia en memoria. No toca Postgres.
 - **Logs**: al arrancar, cada worker registra su `server_id`, pid, pico de memoria y `WEB_CONCURRENCY`. Cada evento deja `<tipo> published by <A>, delivered by <B> to <n> sockets` en cada worker que lo recibe.
-- **Conexiones de Redis por worker**: caché `REDIS_MAX_CONNECTIONS` (10) + publicación `REALTIME_REDIS_MAX_CONNECTIONS` (2) + 1 suscripción = 13. El arranque falla si eso por `WEB_CONCURRENCY` supera `REDIS_CONNECTION_LIMIT` (50 en el plan gratuito).
+- **Conexiones de Redis por worker**: caché `REDIS_MAX_CONNECTIONS` + publicación `REALTIME_REDIS_MAX_CONNECTIONS` + 1 suscripción (en Render 5 + 2 + 1 = 8). El arranque falla si eso por `WEB_CONCURRENCY` supera `REDIS_CONNECTION_LIMIT` (50, tope propio).
 
 ## Nombres de rutas
 

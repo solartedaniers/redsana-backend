@@ -120,7 +120,7 @@ def test_without_redis_every_read_loads_from_the_database() -> None:
 
 
 def test_a_lost_generation_never_serves_a_value_saved_before_it() -> None:
-    """Valkey puede perder la generación (reinicio o allkeys-lru) y quedarse con el valor: no debe volver a servirse."""
+    """Redis puede perder la generación (reinicio o allkeys-lru) y quedarse con el valor: no debe volver a servirse."""
     server = fakeredis.FakeServer()
     cache = _cache(server)
     cache.get_or_load(OWNER_ID, ENTRY, TTL_SECONDS, _Loader(1))

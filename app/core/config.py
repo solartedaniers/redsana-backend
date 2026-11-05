@@ -122,7 +122,7 @@ class Settings(BaseSettings):
     redis_url: str = ""
     # Corto a propósito: una caché lenta no debe sumar más latencia que la consulta que ahorra.
     redis_timeout_seconds: float = 0.25
-    # Tope del pool por worker: el plan gratuito de Render Key Value admite 50 conexiones en total.
+    # Tope del pool por worker. Con Upstash cada conexión nueva cuesta un AUTH en el cupo de comandos.
     redis_max_connections: int = 10
     # Tras un fallo de Redis no se lo vuelve a intentar durante este tiempo: se lee directo de Postgres.
     redis_failure_cooldown_seconds: float = 30.0
@@ -134,7 +134,7 @@ class Settings(BaseSettings):
     # Vida de la generación de cada usuario; vencida, solo provoca fallos de caché. Mayor que los TTL de arriba.
     cache_generation_ttl_seconds: int = 86400
 
-    # Tiempo real (WebSocket). El canal Pub/Sub lo comparten todos los workers que usan el mismo Key Value.
+    # Tiempo real (WebSocket). El canal Pub/Sub lo comparten todos los workers que usan el mismo Redis.
     realtime_channel: str = "redsana:events"
     # Sin el mensaje {"type": "auth"} en este plazo, el socket se cierra con 4408.
     realtime_auth_timeout_seconds: float = 10.0
@@ -157,7 +157,7 @@ class Settings(BaseSettings):
     realtime_bus_idle_seconds: float = 60.0
     # Cada cuánto la suscripción comprueba con un PING (saliente, hacia Redis) que la conexión sigue viva.
     realtime_bus_health_check_seconds: int = 30
-    # Límite de conexiones del Key Value y workers de uvicorn: el arranque falla si no alcanzan para todos.
+    # Tope propio de conexiones a Redis y workers de uvicorn: el arranque falla si no alcanzan para todos.
     redis_connection_limit: int = 50
     web_concurrency: int = 1
 
