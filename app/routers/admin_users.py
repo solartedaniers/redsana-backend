@@ -15,9 +15,12 @@ from app.realtime.events import ACCESS_CHANGED, RealtimeEvent
 from app.realtime.publisher import EventPublisher
 from app.repositories.user_sqlalchemy_repository import SqlAlchemyUserRepository
 from app.schemas.admin import AdminUserCreate, AdminUserRead, AdminUserUpdate
-from app.services.admin_user_service import AdminLockoutError, AdminUserService, UserNotFoundError
+from app.services.admin_user_service import AdminLockoutError, AdminUserService, EmailTakenError, UserNotFoundError
 
 router = APIRouter(prefix="/api/admin/users", tags=["admin"])
+
+# 422 y no 409: el frontend 0.2.1 ya trata cualquier 409 como el bloqueo del admin.
+EMAIL_TAKEN_DETAIL = "email_taken"
 
 
 def _to_user_read(user: User) -> AdminUserRead:
@@ -49,7 +52,10 @@ def create_user(
     _admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> AdminUserRead:
-    return _to_user_read(_build_service(db).create_user(payload))
+    try:
+        return _to_user_read(_build_service(db).create_user(payload))
+    except EmailTakenError as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=EMAIL_TAKEN_DETAIL) from error
 
 
 @router.patch("/{user_id}", response_model=AdminUserRead)

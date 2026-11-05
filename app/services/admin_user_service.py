@@ -1,7 +1,7 @@
 import uuid
 
 from app.core.authorization import ADMIN_ROLE_NAME
-from app.core.supabase_admin_client import SupabaseAdminClient
+from app.core.supabase_admin_client import SupabaseAdminClient, SupabaseEmailTakenError
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.schemas.admin import AdminUserCreate, AdminUserUpdate
@@ -9,6 +9,10 @@ from app.schemas.admin import AdminUserCreate, AdminUserUpdate
 
 class UserNotFoundError(Exception):
     pass
+
+
+class EmailTakenError(Exception):
+    """El correo ya pertenece a otra cuenta."""
 
 
 class AdminLockoutError(Exception):
@@ -24,8 +28,14 @@ class AdminUserService:
         return self._user_repository.list_all()
 
     def create_user(self, payload: AdminUserCreate) -> User:
+        # Si ya está en la base no invito: Supabase reenviaría la invitación y la fila local chocaría con el correo.
+        if self._user_repository.get_by_email(payload.email) is not None:
+            raise EmailTakenError("Email already registered")
         # El id lo asigna Supabase al crear la identidad; recién entonces puedo crear la fila local con ese id.
-        user_id = self._supabase_admin_client.invite_user(payload.email, payload.full_name)
+        try:
+            user_id = self._supabase_admin_client.invite_user(payload.email, payload.full_name)
+        except SupabaseEmailTakenError as error:
+            raise EmailTakenError("Email already registered") from error
         return self._user_repository.create(
             user_id=user_id,
             email=payload.email,
