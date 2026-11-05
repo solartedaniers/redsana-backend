@@ -1,6 +1,8 @@
 # 🐍 RedSana API (backend)
 
-API REST de RedSana con FastAPI. Autentica con los JWT de Supabase, guarda mediciones, dispositivos, evaluaciones, alertas y conversaciones en Postgres (SQLAlchemy + Alembic) y orquesta la IA del paquete `redsana-ai`: el asistente de seguridad y la detección de anomalías y cortes.
+API REST de RedSana con FastAPI. Autentica con los JWT de Supabase, guarda mediciones, dispositivos, evaluaciones, alertas y conversaciones en Postgres (SQLAlchemy + Alembic) y orquesta la IA del paquete `redsana-ai`: el asistente de seguridad y la detección de anomalías y cortes. Usa Upstash Redis como caché y como canal Pub/Sub del tiempo real (WebSocket); sin Redis la API sigue funcionando con Postgres.
+
+El diagrama de arquitectura (frontend web, escritorio, este backend, IA, Upstash Redis y Supabase) y el recorrido de una medición de principio a fin están en el [README del frontend](https://github.com/solartedaniers/redsana-frontend#️-arquitectura-y-despliegue).
 
 ## 🔗 Repositorios del proyecto
 
@@ -101,7 +103,7 @@ Si el cliente no puede enviar una medición, la guarda y la reenvía después co
 El escritorio (desde 0.1.6) manda también `gateway_latency_ms`, la latencia al router (opcional; la web y el instalador 0.1.5 no la mandan). `GET /api/network-metrics/latest` agrega, con esa medición:
 
 - `diagnosis`: `router` si la latencia al router llega a `NETWORK_GATEWAY_LATENCY_BAD_MS` (100 ms; problema del WiFi o del router); `provider` si el router responde bien pero el estado de internet es `warning` o `critical`; `ok` si todo está bien; `router_unreachable` si internet está caído (100 % de pérdida) y el router no respondió, pero sí respondió al ping en alguna medición del escritorio de los últimos `NETWORK_GATEWAY_RECENT_REPLY_MINUTES` (60) minutos, contados desde la hora de esa medición (también apunta al WiFi o al router); `null` en cualquier otro caso sin dato del router, incluido un router que nunca responde al ping (puede tenerlo bloqueado), las mediciones de la web y las del instalador 0.1.5.
-- `possible_busy_device`: `true` si la latencia al router llega a ese umbral y hay al menos `NETWORK_BUSY_DEVICE_MIN_COUNT` (8) dispositivos conectados en el último escaneo (el mismo conteo de la pantalla Dispositivos). Es solo una posibilidad, nunca un hecho.
+- `possible_busy_device`: `true` si la latencia al router llega a ese umbral y hay al menos `NETWORK_BUSY_DEVICE_MIN_COUNT` (8) dispositivos conectados en el último escaneo (el mismo conteo de la pantalla Dispositivos). Es solo una posibilidad, nunca un hecho. El conteo depende de qué equipos respondieron al escaneo y de si la red deja ver a los demás, así que puede quedar por debajo de lo real.
 
 `GET /api/network-metrics/thresholds` publica además, como campos opcionales, `gateway_latency_bad_ms` y `gateway_recent_reply_minutes`: el escritorio los guarda y, cuando no llega al servidor (internet caído), diagnostica con su última medición usando la misma regla. Las dos copias de la regla se prueban contra la misma tabla de casos (`tests/fixtures/network_diagnosis_cases.json`, idéntica en el frontend; las dos pruebas comprueban su huella SHA-256 y, con `FRONTEND_I18N_DIR` definida, se comparan directamente).
 
@@ -152,7 +154,7 @@ Postgres sigue siendo la fuente de la verdad; la caché solo guarda copias de le
 
 ## Tiempo real (`/api/realtime/ws`)
 
-Un WebSocket por pestaña o app de escritorio recibe los eventos del usuario sin esperar al siguiente sondeo. El REST no cambia: si el socket no está, todo sigue funcionando como antes.
+Un WebSocket por pestaña o app de escritorio recibe los eventos del usuario sin esperar al siguiente sondeo. Hoy lo abre la web; el instalador publicado (0.1.8) es anterior y sigue sondeando. El REST no cambia: si el socket no está, todo sigue funcionando como antes.
 
 1. **Origin**: debe estar en `CORS_ORIGINS`; si no, se rechaza antes de aceptar. Uvicorn responde el handshake con HTTP 403, así que el navegador lo ve como cierre 1006.
 2. **Autenticación**: el primer mensaje es `{"type":"auth","token":"<JWT de Supabase>"}` (el token nunca va en la URL). Responde `{"type":"ready","server_id":"<id del worker>"}`. Se puede renovar el token mandando otro `auth` del mismo usuario; `{"type":"logout"}` cierra con 1000.
